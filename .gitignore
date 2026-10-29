@@ -42,6 +42,8 @@ packages/*/NOTICE
 
 # temporary git worktrees of agents
 .claude/worktrees/
+# local launch configurations of the desktop app
+.claude/launch.json
 
 # local only: internal design docs and agent instructions
 /docs/
