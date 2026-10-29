@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import { publicTypesOf } from './testing/public-types';
+
 /**
  * The files whose exported signatures are the package's public type surface: the facade, the
  * options, the renderer and the layer and popover types.
@@ -79,6 +81,35 @@ describe('@ganttlane/dom public types', () => {
     ]) {
       expect(reexported.has(name), name).toBe(true);
     }
+  });
+
+  it('FR-API-1: every type a public declaration of the package names, however deep, can be imported from @ganttlane/dom (ADR-026)', () => {
+    // The walk starts at what the entry declares (`Gantt`, `GanttOptions`, the layer and popover
+    // types, `createGantt`, …) and follows every type name in the declarations it reaches into
+    // the core: the results of `addLink` and `undo`, the payloads of the events, the pieces of an
+    // option. The import check above sees only the names a file writes itself.
+    const { named, exported, unexported } = publicTypesOf(`${import.meta.dirname}/..`);
+
+    // The walk reaches the nested names, also those that the compiler would flatten away
+    // (`CommitResult` is a member of the union `UpdateTaskResult`).
+    expect([...named.keys()]).toEqual(
+      expect.arrayContaining([
+        'core:LinkCreateResult',
+        'core:LinkDeleteResult',
+        'core:CommitResult',
+        'core:HistoryResult',
+        'core:BeforeTaskChangeHook',
+        'core:Awaitable',
+        'dom:GanttOptions',
+      ]),
+    );
+    const missing = [...named]
+      .map(([key, chain]) => ({ name: key.slice(key.indexOf(':') + 1), chain }))
+      .filter(({ name }) => !exported.has(name))
+      .map(({ name, chain }) => `${name} (${chain})`);
+    expect(missing.sort()).toEqual([]);
+    // And no public declaration names a type that its own package does not export at all.
+    expect([...unexported].map(([key, chain]) => `${key} (${chain})`)).toEqual([]);
   });
 
   it('FR-API-1: only types are re-exported from core, no value (the entry stays free of core code)', () => {

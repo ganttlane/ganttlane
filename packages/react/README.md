@@ -48,10 +48,11 @@ pnpm add @ganttlane/react react react-dom
 - `@ganttlane/react` depends on [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md) and
   [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md), so this one install is enough. **Strict pnpm** lets you
   import only what your own `package.json` lists, so this package re-exports what a React
-  application meets: `patchTasks`, and the types of the data you give and the events you get
-  (`Task`, `Link`, `TaskRecord`, `ChangeSet`, `SessionChanges`, `Issue`, `ViewMode`,
-  `TaskTooltipContext`, `LinkMenuContext`, `BarLabelContext`, `GanttStringsInput`, …). For anything
-  deeper (the work calendar's types, the building blocks) add `@ganttlane/core`, on the same version.
+  application meets: `patchTasks`, and every type that the props and the `ref` handle name, however
+  deep (`Task`, `Link`, `TaskRecord`, `ChangeSet`, `Change`, `Conflict`, `SessionChanges`, `Issue`,
+  `IssuesPayload`, `EditRefusedPayload`, `UpdateTaskResult`, `LinkType`, `SnapRule`, `ViewMode`,
+  `TaskTooltipContext`, `LinkMenuContext`, `BarLabelContext`, `GanttStringsInput`, …), types only.
+  For the building blocks (`createGanttCore` and the like) add `@ganttlane/core`, on the same version.
 - **The stylesheet is a separate import**, once per page: `@ganttlane/react/styles.css`. It is a copy of
   [`@ganttlane/dom/styles.css`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#theme) that the build of this package makes, byte for
   byte, so that an app that installed only `@ganttlane/react` can import it (under strict pnpm the
@@ -416,8 +417,8 @@ The main entry starts with `'use client'`, since everything in it is a component
 server component (or a server action, a route handler) that imports `patchTasks` from it does not
 get the function but a reference to a client module, which it cannot call. `@ganttlane/react/core`
 has no directive and nothing of React in it: it exports `patchTasks` and the types of the data you
-give and the events you get (`Task`, `ChangeSet`, `SessionChanges`, `TaskRecord`, `Link`, …), the
-same ones the main entry exports.
+give, the events you get and the results of the handle's methods (`Task`, `ChangeSet`,
+`SessionChanges`, `TaskRecord`, `Link`, `UpdateTaskResult`, …), the same ones the main entry exports.
 
 ```ts
 // In a module that server code and client code share, or in a server action.

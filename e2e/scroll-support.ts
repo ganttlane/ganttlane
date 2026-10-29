@@ -352,6 +352,8 @@ export interface PageLayout {
   readonly scrollerScrollLeft: number;
   readonly scrollerScrollTop: number;
   readonly header: Box;
+  /** The body (the SVG of the rows): the header's labels are over the bars when both start at the same x. */
+  readonly body: Box;
   /** The header pin and its scroll offset, `undefined` while the header is in the scroller. */
   readonly pin: Box | undefined;
   readonly pinScrollLeft: number | undefined;
@@ -373,6 +375,7 @@ export async function pageLayout(page: Page): Promise<PageLayout> {
     };
     const scroller = find('#chart .gantt__scroller');
     const header = find('#chart .gantt__header');
+    const body = find('#chart .gantt__body');
     const pin = document.querySelector<HTMLElement>('#chart .gantt__pin');
     const parent = header.parentElement;
     const doc = document.documentElement;
@@ -387,6 +390,7 @@ export async function pageLayout(page: Page): Promise<PageLayout> {
       scrollerScrollLeft: scroller.scrollLeft,
       scrollerScrollTop: scroller.scrollTop,
       header: box(header),
+      body: box(body),
       pin: pin ? box(pin) : undefined,
       pinScrollLeft: pin?.scrollLeft,
       headerIn: parent === pin ? 'pin' : parent === scroller ? 'scroller' : 'other',

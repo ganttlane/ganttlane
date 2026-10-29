@@ -144,7 +144,7 @@ const MONTH_AND_YEAR: Intl.DateTimeFormatOptions = { month: 'long', year: 'numer
 const DAY_AND_MONTH: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
 const DAY_AND_SHORT_MONTH: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
 const DAY_NUMBER: Intl.DateTimeFormatOptions = { day: 'numeric' };
-const HOUR_NUMBER: Intl.DateTimeFormatOptions = { hour: 'numeric' };
+const HOUR_24: Intl.DateTimeFormatOptions = { hour: '2-digit', hourCycle: 'h23' };
 const MONTH_NAME: Intl.DateTimeFormatOptions = { month: 'long' };
 const YEAR_NUMBER: Intl.DateTimeFormatOptions = { year: 'numeric' };
 
@@ -167,6 +167,24 @@ function formatWeekRange(range: HeaderCellRange, locale: string, adapter: DateAd
   return `${format(range.start, DAY_AND_SHORT_MONTH)} – ${format(last, DAY_AND_SHORT_MONTH)}`;
 }
 
+/** What is not a decimal digit of any numbering system (`Nd`), to be cut from an hour label. */
+const NOT_DIGITS = /[^\p{Nd}]+/gu;
+
+/**
+ * Hour cell label of the hourly presets: the hour on the 24-hour clock as two digits, `"00"`,
+ * `"06"`, `"17"`. A 40 px column has room for about 27 px of text, which `"5 PM"` (35 px),
+ * `"17 Uhr"` (39 px) and `"오후 5시"` (48 px) overflow: they show `"5 …"`, and in `half-day` every
+ * cell reads `"12 …"`, noon and midnight alike. Two digits fit in every locale, and the digits
+ * themselves still follow the locale's numbering system. Formatted by the adapter with the
+ * locale's own 24-hour pattern, and what the pattern adds to the number (`"Uhr"`, `"時"`, `"h"`)
+ * is cut; a label without a decimal digit (a numbering system such as `hanidec`) is kept as it is.
+ */
+function formatHour(range: HeaderCellRange, locale: string, adapter: DateAdapter): string {
+  const label = adapter.format(range.start, HOUR_24, locale);
+  const digits = label.replace(NOT_DIGITS, '');
+  return digits === '' ? label : digits;
+}
+
 /** Decade cell label: `"2020–2029"`. */
 function formatYearRange(range: HeaderCellRange, locale: string, adapter: DateAdapter): string {
   const first = adapter.format(range.start, YEAR_NUMBER, locale);
@@ -179,9 +197,9 @@ function formatYearRange(range: HeaderCellRange, locale: string, adapter: DateAd
  *
  * | id | column | pxPerDay | headers | majorLine | minorLine | snap | padding |
  * |---|---|---|---|---|---|---|---|
- * | `hour` | 1 h | 960 | day / hour | day | `15min` | `15min` | `7d` |
- * | `quarter-day` | 6 h | 160 | day / 6 h | day | `1h` | `1h` | `7d` |
- * | `half-day` | 12 h | 80 | day / 12 h | day | `1h` | `1h` | `14d` |
+ * | `hour` | 1 h | 960 | day / hour (`00`–`23`) | day | `15min` | `15min` | `7d` |
+ * | `quarter-day` | 6 h | 160 | day / 6 h (`00`, `06`, `12`, `18`) | day | `1h` | `1h` | `7d` |
+ * | `half-day` | 12 h | 80 | day / 12 h (`00`, `12`) | day | `1h` | `1h` | `14d` |
  * | `day` | 1 d | 40 | month / day | week | — | `1d` | `14d` |
  * | `week` | 1 w | 20 | month / week range | month | — | `1d` | `4w` |
  * | `month` | 1 mo | 4 | year / month | quarter | — | `1d` | `4mo` |
@@ -192,6 +210,12 @@ function formatYearRange(range: HeaderCellRange, locale: string, adapter: DateAd
  * minor lines, 2.5 px apart, never show). Snap defaults follow FR-SNAP-5 (raised to
  * `scheduling.granularity` when finer, FR-SNAP-14). Labels are English; override `label` to
  * translate them.
+ *
+ * The columns of the three hourly presets are all 40 px wide, so their hour row shows the hour as
+ * two digits of the 24-hour clock in every locale (`"17"`, never `"5 PM"` or `"17 Uhr"`, which do
+ * not fit). To show a locale's own clock, replace the row and give the columns the room it needs,
+ * e.g. `{ 'quarter-day': { pxPerDay: 280, headers: [{ unit: 'day', format: { day: 'numeric' } },
+ * { unit: 'hour', step: 6, format: { hour: 'numeric' } }] } }` (70 px per column).
  */
 export const VIEW_MODE_PRESETS: readonly ViewMode[] = /* @__PURE__ */ Object.freeze([
   /* @__PURE__ */ freezeViewMode({
@@ -201,7 +225,7 @@ export const VIEW_MODE_PRESETS: readonly ViewMode[] = /* @__PURE__ */ Object.fre
     pxPerDay: 960,
     headers: [
       { unit: 'day', format: DAY_AND_MONTH },
-      { unit: 'hour', format: HOUR_NUMBER },
+      { unit: 'hour', format: formatHour },
     ],
     majorLine: { unit: 'day' },
     minorLine: '15min',
@@ -216,7 +240,7 @@ export const VIEW_MODE_PRESETS: readonly ViewMode[] = /* @__PURE__ */ Object.fre
     pxPerDay: 160,
     headers: [
       { unit: 'day', format: DAY_AND_MONTH },
-      { unit: 'hour', step: 6, format: HOUR_NUMBER },
+      { unit: 'hour', step: 6, format: formatHour },
     ],
     majorLine: { unit: 'day' },
     minorLine: '1h',
@@ -231,7 +255,7 @@ export const VIEW_MODE_PRESETS: readonly ViewMode[] = /* @__PURE__ */ Object.fre
     pxPerDay: 80,
     headers: [
       { unit: 'day', format: DAY_AND_SHORT_MONTH },
-      { unit: 'hour', step: 12, format: HOUR_NUMBER },
+      { unit: 'hour', step: 12, format: formatHour },
     ],
     majorLine: { unit: 'day' },
     minorLine: '1h',

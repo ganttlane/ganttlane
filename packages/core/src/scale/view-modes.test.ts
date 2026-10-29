@@ -177,18 +177,101 @@ describe('scale/view-modes', () => {
     });
 
     it('FR-SCALE-4: hourly presets have a day row over an hour row', () => {
-      expect(preset('hour').headers).toEqual([
-        { unit: 'day', format: { day: 'numeric', month: 'long' } },
-        { unit: 'hour', format: { hour: 'numeric' } },
-      ]);
-      expect(preset('quarter-day').headers).toEqual([
-        { unit: 'day', format: { day: 'numeric', month: 'long' } },
-        { unit: 'hour', step: 6, format: { hour: 'numeric' } },
-      ]);
-      expect(preset('half-day').headers).toEqual([
-        { unit: 'day', format: { day: 'numeric', month: 'short' } },
-        { unit: 'hour', step: 12, format: { hour: 'numeric' } },
-      ]);
+      const hourly = [
+        ['hour', { day: 'numeric', month: 'long' }, undefined],
+        ['quarter-day', { day: 'numeric', month: 'long' }, 6],
+        ['half-day', { day: 'numeric', month: 'short' }, 12],
+      ] as const;
+      for (const [id, dayFormat, step] of hourly) {
+        const [day, hour, ...rest] = preset(id).headers;
+        expect(day, id).toEqual({ unit: 'day', format: dayFormat });
+        expect(hour, id).toMatchObject({ unit: 'hour' });
+        expect(hour?.step, id).toBe(step);
+        // A function, not `Intl` options: the options of a locale's own clock do not fit.
+        expect(typeof hour?.format, id).toBe('function');
+        expect(rest, id).toEqual([]);
+      }
+    });
+
+    it.each(['en', 'uk', 'de', 'ja', 'fr', 'ko', 'zh', 'ar', 'hi'])(
+      'FR-SCALE-4: the hour row of the hourly presets is the 24-hour clock in two digits in %s',
+      (locale) => {
+        // The columns are 40 px wide, which leaves about 27 px for a label: "5 PM", "17 Uhr" and
+        // "오후 5시" are wider (clipped to "5 …"), and in half-day "12 AM" and "12 PM" both read
+        // "12 …". Two digits fit, and noon differs from midnight.
+        const hour = formatter(preset('hour'), 1);
+        const digits = new Intl.NumberFormat(locale, {
+          minimumIntegerDigits: 2,
+          useGrouping: false,
+        });
+        const expected = (value: number): string => digits.format(value);
+
+        for (const value of [0, 1, 5, 9, 12, 17, 23]) {
+          const start = `2026-03-02T${String(value).padStart(2, '0')}:00`;
+          const end = `2026-03-02T${String(value).padStart(2, '0')}:59`;
+          expect(hour(range(start, end), locale), `${locale} ${value}`).toBe(expected(value));
+        }
+        const half = formatter(preset('half-day'), 1);
+        expect(half(range('2026-03-02T00:00', '2026-03-02T12:00'), locale)).toBe(expected(0));
+        expect(half(range('2026-03-02T12:00', '2026-03-03T00:00'), locale)).toBe(expected(12));
+        const quarter = formatter(preset('quarter-day'), 1);
+        expect(
+          ['00', '06', '12', '18'].map((h) =>
+            quarter(range(`2026-03-02T${h}:00`, `2026-03-02T${h}:59`), locale),
+          ),
+        ).toEqual([0, 6, 12, 18].map(expected));
+      },
+    );
+
+    it('FR-SCALE-4: the clock of the locale is one override away (the README shows it)', () => {
+      const { modes, issues } = resolveViewModes({
+        'quarter-day': {
+          pxPerDay: 280,
+          headers: [
+            { unit: 'day', format: { day: 'numeric', month: 'long' } },
+            { unit: 'hour', step: 6, format: { hour: 'numeric' } },
+          ],
+        },
+      });
+      expect(issues).toEqual([]);
+      const mode = modes.find((candidate) => candidate.id === 'quarter-day');
+      const format = mode?.headers[1]?.format;
+      expect(format).toEqual({ hour: 'numeric' });
+      expect(
+        createFloatingAdapter().format(at('2026-03-02T18:00'), { hour: 'numeric' }, 'en'),
+      ).toBe('6 PM');
+    });
+
+    it('FR-SCALE-4: an hour label keeps its text when the locale has no decimal digits to keep', () => {
+      // Han decimal digits are letters (`Lo`), not `Nd`: nothing is cut then, never an empty label.
+      const hour = formatter(preset('hour'), 1);
+      const label = hour(range('2026-03-02T17:00', '2026-03-02T17:59'), 'ja-u-nu-hanidec');
+      expect(label).not.toBe('');
+      expect(label).toBe(
+        createFloatingAdapter().format(
+          at('2026-03-02T17:00'),
+          { hour: '2-digit', hourCycle: 'h23' },
+          'ja-u-nu-hanidec',
+        ),
+      );
+    });
+
+    it('FR-SCALE-4: the hour row reads the date and formats through the given adapter', () => {
+      const base = createFloatingAdapter();
+      const calls: string[] = [];
+      const adapter: DateAdapter = {
+        ...base,
+        format: (t, options, locale) => {
+          calls.push(`format ${JSON.stringify(options)}`);
+          return `<${base.format(t, options, locale)}>`;
+        },
+      };
+      // Digits survive, the brackets of the adapter's own output do not: only the adapter knows
+      // what an hour looks like, and the label is made of what it returns.
+      expect(
+        formatter(preset('hour'), 1, adapter)(range('2026-03-02T17:00', '2026-03-02T17:59'), 'en'),
+      ).toBe('17');
+      expect(calls).toEqual(['format {"hour":"2-digit","hourCycle":"h23"}']);
     });
 
     it('FR-SCALE-4: day, week, month and year presets have two rows with their own units', () => {

@@ -52,9 +52,11 @@ pnpm add @ganttlane/dom
   draw a chart. ESM only, with TypeScript declarations; TypeScript must resolve package `exports`
   (`moduleResolution` of `bundler`, `node16` or `nodenext`).
 - **Strict pnpm** lets you import only what your own `package.json` lists. The **types** of the
-  core that you meet around a chart (`Task`, `Link`, `TaskRecord`, `ChangeSet`, `Issue`,
-  `GanttCore`, `GanttEventMap`, …) are re-exported by this package, types only, so
-  `import type { Task, ChangeSet } from '@ganttlane/dom'` works. **Runtime** values of the core are
+  core that a signature of this package names, however deep (`Task`, `Link`, `TaskRecord`,
+  `ChangeSet`, `Issue`, `GanttCore`, `GanttEventMap`, and the results of `updateTask`, `addLink`,
+  `removeLink` and `undo`, the payloads of the events, the option groups, the before-hooks, …)
+  are re-exported by this package, types only, so
+  `import type { Task, ChangeSet, LinkCreateResult } from '@ganttlane/dom'` works. **Runtime** values of the core are
   not: add `@ganttlane/core` (the same version) to import `patchTasks` (controlled data),
   `createGanttCore` (a core of your own for `mountRenderer`) or the building blocks.
 - **The stylesheet is a separate file**, `@ganttlane/dom/styles.css`. The JavaScript never imports
@@ -308,7 +310,8 @@ The option names are `onTasksChange`, `onTaskDatesChange`, `onTaskProgressChange
 Two before-hooks are options only. `onBeforeTaskChange({ changeSet, reason, conflicts })` runs before
 a change is committed (a drag, `updateTask`): return `false` to cancel it, a `ChangeSet` to
 replace it (it is re-validated and re-aligned), or nothing (or `true`) to let it pass; it may be
-async, for a confirmation. `onBeforeLinkCreate({ link, id, wouldCreateCycle })` returns `false` to
+async, for a confirmation (a function that returns `Promise<boolean | void>` is a hook).
+`onBeforeLinkCreate({ link, id, wouldCreateCycle })` returns `false` to
 refuse a link; a link that would close a cycle is refused whatever it answers. A hook that throws or
 rejects cancels the change and reports to `error`. Rolling back an edit session and stepping through
 the history never ask the hooks.
