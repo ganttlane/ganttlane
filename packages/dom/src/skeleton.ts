@@ -18,7 +18,7 @@ export function resolveTheme(theme: unknown): ThemeOption {
 }
 
 /**
- * The `height` option (`layout.height`, FR-SCROLL-3): a number of px, the chart is that tall and
+ * The `height` option (`layout.height`): a number of px, the chart is that tall and
  * scrolls inside itself; `'auto'`, the chart is as tall as its content and the page scrolls it.
  * Left out (`undefined`), the chart fills its container.
  */
@@ -51,7 +51,7 @@ export interface SkeletonOptions {
 
 /**
  * Size of the scrolled content, in CSS px: the scroller scrolls over a sticky header of
- * `headerHeight` followed by a body of `bodyHeight`, `width` wide (`docs/architecture.md` §8).
+ * `headerHeight` followed by a body of `bodyHeight`, `width` wide.
  */
 export interface ContentExtent {
   /** Width of header and body: the timeline range on the scale (`snapshot.contentWidth`). */
@@ -76,7 +76,7 @@ export interface Skeleton extends LayerSlots {
    */
   readonly pin: HTMLDivElement;
   /**
-   * Sets the chart's height (FR-SCROLL-3, {@link HeightOption}): a number is
+   * Sets the chart's height ({@link HeightOption}): a number is
    * `--gantt-height` on the root, `'auto'` is `data-height="auto"` and moves the header out of
    * the scroller into {@link Skeleton.pin}, so that it can stick to the page, which scrolls the
    * rows (a header inside a scroller that does not scroll vertically never sticks), and scrolls
@@ -92,19 +92,19 @@ export interface Skeleton extends LayerSlots {
    */
   setExtent(extent: Readonly<Partial<ContentExtent>>): void;
   /**
-   * Gives the scroller another accessible name (`strings.chartLabel`, FR-I18N-2); a no-op when
+   * Gives the scroller another accessible name (`strings.chartLabel`); a no-op when
    * it is the same.
    */
   setLabel(label: string): void;
   /**
-   * Sets `data-theme` on the root (FR-THEME-2, {@link resolveTheme}): the stylesheet does the
+   * Sets `data-theme` on the root ({@link resolveTheme}): the stylesheet does the
    * rest, so a switch costs no render. The same theme twice does nothing.
    */
   setTheme(theme: ThemeOption): void;
 }
 
 /**
- * Builds the DOM structure of `docs/architecture.md` §8 with DOM APIs (no HTML parsing), every
+ * Builds the DOM structure of the chart with DOM APIs (no HTML parsing), every
  * id carrying the instance prefix:
  *
  * ```
@@ -120,7 +120,7 @@ export interface Skeleton extends LayerSlots {
  * sticky `div.gantt__pin` in front of it (`div.gantt[data-height="auto"]`), the one other shape
  * of the tree.
  *
- * The toolbar (optional in §8) is not part of the skeleton.
+ * The toolbar, which is optional, is not part of the skeleton.
  *
  * @param document - Document that owns the nodes.
  * @param options - Id prefix and theme.
@@ -138,7 +138,7 @@ export function createSkeleton(document: Document, options: SkeletonOptions): Sk
   body.append(grid, links, bars, overlay);
   // A focusable, named region: keyboard users reach the chart and scroll it with the arrow keys
   // (Chromium and Firefox focus a scroller without focusable children by themselves, WebKit
-  // does not). Bars, links and handles get their own focus stops later (roving tabindex, P1).
+  // does not). Bars, links and handles get their own focus stops later (roving tabindex).
   const scroller = createHtml(
     document,
     'div',

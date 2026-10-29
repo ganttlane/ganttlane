@@ -1,5 +1,5 @@
 /**
- * Types of the state store (`docs/architecture.md` §3, §4, §10): its options, the immutable
+ * Types of the state store: its options, the immutable
  * state snapshot, the commands and the store itself.
  */
 
@@ -38,7 +38,7 @@ import type { Issue } from '../shared';
 import type { DurationInput, Granularity } from '../time';
 
 /**
- * Who owns the task data (FR-TX-3, FR-REACT-1):
+ * Who owns the task data:
  * - `'uncontrolled'` (default): the store applies committed change sets to its own `tasks`;
  * - `'controlled'`: the owner applies them and passes the new `tasks` back (`setTasks`); until
  *   then the committed change set stays visible as the draft (see {@link ApplyChangeSetCommand}).
@@ -51,13 +51,13 @@ export interface StoreDatesOptions {
   readonly endInclusive?: boolean | undefined;
 }
 
-/** `GanttOptions.scheduling` (`docs/api.md` §3) as far as the store uses it. */
+/** `GanttOptions.scheduling` as far as the store uses it. */
 export interface StoreSchedulingOptions {
   /** Default `Task.durationMode`; default `'calendar'`. */
   readonly durationMode?: DurationMode | undefined;
   /**
    * How edits spread along links; default `'preserve-lag'`. `'push-forward'` is planned
-   * (`docs/api.md` §3, FR-SCH-1) and resolved like the facade's fallback for it: the default,
+   * and resolved like the facade's fallback for it: the default,
    * `'preserve-lag'` (`settings.propagation.propagation` is `undefined`). The store reports
    * nothing; the facade reports it as `'unsupported-option'`.
    */
@@ -72,7 +72,11 @@ export interface StoreSchedulingOptions {
   readonly snap?: SnapInput | undefined;
   /** Whether day-precision tasks snap to whole days at least; default `true`. */
   readonly keepDayPrecision?: boolean | undefined;
-  /** Whether edited edges skip non-working days; default `{ move: true, resize: false }`. */
+  /**
+   * Whether edited edges skip non-working days; default
+   * `{ move: true, resize: false, progress: true }`. A given object is taken whole: a field it
+   * leaves out is back to its default.
+   */
   readonly skipNonWorkingDays?: SkipNonWorkingDays | undefined;
 }
 
@@ -85,10 +89,11 @@ export interface StoreHierarchyOptions {
 }
 
 /**
- * The options the store resolves: the data part of `GanttOptions` (`docs/api.md` §3), by domain
+ * The options the store resolves: the data part of `GanttOptions`, by domain
  * group. `setOptions` merges a partial object field by field within each group (`calendar`,
- * `dates`, `scheduling`, `hierarchy`); `dataMode` and `viewModes` are replaced whole. A field set
- * to `undefined` returns to its default.
+ * `dates`, `scheduling`, `hierarchy`); `dataMode` and `viewModes` are replaced whole, and so are
+ * the objects nested in a group (`scheduling.skipNonWorkingDays`, `scheduling.snap`) and lists. A
+ * field set to `undefined` returns to its default.
  */
 export interface StoreOptions {
   /** Who owns the task data; default `'uncontrolled'`. */
@@ -105,7 +110,7 @@ export interface StoreOptions {
   readonly viewModes?: ViewModesInput | undefined;
 }
 
-/** The expanded parents in the store: `'all'` or the ids of the expanded parents (FR-ROW-2). */
+/** The expanded parents in the store: `'all'` or the ids of the expanded parents. */
 export type StoreExpandedKeys = 'all' | readonly TaskId[];
 
 /**
@@ -122,9 +127,9 @@ export interface StoreSettings {
   /** The options of `buildHierarchy`. */
   readonly hierarchy: HierarchyOptions;
   /**
-   * The options of `propagate` (plan step 3.7): `scheduling.propagation`, `.skipNonWorkingDays`,
+   * The options of `propagate`: `scheduling.propagation`, `.skipNonWorkingDays`,
    * `.keepDayPrecision` and `hierarchy.moveChildren`, so that a programmatic change converts a
-   * day task like a drag does (FR-SNAP-7).
+   * day task like a drag does.
    */
   readonly propagation: PropagationOptions;
   /** The parsed `scheduling.granularity` (the default `'1d'` when invalid; the model reports it). */
@@ -146,7 +151,7 @@ export type StoreIssueCode = 'unknown-view-mode';
 export type StoreIssue = Issue<StoreIssueCode>;
 
 /**
- * What the store derives from its inputs (`docs/architecture.md` §4), each stage recomputed only
+ * What the store derives from its inputs, each stage recomputed only
  * when one of its inputs changed, as {@link StoreState} documents.
  *
  * @typeParam TData - Type of `task.data`.
@@ -182,7 +187,7 @@ export interface DraftLayer {
 }
 
 /**
- * What is shown over the committed data, in two layers (FR-EDIT-5, FR-TX-3). Renderers read a
+ * What is shown over the committed data, in two layers. Renderers read a
  * task's values with `selectTaskPatch`.
  *
  * - The **committed layer** (controlled data only): change sets committed with `applyChangeSet`
@@ -213,7 +218,7 @@ export interface Draft extends DraftLayer {
 }
 
 /**
- * Where an edit session started (FR-TX-4): the committed data to diff against and to roll back
+ * Where an edit session started: the committed data to diff against and to roll back
  * to, with what is derived from it. Deeply frozen.
  *
  * @typeParam TData - Type of `task.data`.
@@ -245,7 +250,7 @@ export interface EditSessionBase<TData = unknown> {
   readonly graph: LinkGraph;
 }
 
-/** Links added and removed by an edit session (FR-TX-4), compared by id. */
+/** Links added and removed by an edit session, compared by id. */
 export interface SessionLinkChanges {
   /**
    * Links now present that were not at the start, in model order: new ids, and ids whose source,
@@ -257,14 +262,14 @@ export interface SessionLinkChanges {
 }
 
 /**
- * The aggregated diff of an edit session (FR-TX-4): a `ChangeSet` with one change per task whose
+ * The aggregated diff of an edit session: a `ChangeSet` with one change per task whose
  * scheduled values differ between the start of the session and now, plus the links added and
  * removed. Deeply frozen.
  *
  * - `changes`: tasks with a bar at both ends, in model order; `before` is the value at the start,
  *   `after` the value now, `cause` is always `'direct'`. A task whose precision differs is listed
- *   too, also with the same dates, with `precision` on both sides (`TaskPatch.precision`,
- *   FR-SNAP-7), so that the inverse restores it; otherwise `precision` is left out. A task changed
+ *  too, also with the same dates, with `precision` on both sides (`TaskPatch.precision`), so that
+ *  the inverse restores it; otherwise `precision` is left out. A task changed
  *   and changed back is not listed. Tasks the owner added or removed with `setTasks` are not
  *   compared.
  * - `conflicts`: of the state `after` describes, involving a changed task or the ends of a changed
@@ -294,7 +299,7 @@ export interface IdDiff<Id> {
 }
 
 /**
- * What the last recomputation of the model changed (FR-DATA-7), so that renderers redraw only
+ * What the last recomputation of the model changed, so that renderers redraw only
  * that: task ids (`updated`: the same id with another input object, or, after an option change,
  * another kind, validity, precision, duration mode, progress, span — `end` and lengths included —
  * or other issues) and link ids. `version` grows by one with every
@@ -372,7 +377,7 @@ export interface StoreInit<TData = unknown> {
 }
 
 /**
- * Replaces the tasks (FR-DATA-7). Always clears the draft, both layers, also with the same array:
+ * Replaces the tasks. Always clears the draft, both layers, also with the same array:
  * for controlled data this is the owner's answer to the committed changes (applied or rejected).
  * An open edit session keeps its base: the new tasks are diffed against it.
  */
@@ -383,7 +388,7 @@ export interface SetTasksCommand<TData = unknown> {
   readonly tasks: readonly Task<TData>[];
 }
 
-/** Replaces the links (FR-DATA-7). The draft stays as it is. */
+/** Replaces the links. The draft stays as it is. */
 export interface SetLinksCommand {
   /** Discriminant. */
   readonly type: 'setLinks';
@@ -400,7 +405,7 @@ export interface SetOptionsCommand {
 }
 
 /**
- * The data owner's tasks, links and options in one step (FR-DATA-7, FR-API-2): what
+ * The data owner's tasks, links and options in one step: what
  * `setOptions`, `setTasks` and `setLinks` do one after another, derived once, so the model is
  * normalized once and `lastDataChange.version` grows by one (`createGanttCore.setOptions` with
  * data and data options together). `options` is merged like `setOptions`; `tasks` replaces the
@@ -420,7 +425,7 @@ export interface SetDataCommand<TData = unknown> {
   readonly options?: StoreOptions | undefined;
 }
 
-/** Switches the view mode (FR-SCALE-3). */
+/** Switches the view mode. */
 export interface SetViewModeCommand {
   /** Discriminant. */
   readonly type: 'setViewMode';
@@ -428,7 +433,7 @@ export interface SetViewModeCommand {
   readonly id: string;
 }
 
-/** Replaces the expanded state (controlled `expandedKeys`, FR-ROW-2). */
+/** Replaces the expanded state (controlled `expandedKeys`). */
 export interface SetExpandedKeysCommand {
   /** Discriminant. */
   readonly type: 'setExpandedKeys';
@@ -436,7 +441,7 @@ export interface SetExpandedKeysCommand {
   readonly keys: StoreExpandedKeys;
 }
 
-/** Expands or collapses one task (FR-ROW-2, `expand(id)` / `collapse(id)`). */
+/** Expands or collapses one task (`expand(id)` / `collapse(id)`). */
 export interface SetExpandedCommand {
   /** Discriminant. */
   readonly type: 'setExpanded';
@@ -446,7 +451,7 @@ export interface SetExpandedCommand {
   readonly expanded: boolean;
 }
 
-/** Flips one task's expanded state (FR-ROW-2, the row toggle). */
+/** Flips one task's expanded state (the row toggle). */
 export interface ToggleExpandedCommand {
   /** Discriminant. */
   readonly type: 'toggleExpanded';
@@ -454,20 +459,20 @@ export interface ToggleExpandedCommand {
   readonly id: TaskId;
 }
 
-/** Expands every current parent (FR-ROW-2, `expandAll()`); later parents start collapsed. */
+/** Expands every current parent (`expandAll()`); later parents start collapsed. */
 export interface ExpandAllCommand {
   /** Discriminant. */
   readonly type: 'expandAll';
 }
 
-/** Collapses every parent (FR-ROW-2, `collapseAll()`). */
+/** Collapses every parent (`collapseAll()`). */
 export interface CollapseAllCommand {
   /** Discriminant. */
   readonly type: 'collapseAll';
 }
 
 /**
- * Commits a change set (FR-TX-1, FR-TX-3), computed on the current model.
+ * Commits a change set, computed on the current model.
  * - uncontrolled: every changed task is replaced with `patchTask(task, change.after, model)` in
  *   its own representation; the draft is cleared;
  * - controlled: `tasks` stay as they are and the change set goes to the committed layer of the
@@ -486,7 +491,7 @@ export interface ApplyChangeSetCommand {
 }
 
 /**
- * Shows a change set over the committed data (FR-EDIT-5, the drag preview), or removes it with
+ * Shows a change set over the committed data (the drag preview), or removes it with
  * `undefined`: the preview layer of the draft. Committed data, the committed layer and derived
  * data stay as they are.
  */
@@ -498,7 +503,7 @@ export interface SetDraftCommand {
 }
 
 /**
- * Opens an edit session (FR-TX-4): the current data becomes its base (`StoreState.session`):
+ * Opens an edit session: the current data becomes its base (`StoreState.session`):
  * the tasks and links as given, and, for controlled data, the committed layer of the draft (what
  * the owner has not applied yet). A preview is not part of the base. With a session already open
  * nothing changes.
@@ -508,14 +513,14 @@ export interface BeginSessionCommand {
   readonly type: 'beginSession';
 }
 
-/** Closes the open edit session and keeps the data as it is (FR-TX-4). */
+/** Closes the open edit session and keeps the data as it is. */
 export interface CommitSessionCommand {
   /** Discriminant. */
   readonly type: 'commitSession';
 }
 
 /**
- * Closes the open edit session and returns to its base (FR-TX-4):
+ * Closes the open edit session and returns to its base:
  * - uncontrolled: `tasks` and `links` become the base arrays again (the very objects), the draft
  *   is cleared;
  * - controlled: the data stays the owner's; the committed layer of the draft becomes the base
@@ -529,7 +534,7 @@ export interface RollbackSessionCommand {
 }
 
 /**
- * A change of the store (Command pattern, `docs/architecture.md` §10): a serializable plain
+ * A change of the store (Command pattern): a serializable plain
  * object applied by `reduceStore`.
  *
  * @typeParam TData - Type of `task.data`.

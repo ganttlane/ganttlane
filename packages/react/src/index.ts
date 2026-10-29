@@ -28,6 +28,6 @@ export type {
 export { useGantt } from './use-gantt';
 export { useGanttState } from './use-gantt-state';
 
-// What controlled data needs (`docs/decisions.md` Q12), `patchTasks`, and the types of the data you
+// What controlled data needs, `patchTasks`, and the types of the data you
 // give and the events you get: the entry without the client directive, see `./core`.
 export * from './core';

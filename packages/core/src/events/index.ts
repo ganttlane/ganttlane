@@ -1,10 +1,9 @@
 /**
- * Events, before-hooks and transactions (FR-EVT-1 … FR-EVT-3, FR-TX-1 … FR-TX-6, FR-LINK-6,
- * `docs/architecture.md` §4, §10): a typed emitter with an `error` channel (Observer), the core
- * event map, before-hook chains (Chain of Responsibility), the change controller that runs them
- * between the synchronous store and the after-events, with option-style handlers that can be
+ * Events, before-hooks and transactions: a typed emitter with an `error` channel (Observer), the
+ * core event map, before-hook chains (Chain of Responsibility), the change controller that runs
+ * them between the synchronous store and the after-events, with option-style handlers that can be
  * swapped at any time, and on top of it the edit session and the change history. Sits above
- * `store` (§3.1).
+ * `store`.
  *
  * Other core modules import events only through this file.
  *

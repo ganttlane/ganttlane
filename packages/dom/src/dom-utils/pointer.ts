@@ -120,7 +120,7 @@ const modifiersOf = (event: MouseEvent | KeyboardEvent): InteractionModifiers =>
 
 /**
  * Turns a pointer event into the interaction machine's input in content coordinates
- * (`PointerInput`, `docs/architecture.md` §4): `x = (clientX - frame.left) / scaleX + scrollLeft`
+ * (`PointerInput`): `x = (clientX - frame.left) / scaleX + scrollLeft`
  * on the time scale, and `y = (clientY - frame.top) / scaleY + scrollTop - headerHeight` in body
  * pixels (the page's px are converted to the chart's first: they differ under a CSS scale). A
  * release outside the chart simply has coordinates outside it. A chart whose page scrolls it

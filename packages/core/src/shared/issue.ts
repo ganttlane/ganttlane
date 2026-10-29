@@ -6,7 +6,7 @@ export type IssueSeverity = 'error' | 'warning';
 
 /**
  * A problem found in caller input (data, durations, options). Core never throws for bad input:
- * it returns or collects `Issue`s instead (`docs/api.md` §4).
+ * it returns or collects `Issue`s instead.
  *
  * The set of codes is open: every core module declares its own string-literal union
  * (for example `TimeIssueCode` in `time/`) and returns `Issue<ThatUnion>`, so adding a code never

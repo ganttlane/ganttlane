@@ -5,26 +5,26 @@ import type { TimeIssueCode } from '../time';
 import type { TaskId } from './types';
 
 /**
- * Issue codes produced by `normalizeModel` (FR-DATA-4). Errors make the task invalid (a row
- * without a bar, FR-ROW-3) or drop the item; warnings report a value that was corrected.
+ * Issue codes produced by `normalizeModel`. Errors make the task invalid (a row
+ * without a bar) or drop the item; warnings report a value that was corrected.
  *
- * - `'invalid-shape'` (error): a field has the wrong type (FR-DATA-11). The task becomes invalid;
+ * - `'invalid-shape'` (error): a field has the wrong type. The task becomes invalid;
  *   a task without a usable `id`, and any malformed link, is dropped;
  * - `'duplicate-id'` (error): a task or link id is used again; the later item is dropped;
  * - `'invalid-date'`, `'unsupported-offset'` (error): from parsing `start` / `end`;
  * - `'invalid-duration'` (error): a malformed `duration` or `lag`, a negative or non-finite number
  *   of days, or a lag with months;
  * - `'invalid-granularity'` (error): the `granularity` option; the default `'1d'` is used;
- * - `'misaligned'`: a date, duration or lag is not a multiple of the granularity (FR-SNAP-13).
+ * - `'misaligned'`: a date, duration or lag is not a multiple of the granularity.
  *   Warning when it was aligned (`suggested` is the applied value), error with
  *   `alignInput: 'reject'` (the task is invalid, the link dropped);
- * - `'no-dates'` (warning): no dates at all, the task is a placeholder row (FR-DATA-3);
+ * - `'no-dates'` (warning): no dates at all, the task is a placeholder row;
  * - `'incomplete-dates'` (error): only `start`, only `end`, or a `duration` without `start`;
  * - `'end-before-start'` (error): `end` lies before `start`;
  * - `'too-long'` (error): longer than the `maxSpan` option (default 10 years);
  * - `'no-working-time'` (error): a working-time `duration` cannot be placed, the calendar has
  *   no working days ahead;
- * - `'progress-out-of-range'` (warning): `progress` outside `0` … `100`, clamped (FR-PROG-1).
+ * - `'progress-out-of-range'` (warning): `progress` outside `0` … `100`, clamped.
  */
 export type ModelIssueCode =
   | TimeIssueCode

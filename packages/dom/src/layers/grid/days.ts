@@ -67,7 +67,7 @@ export interface NonWorkingSection {
 
 /**
  * Creates the non-working days' section: one `rect.gantt__nonworking-day[data-day][data-reason]`
- * per non-working day of the time (FR-UI-2), keyed by day, in a group with
+ * per non-working day of the time, keyed by day, in a group with
  * `data-mode="fill|stripes"`. In stripes mode the rects are filled with a `pattern` of the
  * instance (`context.id('stripes')`, class `gantt__stripes`, hatch lines in `line` children
  * that the theme gives a `stroke`), created in a `defs` under the group.
@@ -219,7 +219,7 @@ export interface HighlightsSection {
 
 /**
  * Creates the highlights' section: one `rect.gantt__highlight[data-highlight][data-day]` per
- * highlighted day of the time (FR-UI-3), keyed by the highlight's place in the list, its id and
+ * highlighted day of the time, keyed by the highlight's place in the list, its id and
  * the day, so highlights that share an id each keep their days (and their own class and colour).
  * The days of a highlight come from its `dates`, its `range` and its `match` predicate; only
  * days inside the time are resolved, so a range of years costs the visible days only. The

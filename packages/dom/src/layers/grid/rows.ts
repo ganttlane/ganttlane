@@ -26,7 +26,7 @@ export interface RowsSection {
 /**
  * Creates the row backgrounds' section: `rect.gantt__row[data-row][data-task-id][data-stripe?]
  * [data-invalid?][data-placeholder?]` per row of the window, keyed by task id, with the task's
- * `rowClassName` added to the class (FR-ROW-3, FR-ROW-4).
+ * `rowClassName` added to the class.
  *
  * @param document - Document that owns the nodes.
  * @param container - The group the rects go into; the section owns it.
@@ -79,7 +79,7 @@ export function createRowsSection(document: Document, container: SVGGElement): R
   };
 }
 
-/** Whether a row is on the odd stripe of the zebra (FR-ROW-4). */
+/** Whether a row is on the odd stripe of the zebra. */
 function striped(row: Row | undefined, mode: RowStripesOption): boolean {
   if (row === undefined) return false;
   if (mode === 'row') return row.rowStripe === 1;

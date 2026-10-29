@@ -1,6 +1,6 @@
 /**
- * `buildHierarchy`: the task tree from `parentId` (FR-ROW-1), in row order, with normalized
- * parent anchors (FR-SCH-2) and typed issues for unknown parents and parent cycles.
+ * `buildHierarchy`: the task tree from `parentId`, in row order, with normalized
+ * parent anchors and typed issues for unknown parents and parent cycles.
  */
 
 import type { LinkType, NormalizedModel, TaskId } from '../model';
@@ -11,15 +11,16 @@ import { type HierarchyIssue, hierarchyIssue, show } from './issues';
 /** Options of {@link buildHierarchy} (the data part of `GanttOptions.hierarchy`). */
 export interface HierarchyOptions {
   /**
-   * Default `Task.parentAnchor` (`hierarchy.childAnchor`, legacy `children_default_pinned_to`):
-   * one link type or one per child edge, e.g. `['SS', 'FF']`; default `'SS'`.
+   * Default `Task.parentAnchor` (`hierarchy.childAnchor`):
+   * one link type or one per child edge, e.g. `['SS', 'FF']`; default `'SS'`. Like
+   * `Task.parentAnchor`, it is only read for children with `followParent`.
    */
   readonly childAnchor?: LinkType | readonly LinkType[] | undefined;
 }
 
 /**
  * One task in the tree. Every task of the model is a node, placeholders and invalid tasks
- * included (they are rows without a bar, FR-ROW-3). Deeply frozen.
+ * included (they are rows without a bar). Deeply frozen.
  */
 export interface HierarchyNode {
   /** The task id. */
@@ -38,12 +39,12 @@ export interface HierarchyNode {
   /** Whether the task has children (a parent row with an expand toggle). */
   readonly hasChildren: boolean;
   /**
-   * Which edges of the task follow which edges of its parent (FR-SCH-2): `Task.parentAnchor`,
+   * Which edges of the task follow which edges of its parent: `Task.parentAnchor`,
    * else `hierarchy.childAnchor`. Canonical: at most one link type per child edge, the start pin
-   * (`SS` / `FS`) before the end pin (`FF` / `SF`). Only meaningful for children.
+   * (`SS` / `FS`) before the end pin (`FF` / `SF`). Only read for children with `followParent`.
    */
   readonly parentAnchor: readonly LinkType[];
-  /** `Task.followParent === true` (legacy `follows_parent`). */
+  /** `Task.followParent === true`. */
   readonly followParent: boolean;
   /** Position in {@link Hierarchy.nodes}: the row index when every parent is expanded. */
   readonly index: number;
@@ -99,7 +100,7 @@ interface Item {
 type TaskIssue = readonly [index: number, issue: HierarchyIssue];
 
 /**
- * Builds the task tree of a normalized model (FR-ROW-1): resolves every `parentId`, breaks
+ * Builds the task tree of a normalized model: resolves every `parentId`, breaks
  * parent cycles, normalizes parent anchors and lays the tasks out in row order. Never throws on
  * bad data and never mutates its input.
  *
@@ -109,7 +110,7 @@ type TaskIssue = readonly [index: number, issue: HierarchyIssue];
  *   `'parent-cycle'` error per loop, on the member that comes **first in the input**, which
  *   becomes a root; the other members keep their parents, so the loop turns into a chain under
  *   that task. The result does not depend on the order the tasks are visited in.
- * - **Anchors** (FR-SCH-2): see {@link HierarchyNode.parentAnchor}; an unusable value gives
+ * - **Anchors**: see {@link HierarchyNode.parentAnchor}; an unusable value gives
  *   `'invalid-parent-anchor'`.
  * - **Row order**: see {@link Hierarchy.nodes}.
  *

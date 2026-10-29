@@ -1,7 +1,7 @@
 /**
- * Calendar-aligned cell grids shared by the header rows and the grid lines (FR-SCALE-4,
- * FR-SCALE-5): where the cells of `step` × `unit` start and end. Internal to `scale/`, except
- * for the {@link TimeRange} type, which `scale/index.ts` re-exports.
+ * Calendar-aligned cell grids shared by the header rows and the grid lines: where the cells of
+ * `step` × `unit` start and end. Internal to `scale/`, except for the {@link TimeRange} type, which
+ * `scale/index.ts` re-exports.
  *
  * Cells are anchored to fixed points, never to the rendered range, so they do not move while the
  * timeline scrolls or grows:

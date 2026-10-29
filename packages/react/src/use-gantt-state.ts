@@ -38,7 +38,7 @@ class Selection<TData, T> {
 
 /**
  * Reads a slice of a chart's state, and renders again only when that slice changes. The state is
- * the core's snapshot (`docs/architecture.md` §4), read through `useSyncExternalStore`, so it is
+ * the core's snapshot, read through `useSyncExternalStore`, so it is
  * consistent with the render under concurrent rendering, and it also reads on a server (the core
  * exists while the component renders, so the server snapshot is the same snapshot, and hydration
  * agrees with it).

@@ -1,8 +1,8 @@
 /**
- * The headless facade (FR-API-1 … FR-API-6, `docs/architecture.md` §3, §10): `createGanttCore`
+ * The headless facade: `createGanttCore`
  * composes every core module into one chart instance with options, public `Date`-based records
  * and events, methods for applications and a memoized snapshot plus viewport and interaction
- * input for renderers. The `index` layer of §3.1: it may import every module, and no module
+ * input for renderers. It is the top layer of core: it may import every module, and no module
  * imports it.
  *
  * @module

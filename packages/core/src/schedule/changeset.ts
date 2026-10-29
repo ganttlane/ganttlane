@@ -1,5 +1,5 @@
 /**
- * The `ChangeSet` (`docs/api.md` §5, FR-TX-1, FR-SCH-5, FR-SCH-6): every task an edit changes,
+ * The `ChangeSet`: every task an edit changes,
  * directly or through propagation, with its values before and after, and the scheduling conflicts
  * of the result. Produced by `propagate`; conflicts are found by `detectConflicts`.
  */
@@ -25,13 +25,13 @@ export type ChangeReason =
   | 'rollback';
 
 /**
- * Why a task changed (FR-SCH-5): it was edited (`'direct'`), a predecessor moved it through a link
+ * Why a task changed: it was edited (`'direct'`), a predecessor moved it through a link
  * (`'link'`), or its parent moved it (`'parent'`).
  */
 export type ChangeCause = 'direct' | 'link' | 'parent';
 
 /**
- * Where a task's bar lies: the half-open interval `[start, endExclusive)` (FR-TIME-3). A
+ * Where a task's bar lies: the half-open interval `[start, endExclusive)`. A
  * `TaskSpan` and a {@link TaskPatch} have these fields.
  */
 export interface TaskBounds {
@@ -43,13 +43,13 @@ export interface TaskBounds {
 
 /**
  * The scheduled values of a task in core's numeric form. Every date is a multiple of
- * `scheduling.granularity`, and of a whole day for day-precision tasks (FR-SNAP-12).
+ * `scheduling.granularity`, and of a whole day for day-precision tasks.
  */
 export interface TaskPatch extends TaskBounds {
-  /** Progress in percent, `0` … `100`, not rounded (FR-PROG-2). */
+  /** Progress in percent, `0` … `100`, not rounded. */
   readonly progress: number;
   /**
-   * The task's precision, present only in a {@link Change} that changes it (FR-SNAP-7): a drag
+   * The task's precision, present only in a {@link Change} that changes it: a drag
    * with `scheduling.keepDayPrecision: false` turns a day-precision task into a timed one, so
    * its change has `before.precision: 'day'` and `after.precision: 'time'` (and an undo swaps
    * them). Absent: the task keeps its precision. The dates follow the precision of `after`:
@@ -80,7 +80,7 @@ export interface Change {
 }
 
 /**
- * Kinds of {@link Conflict} (FR-SCH-6), in the order conflicts of one task are listed:
+ * Kinds of {@link Conflict}, in the order conflicts of one task are listed:
  * - `'non-working-start'`: the bar starts on a non-working day;
  * - `'non-working-end'`: the bar's last day is a non-working day;
  * - `'outside-parent'`: the bar sticks out of its parent's bar;
@@ -100,7 +100,7 @@ export interface ConflictBase {
 
 /**
  * The start or the last day of a bar lies on a non-working day of the model's work calendar
- * (FR-SCH-6, FR-SCH-7: "start on Saturday + ignore"). These are exactly the edges that
+ * ("start on Saturday + ignore"). These are exactly the edges that
  * `skipNonWorkingDays` would roll onto working time.
  */
 export interface NonWorkingDayConflict extends ConflictBase {
@@ -113,7 +113,7 @@ export interface NonWorkingDayConflict extends ConflictBase {
   readonly date: DateTimeMs;
 }
 
-/** A child's bar starts before its parent's bar or ends after it (FR-SCH-6). */
+/** A child's bar starts before its parent's bar or ends after it. */
 export interface OutsideParentConflict extends ConflictBase {
   /** Discriminant. */
   readonly type: 'outside-parent';
@@ -128,9 +128,9 @@ export interface OutsideParentConflict extends ConflictBase {
 
 /**
  * An active link that is not on a cycle has a gap between its anchors below the minimum it
- * requires (FR-SCH-6, FR-LINK-1): the successor is closer to its predecessor, or overlaps it
+ * requires: the successor is closer to its predecessor, or overlaps it
  * more, than the link allows. The minimum is the lag for an explicit `Link.lag`, and
- * `min(derived lag, 0)` for a lag derived from the initial gap (ADR-007).
+ * `min(derived lag, 0)` for a lag derived from the initial gap.
  */
 export interface LinkViolatedConflict extends ConflictBase {
   /** Discriminant. */
@@ -144,17 +144,17 @@ export interface LinkViolatedConflict extends ConflictBase {
 }
 
 /**
- * A scheduling problem in a state of the plan (FR-SCH-6): a start or end on a non-working day, a
+ * A scheduling problem in a state of the plan: a start or end on a non-working day, a
  * child outside its parent or a violated link. Conflicts are warnings: core never refuses or
- * corrects a state because of them. They feed `onBeforeTaskChange` (FR-TX-2), which may cancel or
+ * corrects a state because of them. They feed `onBeforeTaskChange`, which may cancel or
  * modify the edit, and `TaskRecord.issues`. Narrow with `type`. Deeply frozen.
  */
 export type Conflict = NonWorkingDayConflict | OutsideParentConflict | LinkViolatedConflict;
 
 /**
- * The outcome of one user action or API call (FR-TX-1): every task it changes, directly or through
- * propagation, each once, in a deterministic order (FR-SCH-5). Deeply frozen; applying it is the
- * store's job (plan step 3.1).
+ * The outcome of one user action or API call: every task it changes, directly or through
+ * propagation, each once, in a deterministic order. Deeply frozen; applying it is the
+ * store's job.
  */
 export interface ChangeSet {
   /** What produced it. */

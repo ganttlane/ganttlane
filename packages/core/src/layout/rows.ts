@@ -1,5 +1,5 @@
 /**
- * Row metrics (FR-ROW-5): where every visible row lies in the body, the header height, and O(1)
+ * Row metrics: where every visible row lies in the body, the header height, and O(1)
  * lookups by position and by task id.
  */
 
@@ -35,14 +35,14 @@ export interface RowLayoutOptions {
 }
 
 /**
- * The vertical layout of the visible rows (FR-ROW-5): what an external sidebar needs to line its
+ * The vertical layout of the visible rows: what an external sidebar needs to line its
  * rows up with the chart (row order, `y`, heights, header height). Frozen.
  *
  * Coordinates are **body** pixels: `y = 0` is the top of the first row. The body sits right
- * below the header (`docs/architecture.md` §8: a sticky header above the SVG body inside one
+ * below the header (a sticky header above the SVG body inside one
  * scroller), so in scroller content pixels a row starts at `headerHeight + y`.
  *
- * Every row has the same height in P0, which makes the lookups O(1); they are methods so that
+ * Every row has the same height for now, which makes the lookups O(1); they are methods so that
  * variable row heights can later switch them to a binary search without changing callers.
  */
 export interface RowLayout {
@@ -54,7 +54,7 @@ export interface RowLayout {
   readonly bodyHeight: number;
   /** Height of each header row, top first. */
   readonly headerRowHeights: readonly number[];
-  /** Sum of the header row heights (no extra margin, unlike upstream's `+ 10`). */
+  /** Sum of the header row heights (no extra margin). */
   readonly headerHeight: number;
   /**
    * The row under a body position: the last row with `y <= at`, so a boundary belongs to the row
@@ -77,7 +77,7 @@ export interface RowLayout {
 const EMPTY_RANGE: RowRange = /* @__PURE__ */ Object.freeze({ first: 0, last: -1 });
 
 /**
- * Lays out the visible rows top to bottom (FR-ROW-5), each `rowHeight` tall, and sums the header
+ * Lays out the visible rows top to bottom, each `rowHeight` tall, and sums the header
  * rows. Pure and O(rows); the result is frozen.
  *
  * The options come from `resolveLayoutOptions` (checked caller options) or from code, so an

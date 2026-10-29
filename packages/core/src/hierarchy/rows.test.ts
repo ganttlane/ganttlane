@@ -254,6 +254,21 @@ describe('expanded-state helpers', () => {
     expect(Object.isFrozen(setExpanded(tree, 'all', 'a', false))).toBe(true);
   });
 
+  it('FR-ROW-2: a task without children, or an unknown id, is neither expanded nor collapsed', () => {
+    const keys = deepFreeze<TaskId[]>(['c']);
+    for (const id of ['b', 'a2', 'ghost']) {
+      expect(setExpanded(tree, keys, id, true)).toEqual(['c']);
+      expect(setExpanded(tree, keys, id, false)).toEqual(['c']);
+      expect(setExpanded(tree, 'all', id, true)).toBe('all');
+      // Nothing is collapsed, so "all" stays "all" instead of turning into a list of parents.
+      expect(setExpanded(tree, 'all', id, false)).toBe('all');
+      expect(toggleExpanded(tree, 'all', id)).toBe('all');
+      expect(toggleExpanded(tree, keys, id)).toEqual(['c']);
+    }
+    expect(setExpanded(tree, new Set<TaskId>(['c']), 'b', true)).toEqual(['c']);
+    expect(Object.isFrozen(setExpanded(tree, new Set<TaskId>(['c']), 'b', true))).toBe(true);
+  });
+
   it('FR-ROW-2: toggleExpanded flips one task; with "all" every task counts as expanded', () => {
     expect(toggleExpanded(tree, [], 'a')).toEqual(['a']);
     expect(toggleExpanded(tree, ['a', 'c'], 'a')).toEqual(['c']);

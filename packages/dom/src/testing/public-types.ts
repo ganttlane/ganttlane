@@ -3,7 +3,7 @@ import ts from 'typescript';
 /**
  * The type names of the workspace packages (`core`, `dom`, `react`) that the declarations of one of
  * them name, and the names its entry exports: what `index.types.test.ts` compares to prove that an
- * application which installed only that package can import every type its API uses (ADR-026).
+ * application which installed only that package can import every type its API uses.
  */
 export interface PublicTypes {
   /**

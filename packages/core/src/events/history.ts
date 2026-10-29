@@ -1,8 +1,8 @@
 /**
- * The change history (FR-TX-5, `docs/architecture.md` §10: Command, Memento as inverse changes):
+ * The change history (Command, Memento as inverse changes):
  * one entry per action the change controller applied, stepped back and forward through the
  * controller without the before-hooks. A skeleton: off unless enabled; keyboard shortcuts and
- * the full feature come with plan step 7.4.
+ * the full feature are planned.
  */
 
 import type { Link } from '../model';
@@ -172,7 +172,7 @@ const DISPOSED: CancelledResult = /* @__PURE__ */ Object.freeze({
 const NO_CONFLICTS: readonly Conflict[] = /* @__PURE__ */ Object.freeze([]);
 
 /**
- * Creates the change history of a controller (FR-TX-5): one entry per action the controller
+ * Creates the change history of a controller: one entry per action the controller
  * applies (one drag, one API change, one link created or deleted), recorded through
  * `controller.observe` while enabled. Off by default: pass `enabled: true` or
  * `configure({ enabled: true })`.

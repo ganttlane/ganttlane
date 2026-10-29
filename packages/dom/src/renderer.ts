@@ -68,11 +68,11 @@ export interface RendererOptions {
   /**
    * Value of `data-theme` on the root: `'light'`, `'dark'`, or `'auto'` (default) to follow
    * `prefers-color-scheme`; any other value is `'auto'`. The theme itself is
-   * `@ganttlane/dom/styles.css` (step 4.10). Change it with {@link MountedRenderer.setTheme}.
+   * `@ganttlane/dom/styles.css`. Change it with {@link MountedRenderer.setTheme}.
    */
   readonly theme?: ThemeOption | undefined;
   /**
-   * The text the chart writes on its own, in your language or your words (FR-I18N-2): any subset
+   * The text the chart writes on its own, in your language or your words: any subset
    * of {@link GanttStrings}, merged over the English defaults. `chartLabel` is the accessible
    * name of the chart (the scroller is a focusable `role="region"`, so that the arrow keys
    * scroll it, and this is its `aria-label`; it replaces the `label` option of the first
@@ -82,7 +82,7 @@ export interface RendererOptions {
    */
   readonly strings?: GanttStringsInput | undefined;
   /**
-   * The height of the chart (`layout.height`, FR-SCROLL-3): a number of px, and the chart is
+   * The height of the chart (`layout.height`): a number of px, and the chart is
    * that tall and scrolls the rows inside itself, header sticky inside its scroller; `'auto'`,
    * and the chart is as tall as its rows, the page (or the nearest ancestor that scrolls)
    * scrolls it, the header sticks to that, and the scroller scrolls sideways only; left out, the
@@ -121,7 +121,7 @@ export interface MountedRenderer<TCore extends RendererCore = RendererCore> {
    */
   setDisplay(options: DisplayOptions): void;
   /**
-   * Changes strings (FR-I18N-2): the given keys merge over the current ones (`undefined` puts a
+   * Changes strings: the given keys merge over the current ones (`undefined` puts a
    * key's default back, a value of the wrong kind is ignored), and the chart's name and the open
    * popover are redrawn in the next frame, without a remount. `createGantt`'s `setOptions`
    * routes `strings` here. To change the locale, `setOptions({ locale })` on the core.
@@ -138,7 +138,7 @@ export interface MountedRenderer<TCore extends RendererCore = RendererCore> {
    */
   setHeight(height: HeightOption | undefined): void;
   /**
-   * Changes the theme (FR-THEME-2, see {@link RendererOptions.theme}): `data-theme` on the root,
+   * Changes the theme (see {@link RendererOptions.theme}): `data-theme` on the root,
    * nothing else, and no render, since the stylesheet does the work. `createGantt`'s
    * `setOptions` routes `theme` here.
    *
@@ -160,8 +160,8 @@ export interface MountedRenderer<TCore extends RendererCore = RendererCore> {
 }
 
 /**
- * Mounts the vanilla renderer for `core` into `container`: builds the DOM skeleton
- * (`docs/architecture.md` §8), feeds the container's size to `core.setViewport`, reports
+ * Mounts the vanilla renderer for `core` into `container`: builds the DOM skeleton,
+ * feeds the container's size to `core.setViewport`, reports
  * scrolling to `core.scroll`, and draws every snapshot through the layers, coalesced into one
  * render per frame. One low-frequency timer, aligned to the minute boundary, asks the core to
  * read its clock again (`core.refreshNow()`), so the today line follows `snapshot.now`; it is
@@ -373,7 +373,7 @@ export function mountRenderer<TCore extends RendererCore>(
       scheduler.schedule(render);
     };
     disposables.add(core.subscribe(schedule));
-    // Pointer and keyboard input (plan step 4.7): listeners on the scroller, the autoscroll loop.
+    // Pointer and keyboard input: listeners on the scroller, the autoscroll loop.
     disposables.add(
       mountInput({
         core,

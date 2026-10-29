@@ -1,6 +1,6 @@
 /**
- * Changing the scale or the range under the viewport while a date stays put (FR-SCALE-6,
- * FR-SCALE-7): view mode switches, zoom, and a range re-resolved for new data.
+ * Changing the scale or the range under the viewport while a date stays put: view mode switches,
+ * zoom, and a range re-resolved for new data.
  */
 
 import { createTimeScale, type TimeRange, type TimeScale } from '../scale';
@@ -18,7 +18,7 @@ import {
 
 /**
  * The scroll offset in `newScale` that keeps the date at viewport position `anchorX` (from the
- * left edge, e.g. the cursor or the centre) at `anchorX` (FR-SCALE-6, FR-SCALE-7). Exact: it
+ * left edge, e.g. the cursor or the centre) at `anchorX`. Exact: it
  * works on the scales' origins and zoom levels without rounding the anchor date, so the anchor
  * stays put within float rounding at any zoom (hour 960 px/day ↔ year 1 px/day) and for any
  * origins. Not clamped: clamp it to the new content (`rebaseTimeline` does).
@@ -56,7 +56,7 @@ export interface RebaseOptions {
   readonly range?: TimeRange | undefined;
   /** The new zoom level (a view mode's `pxPerDay`); default the current one. */
   readonly pxPerDay?: number | undefined;
-  /** Viewport x of the date that stays put; default `0`, the left edge (FR-TL-3's anchor). */
+  /** Viewport x of the date that stays put; default `0`, the left edge. */
   readonly anchorX?: number | undefined;
   /** Column boundaries of the new view mode (`columnGrid`) to snap the range outward to. */
   readonly columns?: ColumnGrid | undefined;
@@ -71,10 +71,10 @@ export interface RebaseOptions {
 }
 
 /**
- * The timeline on a new range and / or zoom level with the date at `anchorX` kept in place
- * (FR-SCALE-6): a view mode switch (new `pxPerDay` and columns, anchor usually the centre), a
- * zoom (P1, anchor at the cursor), or a range re-resolved after a data change (anchor at the left
- * edge). Pure; the result is frozen.
+ * The timeline on a new range and / or zoom level with the date at `anchorX` kept in place:
+ * a view mode switch (new `pxPerDay` and columns, anchor usually the centre), a zoom (not
+ * available yet; anchor at the cursor), or a range re-resolved after a data change (anchor at
+ * the left edge). Pure; the result is frozen.
  *
  * 1. The range (`range`, or the current one) is snapped outward to `columns`; with `fit` it is
  *    first widened to contain the anchored viewport, within `bounds`.

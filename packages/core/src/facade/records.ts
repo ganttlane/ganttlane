@@ -1,5 +1,5 @@
 /**
- * Public records (`docs/api.md` §4): core's numeric task models turned into `Date`-based
+ * Public records: core's numeric task models turned into `Date`-based
  * `TaskRecord`s, memoized per task while the parts of the state they show are unchanged.
  */
 
@@ -235,7 +235,7 @@ function byTask(issues: readonly HierarchyIssue[]): ReadonlyMap<TaskId, readonly
 }
 
 /**
- * A task's end in the semantics of its input (FR-TIME-8): the last day for a day-precision task
+ * A task's end in the semantics of its input: the last day for a day-precision task
  * of non-zero length with `endInclusive`, else the exclusive end.
  *
  * @internal

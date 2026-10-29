@@ -1,8 +1,6 @@
 /**
- * Normalization of one task into an immutable {@link TaskModel} (FR-DATA-2, FR-DATA-3, FR-DATA-8,
- * FR-TIME-3, FR-TIME-6, FR-SNAP-12, FR-SNAP-13, FR-SNAP-15), in the order of
- * `docs/architecture.md` §5.2: parse → precision → alignment → end from the duration → day and
- * millisecond counts → progress date.
+ * Normalization of one task into an immutable {@link TaskModel}, in this order: parse →
+ * precision → alignment → end from the duration → day and millisecond counts → progress date.
  */
 
 import { progressToDate } from '../progress';
@@ -37,16 +35,16 @@ import {
 } from './values';
 
 /**
- * Length of a task (FR-DATA-8). Counts come from milliseconds, so they are whole numbers for
- * day-precision tasks and exact fractions for tasks with time (a working day is 24 h in P0,
- * ADR-015): `calendarDays = ms / 1d`, `workingDays = workingMs / 1d`.
+ * Length of a task. Counts come from milliseconds, so they are whole numbers for
+ * day-precision tasks and exact fractions for tasks with time (a working day is 24 h for now):
+ * `calendarDays = ms / 1d`, `workingDays = workingMs / 1d`.
  */
 export interface TaskDuration {
   /** All days of `[start, endExclusive)`. */
   readonly calendarDays: number;
-  /** Working days of the work calendar (legacy `_actual_duration`). */
+  /** Working days of the work calendar. */
   readonly workingDays: number;
-  /** `calendarDays - workingDays` (legacy `_ignored_duration`). */
+  /** `calendarDays - workingDays`. */
   readonly nonWorkingDays: number;
   /** `endExclusive - start` in milliseconds. */
   readonly ms: number;
@@ -55,16 +53,16 @@ export interface TaskDuration {
 }
 
 /**
- * Where a task's bar lies, in floating time. Every date is a multiple of the granularity
- * (FR-SNAP-12); day-precision tasks lie on day boundaries.
+ * Where a task's bar lies, in floating time. Every date is a multiple of the granularity;
+ * day-precision tasks lie on day boundaries.
  */
 export interface TaskSpan {
   /** First moment of the task. */
   readonly start: DateTimeMs;
-  /** End of the half-open interval `[start, endExclusive)` (FR-TIME-3). */
+  /** End of the half-open interval `[start, endExclusive)`. */
   readonly endExclusive: DateTimeMs;
   /**
-   * End in the semantics of the input (FR-TIME-8): for a day-precision task with
+   * End in the semantics of the input: for a day-precision task with
    * `endInclusive`, midnight of the last day (`endExclusive - 1d`, or `start` for a zero-length
    * task); otherwise `endExclusive`.
    */
@@ -73,7 +71,7 @@ export interface TaskSpan {
   readonly duration: TaskDuration;
   /**
    * Boundary of the done part at `progress` % of the calendar or working time (per
-   * `durationMode`), aligned down to the granularity (FR-PROG-1, FR-SNAP-15).
+   * `durationMode`), aligned down to the granularity.
    */
   readonly progressDate: DateTimeMs;
 }
@@ -81,8 +79,8 @@ export interface TaskSpan {
 /**
  * A normalized task: core's internal, numeric record of one input {@link Task}. Deeply frozen
  * except for `task` (the caller's object, referenced, never copied or mutated) and the `value`s
- * of issues. The public, `Date`-based `TaskRecord` (`docs/api.md` §4) is derived from it by the
- * facade (plan step 3.8), together with the hierarchy fields (`level`, `childIds`, `rowIndex`, …).
+ * of issues. The public, `Date`-based `TaskRecord` is derived from it by the
+ * facade, together with the hierarchy fields (`level`, `childIds`, `rowIndex`, …).
  *
  * @typeParam TData - Type of `task.data`.
  */
@@ -96,22 +94,22 @@ export interface TaskModel<TData = unknown> {
   /** `task.name`, or `''` when it is not a string. */
   readonly name: string;
   /**
-   * Effective kind: `'placeholder'` also for a task without dates (FR-DATA-3); `'task'` when
+   * Effective kind: `'placeholder'` also for a task without dates; `'task'` when
    * the input `type` is malformed.
    */
   readonly type: TaskType;
-  /** `false` when an error issue made the task unusable: it is a row without a bar (FR-ROW-3). */
+  /** `false` when an error issue made the task unusable: it is a row without a bar. */
   readonly valid: boolean;
   /**
    * `task.precision`, else `'time'` when a used `start` / `end` carries a time of day or the
-   * `duration` has a part shorter than a day, else `'day'` (ADR-015).
+   * `duration` has a part shorter than a day, else `'day'`.
    */
   readonly precision: DatePrecision;
   /** `task.durationMode` or the default from the options. */
   readonly durationMode: DurationMode;
   /** `task.progress` clamped to `0` … `100`; `0` when missing or malformed. */
   readonly progress: number;
-  /** `task.parentId` as given (resolved by the hierarchy, plan step 2.2); `undefined` if malformed. */
+  /** `task.parentId` as given (resolved by the hierarchy); `undefined` if malformed. */
   readonly parentId: TaskId | undefined;
   /** The bar; `undefined` for placeholders and invalid tasks. */
   readonly span: TaskSpan | undefined;
@@ -238,7 +236,7 @@ interface TaskDates {
 }
 
 /**
- * Turns the dates of a task into a half-open interval (FR-DATA-2): `start` + `end` (`end` wins
+ * Turns the dates of a task into a half-open interval: `start` + `end` (`end` wins
  * over `duration`), `start` + `duration`, or a zero-length milestone at `start`.
  */
 function scheduleTask(ctx: TaskContext, mode: DurationMode): Outcome {
@@ -246,7 +244,7 @@ function scheduleTask(ctx: TaskContext, mode: DurationMode): Outcome {
   return 'kind' in dates ? dates : placeTask(ctx, dates, mode);
 }
 
-/** Steps 1–2 of §5.2: which fields are used, parsing, precision. */
+/** The first two stages of normalization: which fields are used, parsing, precision. */
 function readDates(ctx: TaskContext): TaskDates | Outcome {
   const { task } = ctx;
   const { start, end, duration } = task;
@@ -284,7 +282,7 @@ function readDates(ctx: TaskContext): TaskDates | Outcome {
   return { start: startDate, end: endDate, length, precision };
 }
 
-/** Steps 3–5 of §5.2: end semantics, alignment, end from the duration, maximum length. */
+/** The next stages: end semantics, alignment, end from the duration, maximum length. */
 function placeTask(ctx: TaskContext, dates: TaskDates, mode: DurationMode): Outcome {
   const { task, settings } = ctx;
   const { start, end, length, precision } = dates;
@@ -374,11 +372,11 @@ function readDate(ctx: TaskContext, value: DateInput, field: string): ParsedDate
 }
 
 /**
- * End of `start + duration` (FR-DATA-2): calendar months first (in both modes, months have no
+ * End of `start + duration`: calendar months first (in both modes, months have no
  * working length), then the fixed part as plain time (`'calendar'`) or working time
- * (`'working'`). Day precision in working mode keeps the legacy rule of `workingSpanEnd`: the
+ * (`'working'`). Day precision in working mode keeps the rule of `workingSpanEnd`: the
  * start counts when it is a working day, the end is the day after the last working day.
- * Scheduling reuses it to keep a task's length when it moves (plan step 2.4).
+ * Scheduling reuses it to keep a task's length when it moves.
  *
  * @internal
  */

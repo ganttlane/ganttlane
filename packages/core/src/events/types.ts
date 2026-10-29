@@ -1,6 +1,6 @@
 /**
- * The core event map (FR-EVT-1, `docs/api.md` §5) in core's numeric form: task ids, floating
- * date-times (`DateTimeMs`), `ChangeSet`s and link records. The facade (plan step 3.8) maps them
+ * The core event map in core's numeric form: task ids, floating
+ * date-times (`DateTimeMs`), `ChangeSet`s and link records. The facade maps them
  * to the public `Date`-based records and the `onX` options.
  */
 
@@ -28,9 +28,9 @@ export interface TaskDatesChangePayload {
   readonly endExclusive: DateTimeMs;
   /**
    * The task's precision after the change, present only when the change sets it
-   * (`after.precision`, FR-SNAP-7: a day task turned into a timed one, or back by an undo). The
+   * (`after.precision`: a day task turned into a timed one, or back by an undo). The
    * dates are in that precision; a listener that reads the end in the semantics of the input
-   * (FR-TIME-8) uses it rather than the precision of the model, which in controlled mode is the
+   * uses it rather than the precision of the model, which in controlled mode is the
    * owner's until it applies the change.
    */
   readonly precision?: DatePrecision | undefined;
@@ -47,7 +47,7 @@ export interface TaskProgressChangePayload {
   readonly progress: number;
 }
 
-/** A link was created (`linkCreate`, FR-LINK-6). */
+/** A link was created (`linkCreate`). */
 export interface LinkCreatePayload {
   /**
    * Its id: `link.id`, or `` `${source}:${type}:${target}` `` with the default type, or, when
@@ -61,7 +61,7 @@ export interface LinkCreatePayload {
   readonly link: Link;
 }
 
-/** A link was deleted (`linkDelete`, FR-LINK-5). */
+/** A link was deleted (`linkDelete`). */
 export interface LinkDeletePayload {
   /** Its id. */
   readonly id: string;
@@ -93,21 +93,21 @@ export interface LinkPointerPayload {
   readonly event: unknown;
 }
 
-/** The selected tasks or the selected link changed (`selectionChange`, FR-SEL-1, FR-SEL-2). */
+/** The selected tasks or the selected link changed (`selectionChange`). */
 export interface SelectionChangePayload {
   /** The selected tasks. */
   readonly selectedKeys: readonly TaskId[];
-  /** The selected link (FR-SEL-1), `undefined` for none. */
+  /** The selected link, `undefined` for none. */
   readonly selectedLink: string | undefined;
 }
 
-/** The view mode changed (`viewModeChange`, FR-SCALE-3). */
+/** The view mode changed (`viewModeChange`). */
 export interface ViewModeChangePayload {
   /** The view mode now in use. */
   readonly viewMode: ViewMode;
 }
 
-/** The timeline range changed (`rangeChange`, FR-TL-7), e.g. for lazy loading. */
+/** The timeline range changed (`rangeChange`), e.g. for lazy loading. */
 export interface RangeChangePayload {
   /** The new start of the range. */
   readonly start: DateTimeMs;
@@ -118,7 +118,7 @@ export interface RangeChangePayload {
 }
 
 /**
- * A gesture of the interaction layer was refused (`editRefused`, FR-EDIT-7, FR-LINK-6): when the
+ * A gesture of the interaction layer was refused (`editRefused`): when the
  * drag was about to start or to be committed, `context.busy`, the permissions, a gone task or an
  * invalid link target forbade it. Nothing was changed.
  */
@@ -135,13 +135,13 @@ export interface EditRefusedPayload {
   readonly at: 'start' | 'commit';
 }
 
-/** The expanded parents changed (`expandedChange`, FR-ROW-2). */
+/** The expanded parents changed from inside (`expandedChange`). */
 export interface ExpandedChangePayload {
   /** The expanded parents. */
   readonly expandedKeys: StoreExpandedKeys;
 }
 
-/** The timeline scrolled (`scroll`, FR-SCROLL-5). */
+/** The timeline scrolled, by the renderer or by a scroll request of the core (`scroll`). */
 export interface ScrollPayload {
   /** Horizontal scroll offset in px. */
   readonly x: number;
@@ -151,13 +151,13 @@ export interface ScrollPayload {
   readonly date: DateTimeMs;
 }
 
-/** The edit session became dirty or clean (`dirtyChange`, FR-TX-6). */
+/** The edit session became dirty or clean (`dirtyChange`). */
 export interface DirtyChangePayload {
   /** Whether a session is open and has changes (`EditSession.isDirty`). */
   readonly isDirty: boolean;
 }
 
-/** What the history can do changed (`historyChange`, FR-TX-5). */
+/** What the history can do changed (`historyChange`). */
 export interface HistoryChangePayload {
   /** Whether `undo()` has an entry to undo. */
   readonly canUndo: boolean;
@@ -171,7 +171,7 @@ export interface HistoryChangePayload {
  */
 export type IssueSource = 'data' | 'options' | 'change-set';
 
-/** Problems found (`issues`, FR-DATA-4, FR-SNAP-13). */
+/** Problems found (`issues`). */
 export interface IssuesPayload {
   /** What was checked. */
   readonly source: IssueSource;
@@ -180,7 +180,7 @@ export interface IssuesPayload {
 }
 
 /**
- * The events of core (FR-EVT-1, `docs/api.md` §5) by name, with their payloads. The change
+ * The events of core by name, with their payloads. The change
  * controller emits `tasksChange`, `taskDatesChange`, `taskProgressChange`, `linkCreate`,
  * `linkDelete`, `issues` (of change sets) and `error`; the edit session `editRollback` and
  * `dirtyChange`; the history `historyChange`; the others the facade (`createGanttCore`), the
@@ -189,13 +189,13 @@ export interface IssuesPayload {
  */
 export interface CoreEvents extends EmitterEvents {
   /**
-   * A change set was committed (FR-TX-1): exactly one per user action or API change, with every
+   * A change set was committed: exactly one per user action or API change, with every
    * task it changed, directly or through propagation; also one per undo or redo of a task change
    * (`reason: 'undo'` / `'redo'`).
    */
   readonly tasksChange: ChangeSet;
   /**
-   * An edit session was rolled back (FR-TX-4): the one event of a rollback, in both data modes,
+   * An edit session was rolled back: the one event of a rollback, in both data modes,
    * with everything it reverts (`reason: 'rollback'`, see `selectSessionRollback`). Controlled
    * data applies it like any change: tasks get `after`, `links.added` are added back,
    * `links.removed` are removed. No `tasksChange`, `linkCreate` or `linkDelete` is emitted for a
@@ -203,13 +203,13 @@ export interface CoreEvents extends EmitterEvents {
    */
   readonly editRollback: SessionChanges;
   /**
-   * `EditSession.isDirty` flipped (FR-TX-6). Emitted right after the data changed, so before the
+   * `EditSession.isDirty` flipped. Emitted right after the data changed, so before the
    * action's own events (`tasksChange`, …); for an action started by a listener of another one,
    * after that one's events, like the action's own events (the controller's outbox).
    */
   readonly dirtyChange: DirtyChangePayload;
   /**
-   * `canUndo` or `canRedo` of the history changed (FR-TX-5). Like `dirtyChange`, emitted before
+   * `canUndo` or `canRedo` of the history changed. Like `dirtyChange`, emitted before
    * the action's own events, in the same order for a nested action.
    */
   readonly historyChange: HistoryChangePayload;
@@ -217,11 +217,11 @@ export interface CoreEvents extends EmitterEvents {
   readonly taskDatesChange: TaskDatesChangePayload;
   /** Convenience: a task's progress changed, one per change after `tasksChange`. */
   readonly taskProgressChange: TaskProgressChangePayload;
-  /** A link was created (FR-LINK-6). */
+  /** A link was created. */
   readonly linkCreate: LinkCreatePayload;
-  /** A link was deleted (FR-LINK-5). */
+  /** A link was deleted. */
   readonly linkDelete: LinkDeletePayload;
-  /** A link was clicked (FR-SEL-1). */
+  /** A link was clicked. */
   readonly linkClick: LinkPointerPayload;
   /** A task bar was clicked. */
   readonly taskClick: TaskPointerPayload;
@@ -239,11 +239,11 @@ export interface CoreEvents extends EmitterEvents {
   readonly expandedChange: ExpandedChangePayload;
   /** The timeline scrolled. */
   readonly scroll: ScrollPayload;
-  /** A gesture was refused (FR-EDIT-7). */
+  /** A gesture was refused. */
   readonly editRefused: EditRefusedPayload;
   /** Problems were found in data, options or a change set. */
   readonly issues: IssuesPayload;
-  /** A listener or a hook threw (FR-EVT-1). */
+  /** A listener or a before-hook threw or rejected, see {@link ErrorPayload}. */
   readonly error: ErrorPayload;
 }
 
@@ -251,14 +251,14 @@ export interface CoreEvents extends EmitterEvents {
 export type CoreEventName = keyof CoreEvents;
 
 /**
- * Option-style event handlers (FR-EVT-2): `onTasksChange` for `tasksChange`, and so on. Swapped
+ * Option-style event handlers: `onTasksChange` for `tasksChange`, and so on. Swapped
  * with `ChangeController.setHandlers`; `undefined` removes one.
  */
 export type CoreEventHandlers = {
   readonly [K in CoreEventName as `on${Capitalize<K>}`]?: Listener<CoreEvents[K]> | undefined;
 };
 
-/** Option-style before-hooks (FR-TX-2, FR-LINK-6); `undefined` removes one. */
+/** Option-style before-hooks; `undefined` removes one. */
 export interface CoreHookHandlers {
   /** Runs in the `beforeTaskChange` chain. */
   readonly onBeforeTaskChange?: BeforeTaskChangeHook | undefined;

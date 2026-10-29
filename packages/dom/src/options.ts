@@ -23,7 +23,7 @@ import { DEFAULT_STRINGS, type GanttStringsInput } from './strings';
 export type GanttDisplayOptions<TData = unknown> = Pick<DisplayOptions<TData>, PlainDisplayKey>;
 
 /**
- * The toolbar (`docs/api.md` §3, FR-UI-6). Reserved for P1: nothing draws it yet, and turning it
+ * The toolbar. Not available yet: nothing draws it, and turning it
  * on is reported as an `unsupported-option` issue.
  */
 export interface ToolbarOptions {
@@ -53,8 +53,8 @@ export interface GanttMountOptions {
 }
 
 /**
- * The options of `createGantt` that the renderer owns, on top of the core's
- * (`docs/api.md` §3). `createGantt` validates them like the core validates its own: an unusable
+ * The options of `createGantt` that the renderer owns, on top of the core's.
+ * `createGantt` validates them like the core validates its own: an unusable
  * value is an `invalid-option` issue with the full path of the value (`tooltip.trigger`,
  * `display.gridLines`, `layout.height`, `highlights[2]`, …), the default is used instead, and
  * nothing throws.
@@ -64,11 +64,11 @@ export interface GanttMountOptions {
 export interface GanttVisualOptions<TData = unknown> {
   /**
    * `'light'`, `'dark'`, or `'auto'` (default) to follow `prefers-color-scheme`: the
-   * `data-theme` of the chart (FR-THEME-2). Changes at runtime without a redraw.
+   * `data-theme` of the chart. Changes at runtime without a redraw.
    */
   readonly theme?: ThemeOption | undefined;
   /**
-   * The text the chart writes on its own (FR-I18N-2): any subset of `GanttStrings`, merged over
+   * The text the chart writes on its own: any subset of `GanttStrings`, merged over
    * the English defaults and over the strings set before. Dates and numbers follow `locale`.
    */
   readonly strings?: GanttStringsInput | undefined;
@@ -78,28 +78,28 @@ export interface GanttVisualOptions<TData = unknown> {
    */
   readonly display?: GanttDisplayOptions<TData> | undefined;
   /**
-   * Highlighted days, visual only: no effect on scheduling (FR-UI-3). A list replaces the one
+   * Highlighted days, visual only: no effect on scheduling. A list replaces the one
    * set before. `display.highlights` turns drawing them on and off.
    */
   readonly highlights?: readonly HighlightInput[] | undefined;
   /**
-   * The task tooltip (FR-TIP-1, FR-TIP-2, FR-EDIT-8). Taken whole: a given group replaces the
+   * The task tooltip. Taken whole: a given group replaces the
    * one set before, so a field it leaves out is back to its default.
    */
   readonly tooltip?: TooltipOptions<TData> | undefined;
   /**
-   * The menu a click on a link opens (FR-TIP-4). Taken whole, like `tooltip`. `onRemove`
+   * The menu a click on a link opens. Taken whole, like `tooltip`. `onRemove`
    * defaults to the chart's own `removeLink`.
    */
   readonly linkMenu?: LinkMenuOptions<TData> | undefined;
-  /** The tooltip of highlighted and holiday days (FR-TIP-5). Taken whole, like `tooltip`. */
+  /** The tooltip of highlighted and holiday days. Taken whole, like `tooltip`. */
   readonly highlightTooltip?: HighlightTooltipOptions | undefined;
-  /** The toolbar (FR-UI-6). Reserved for P1: off by default, and `unsupported-option` when on. */
+  /** The toolbar. Not available yet: off by default, and `unsupported-option` when on. */
   readonly toolbar?: false | ToolbarOptions | undefined;
   /**
-   * Group `layout` of the core, plus `height`, which only the renderer knows (`layout.height`,
-   * FR-SCROLL-3): a number of px, `'auto'` to grow with the rows and let the page scroll, or
-   * left out to fill the container. Merged field by field with the layout set before.
+   * Group `layout` of the core, plus `height`, which only the renderer knows (`layout.height`): a
+   * number of px, `'auto'` to grow with the rows and let the page scroll, or left out to fill the
+   * container. Merged field by field with the layout set before.
    */
   readonly layout?: { readonly height?: HeightOption | undefined } | undefined;
   /** How the renderer is mounted; set at creation only. */
@@ -107,7 +107,7 @@ export interface GanttVisualOptions<TData = unknown> {
 }
 
 /**
- * The options of {@link createGantt} (`docs/api.md` §3): the core's options (data, view mode,
+ * The options of {@link createGantt}: the core's options (data, view mode,
  * locale, calendar, scheduling, hierarchy, layout, editing, history, timeline, scroll, interaction
  * and the `on<Event>` handlers) plus the renderer's, {@link GanttVisualOptions}. A key neither
  * knows is ignored.
@@ -119,8 +119,13 @@ export type GanttOptions<TData = unknown> = GanttCoreOptions<TData> & GanttVisua
 
 /**
  * A partial update of {@link GanttOptions} (`setOptions`): a key left out keeps its value; a key
- * given with `undefined` returns to its default. See {@link createGantt} for how each key is
- * merged and routed. `renderer` is for creation only.
+ * given with `undefined` returns to its default (`tasks` has none and the types do not allow
+ * `undefined` for it: untyped code gets an `invalid-option` issue and an emptied chart). The
+ * core's groups, `display` and `strings`
+ * are merged one level deep; objects nested in them (`scheduling.skipNonWorkingDays`,
+ * `scheduling.snap`, `timeline.range`, `timeline.infinite`, `scroll.autoScroll`,
+ * `interaction.handles`) and lists are replaced whole. See {@link createGantt} for how each key
+ * is merged and routed. `renderer` is for creation only.
  *
  * @typeParam TData - Type of `task.data`.
  */
@@ -220,7 +225,7 @@ const groupOf = (group: GroupKey, value: unknown): Fields | undefined =>
 /** A rule for a value of one of the kinds `typeof` names. */
 const kind = (...kinds: string[]): Rule => [(value) => kinds.includes(typeof value)];
 
-/** The fields of a highlight besides its `id`, and what each accepts (FR-UI-3). */
+/** The fields of a highlight besides its `id`, and what each accepts. */
 const HIGHLIGHT_RULES: Readonly<Record<string, Rule>> = {
   dates: [Array.isArray],
   range: [(value) => isRecord(value) && value.start != null && value.end != null],
@@ -311,7 +316,7 @@ export function displayOf(
 
 /**
  * An issue of an option, in the short form of the core's production build: the message is
- * `'<path>: <code>'`, and `value` and `suggested` say the rest (`docs/api.md` §4).
+ * `'<path>: <code>'`, and `value` and `suggested` say the rest.
  */
 function issue(
   path: string,
@@ -329,7 +334,7 @@ function issue(
   });
 }
 
-/** An option that is planned for a later release (P1) and has no effect yet. */
+/** An option that is planned for a later release and has no effect yet. */
 const unsupported = (path: string, value: unknown): OptionIssue =>
   issue(path, value, undefined, 'unsupported-option');
 
@@ -444,7 +449,7 @@ export function checkVisual(source: Fields): ReadonlyMap<string, readonly Option
 
 /**
  * Whether two issue lists are equal item by item: the same code, path, value and suggested value
- * (`Object.is`), the fields the `issues` event goes by (`docs/api.md` §5).
+ * (`Object.is`), the fields the `issues` event goes by.
  *
  * @param a - One list.
  * @param b - Another.

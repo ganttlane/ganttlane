@@ -1,5 +1,5 @@
 /**
- * The progress handle (FR-PROG-3, FR-SCH-4, FR-SNAP-15): turns the date under a dragged progress
+ * The progress handle: turns the date under a dragged progress
  * handle into a percentage and the date the boundary is drawn at. Snapping to `snap.progress`
  * happens before, in the interaction layer through `scale/`; this module only clamps, aligns to
  * the data step and skips non-working days.
@@ -18,7 +18,7 @@ import {
 export interface ProgressFromDateInput extends ProgressSpan {
   /** Candidate date of the handle, already snapped to `snap.progress` (`snapTime`). */
   readonly t: DateTimeMs;
-  /** The data step the date is aligned down to (FR-SNAP-15). */
+  /** The data step the date is aligned down to. */
   readonly granularity: Granularity;
   /**
    * Direction of the drag: `1` forward, `-1` backward, `0` (default) unknown, treated as forward.
@@ -26,7 +26,7 @@ export interface ProgressFromDateInput extends ProgressSpan {
    */
   readonly direction?: -1 | 0 | 1 | undefined;
   /**
-   * `scheduling.skipNonWorkingDays.progress` (FR-SCH-4, FR-PROG-3), default `true` like that
+   * `scheduling.skipNonWorkingDays.progress`, default `true` like that
    * option: a boundary inside a non-working stretch jumps to the edge of the stretch in the drag
    * direction. `false` lets it rest inside the stretch.
    */
@@ -34,13 +34,14 @@ export interface ProgressFromDateInput extends ProgressSpan {
 }
 
 /**
- * The progress for a dragged handle (FR-PROG-3): the date `t` becomes a percentage of the span
+ * The progress for a dragged handle: the date `t` becomes a percentage of the span
  * and the date the boundary is drawn at. In order:
  *
  * 1. **Clamp.** `t <= start` is `0 %` at exactly `start`, `t >= endExclusive` is `100 %` at exactly
  *    `endExclusive`; `NaN` counts as `start`.
- * 2. **Align** `t` down to `granularity` (FR-SNAP-15).
- * 3. **Skip** (`skipNonWorking`, default `true`, FR-SCH-4): a boundary **inside** a non-working stretch (weekend,
+ * 2. **Align** `t` down to `granularity`.
+ * 3. **Skip** (`skipNonWorking`, default `true`): a boundary **inside** a non-working stretch
+ *    (weekend,
  *    holiday, …) jumps to the edge of that stretch in the drag direction: forward (`1` or `0`) to
  *    midnight of the next working day, backward (`-1`) to midnight of the stretch's first
  *    non-working day; the result is clamped to the span again. The edges themselves are not

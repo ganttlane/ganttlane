@@ -45,8 +45,7 @@ interface TimeInputs {
 
 /**
  * The grid layer: row backgrounds with zebra stripes, non-working days, highlights, grid lines
- * and the "today" line (at `snapshot.now`), drawn into `g.gantt__grid` (FR-ROW-3, FR-ROW-4, FR-UI-1 … FR-UI-4,
- * FR-SCALE-5).
+ * and the "today" line (at `snapshot.now`), drawn into `g.gantt__grid`.
  *
  * ```
  * g.gantt__grid

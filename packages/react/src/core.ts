@@ -1,6 +1,6 @@
 /**
  * The part of `@ganttlane/react` that is not client code, at `@ganttlane/react/core`: the helper
- * that writes a `ChangeSet` into your own tasks (`patchTasks`, `docs/decisions.md` Q12) and the
+ * that writes a `ChangeSet` into your own tasks (`patchTasks`) and the
  * types of the data you give and the events you get. The main entry starts with `'use client'`, so
  * a server component that imports from it gets a reference to a client module, not a function;
  * this entry has no directive, so server code, a server action or a route handler can import
@@ -15,7 +15,7 @@ export { patchTasks } from '@ganttlane/core';
 // The types of the data you give, the events you get and everything the props and the `ref` handle
 // name, however deep, so that an application that installed only `@ganttlane/react` (strict pnpm
 // hides `@ganttlane/dom` and `@ganttlane/core`) can import them: the types `@ganttlane/dom`
-// exports (ADR-026), as types only. The exceptions are `Gantt`, which here is the component (the
+// exports, as types only. The exceptions are `Gantt`, which here is the component (the
 // type of its `ref` is `GanttHandle`), and `MountedRenderer` and `RendererCore`, which only
 // `mountRenderer` takes and gives. `core-entry.test.ts` checks the set.
 export type {

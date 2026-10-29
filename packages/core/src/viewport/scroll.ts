@@ -1,5 +1,5 @@
 /**
- * Scroll targets (FR-SCROLL-1, FR-SCROLL-2, FR-TL-6): the scroll offsets that show a date, an
+ * Scroll targets: the scroll offsets that show a date, an
  * interval, a task's bar and row, and the initial scroll position, growing the infinite
  * timeline first when the target is outside its range.
  */
@@ -26,9 +26,8 @@ import {
 } from './state';
 
 /**
- * A horizontal scroll to perform: first apply `change` (when the infinite timeline had to grow,
- * FR-TL-6), then scroll to `scrollLeft`, which is in the coordinates of the changed state.
- * Frozen.
+ * A horizontal scroll to perform: first apply `change` (when the infinite timeline had to grow),
+ * then scroll to `scrollLeft`, which is in the coordinates of the changed state. Frozen.
  */
 export interface ScrollPlan {
   /** The target scroll offset, clamped to the content. */
@@ -45,7 +44,7 @@ export interface ScrollPlan {
   readonly jump: boolean;
 }
 
-/** A scroll to a task: {@link ScrollPlan} plus the vertical offset (FR-SCROLL-2). Frozen. */
+/** A scroll to a task: {@link ScrollPlan} plus the vertical offset. Frozen. */
 export interface TaskScrollPlan extends ScrollPlan {
   /** The target vertical scroll offset in body pixels, clamped to the rows. */
   readonly scrollTop: number;
@@ -74,7 +73,7 @@ export interface TaskScrollOptions extends PlanScrollOptions {
 }
 
 /**
- * The `scroll.initial` option, parsed (FR-SCROLL-1): today, the range start or end, the first
+ * The `scroll.initial` option, parsed: today, the range start or end, the first
  * task, no scroll, or a date.
  */
 export type InitialScroll = 'today' | 'start' | 'end' | 'first-task' | 'none' | DateTimeMs;
@@ -95,7 +94,7 @@ export interface InitialScrollInput extends PlanScrollOptions {
 }
 
 /**
- * The scroll offset that shows a date or an interval at `align` (FR-SCROLL-1, FR-SCROLL-2):
+ * The scroll offset that shows a date or an interval at `align`:
  * `x - fraction × (viewportWidth - width)`, clamped to `[0, contentWidth - viewportWidth]`. A
  * date (width `0`) lands at that fraction of the viewport; an interval (a bar) starts at the
  * left edge for `'start'`, ends at the right edge for `'end'`, is centred for `'center'`.
@@ -123,7 +122,7 @@ export function scrollLeftFor(
 }
 
 /**
- * The vertical scroll offset that shows a row at `align` (FR-SCROLL-2), in body pixels (the
+ * The vertical scroll offset that shows a row at `align`, in body pixels (the
  * coordinates of `RowMetrics.y` and `Viewport.scrollTop`): `'start'` puts the row at the top of
  * the body area, right below the sticky header, `'end'` at its bottom, `'center'` in its middle;
  * clamped to `[0, bodyHeight - viewportHeight]`.
@@ -158,7 +157,7 @@ export function scrollTopFor(
 }
 
 /**
- * A scroll to a date or an interval (FR-SCROLL-2, FR-TL-6, `scrollToDate` / `scrollToToday`):
+ * A scroll to a date or an interval (`scrollToDate` / `scrollToToday`):
  * with `infinite`, the range first grows to contain the target ({@link ensureContains}), so a
  * date outside it is reachable; the offset is then {@link scrollLeftFor} in the grown state.
  *
@@ -197,7 +196,7 @@ export function planScrollTo(
 }
 
 /**
- * A scroll to a task on both axes (FR-SCROLL-2, FR-TL-6, `scrollToTask`): its row at `alignY`
+ * A scroll to a task on both axes (`scrollToTask`): its row at `alignY`
  * and its bar at `align`, the range grown first with `infinite` when the bar is outside it. A
  * task without a bar (placeholder, invalid) keeps the horizontal offset.
  *
@@ -244,7 +243,7 @@ export function scrollToTask(
 }
 
 /**
- * The initial horizontal scroll (FR-SCROLL-1, `scroll.initial`), with the same meaning whether
+ * The initial horizontal scroll (`scroll.initial`), with the same meaning whether
  * the timeline is infinite or not:
  * - `'start'` / `'end'`: the start of `range` (default `state.range`) at the left edge / its end
  *   at the right edge. They are date targets like the others: the infinite timeline grows

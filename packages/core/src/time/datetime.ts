@@ -1,5 +1,5 @@
 /**
- * Numeric representation of floating wall-clock time (ADR-003, `docs/architecture.md` §5).
+ * Numeric representation of floating wall-clock time.
  *
  * A floating date-time stores the wall-clock components (year … millisecond) as if they were
  * UTC, so all arithmetic goes through `Date.UTC` / `getUTC*` and never sees a time zone or DST.

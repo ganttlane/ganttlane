@@ -1,5 +1,5 @@
 /**
- * The payload of `onRangeChange` (FR-TL-7, `docs/api.md` §5), for lazy loading by date range.
+ * The payload of `onRangeChange`, for lazy loading by date range.
  */
 
 import type { TimeRange } from '../scale';
@@ -19,7 +19,7 @@ import type { ViewportChangeReason } from './extension';
  *   grew or shrank at an edge (`planExtension`);
  * - `'scroll-to'`: grown for a programmatic scroll outside it (`ensureContains`);
  * - `'drag'`: grown for a dragged bar that left it (the interaction's `extend-range` effect,
- *   `ensureContains`, FR-TL-5).
+ *   `ensureContains`).
  *
  * A change after which the infinite timeline settles (a rebase, new options, a resize) is
  * reported once, with the final range and its cause.

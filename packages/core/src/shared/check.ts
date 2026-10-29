@@ -1,6 +1,6 @@
 /**
- * Runtime type checks shared by the data and option boundaries of every module (plan step 3.9:
- * one copy instead of one per resolver). Plain predicates, no issues: callers report.
+ * Runtime type checks shared by the data and option boundaries of every module (one copy instead of
+ * one per resolver). Plain predicates, no issues: callers report.
  */
 
 /**

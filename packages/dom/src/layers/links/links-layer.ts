@@ -32,7 +32,7 @@ interface Drawn {
 }
 
 /**
- * The links layer (FR-LINK-3, FR-SEL-1): one `g.gantt__link` per drawn link in `g.gantt__links`,
+ * The links layer: one `g.gantt__link` per drawn link in `g.gantt__links`,
  * keyed by link id. Each group holds the visible route (`path.gantt__link-path`), the arrowhead
  * (`path.gantt__link-arrow`) and a copy of the route to hit (`path.gantt__link-hit`; the theme
  * strokes it wide and transparent, `--gantt-link-hit-width`).
@@ -60,8 +60,8 @@ interface Drawn {
  *   writes nothing, and one that changes the set adds and removes only the links that entered
  *   or left. No layout is read.
  *
- * Pointer input is not wired here: step 4.7 resolves `{ kind: 'link', id }` from the event
- * target through `data-link-id`, which sits on the group and on the hit path.
+ * Pointer input is not wired here: the renderer's pointer handling resolves `{ kind: 'link', id }`
+ * from the event target through `data-link-id`, which sits on the group and on the hit path.
  *
  * @returns A new layer, one per chart instance.
  */

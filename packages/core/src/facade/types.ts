@@ -1,5 +1,5 @@
 /**
- * Public types of the headless facade (`createGanttCore`, `docs/api.md` §3–§6): its options, the
+ * Public types of the headless facade (`createGanttCore`): its options, the
  * `Date`-based records and event payloads, the renderer-facing snapshot and scroll requests, and
  * the instance itself.
  */
@@ -62,13 +62,19 @@ import type {
 } from '../viewport';
 
 /**
- * The `hierarchy` options (`docs/api.md` §3): the task tree's data options and the expanded
- * parents (FR-ROW-2).
+ * The `hierarchy` options: the task tree's data options and the expanded
+ * parents.
  */
 export interface GanttHierarchyOptions {
   /**
    * The expanded parents: `'all'` (default) or their ids. Setting it replaces the expanded state
-   * (a controlled `expandedKeys`); `expand` / `collapse` change it from inside.
+   * (a controlled `expandedKeys`); `expand` / `collapse` change it from inside. Ids of tasks
+   * without children are allowed and have no effect; unknown ids are ignored.
+   *
+   * `setOptions` compares the value with the one it was given last time, not with the current
+   * expanded state: the same array (or `'all'` again) does nothing, also after `expand` or
+   * `collapse` changed the state since, and a new array replaces the state. Setting it never
+   * fires `expandedChange`; only changes from inside do.
    */
   readonly expandedKeys?: StoreExpandedKeys | undefined;
   /** Default `Task.parentAnchor`; default `'SS'`. */
@@ -78,7 +84,7 @@ export interface GanttHierarchyOptions {
 }
 
 /**
- * The `history` option (FR-TX-5): `true` / `false`, or `{ enabled, limit }`. The object form is
+ * The `history` option: `true` / `false`, or `{ enabled, limit }`. The object form is
  * on unless `enabled: false`; `limit` is the most entries kept (default 100). Off by default.
  */
 export type HistoryOption =
@@ -90,7 +96,7 @@ export interface TaskDates {
   readonly start: Date;
   /**
    * The new end in the semantics of the input: the last day (inclusive) for a day-precision task
-   * with `dates.endInclusive`, else the exact end (FR-TIME-8).
+   * with `dates.endInclusive`, else the exact end.
    */
   readonly end: Date;
   /** The new end of the half-open interval `[start, endExclusive)`. */
@@ -98,7 +104,7 @@ export interface TaskDates {
 }
 
 /**
- * A computed task as the facade reports it (`docs/api.md` §4, FR-DATA-8): dates as local
+ * A computed task as the facade reports it: dates as local
  * `Date`s with the task's floating wall-clock values (`toDate`), lengths, progress, its place in
  * the tree and its problems. Frozen, and the same object while nothing it shows changed; never
  * mutate its `Date`s. Rows without a bar (placeholders, invalid tasks) have no dates.
@@ -117,7 +123,7 @@ export interface TaskRecord<TData = unknown> {
   readonly task: Task<TData>;
   /** Effective kind: `'placeholder'` also for a task without dates. */
   readonly type: TaskType;
-  /** `'day'` (date-only values) or `'time'` (ADR-015). */
+  /** `'day'` (date-only values) or `'time'`. */
   readonly precision: DatePrecision;
   /** First moment; `undefined` without a bar. */
   readonly start: Date | undefined;
@@ -132,7 +138,7 @@ export interface TaskRecord<TData = unknown> {
   readonly duration: TaskDuration | undefined;
   /** Progress in percent, `0` … `100`. */
   readonly progress: number;
-  /** Boundary of the done part (FR-PROG-1); `undefined` without a bar. */
+  /** Boundary of the done part; `undefined` without a bar. */
   readonly progressDate: Date | undefined;
   /** Depth in the tree, `0` for a root. */
   readonly level: number;
@@ -144,9 +150,9 @@ export interface TaskRecord<TData = unknown> {
   readonly rowIndex: number | undefined;
   /** Whether its children are shown; `false` without children. */
   readonly isExpanded: boolean;
-  /** Problems of the task's input: model and hierarchy issues (FR-DATA-4). */
+  /** Problems of the task's input: model and hierarchy issues. */
   readonly issues: readonly Issue[];
-  /** Scheduling conflicts shown on the task (FR-SCH-6). */
+  /** Scheduling conflicts shown on the task. */
   readonly conflicts: readonly Conflict[];
 }
 
@@ -158,13 +164,13 @@ export interface DateRange {
   readonly end: Date;
 }
 
-/** The timeline range changed (`onRangeChange`, FR-TL-7), e.g. for lazy loading by dates. */
+/** The timeline range changed (`onRangeChange`), e.g. for lazy loading by dates. */
 export interface RangeChangeInfo extends DateRange {
   /** Why it changed. */
   readonly reason: RangeChangeReason;
 }
 
-/** The timeline scrolled (`onScroll`, FR-SCROLL-5). */
+/** The timeline scrolled, by the renderer or by a scroll request of the core (`onScroll`). */
 export interface ScrollInfo {
   /** Horizontal scroll offset in content px. */
   readonly x: number;
@@ -175,7 +181,7 @@ export interface ScrollInfo {
 }
 
 /**
- * The events of the facade (`docs/api.md` §5) with the arguments their handlers receive: the
+ * The events of the facade with the arguments their handlers receive: the
  * same signature for `on(name, handler)` and for the `on<Name>` option. Records and dates are the
  * public, `Date`-based forms; change sets and session changes keep core's floating date-times
  * (`DateTimeMs`, convert with `toDate`), so that they can be passed back to core (`patchTask`,
@@ -184,54 +190,69 @@ export interface ScrollInfo {
  * @typeParam TData - Type of `task.data`.
  */
 export interface GanttEventMap<TData = unknown> {
-  /** A change set was committed: one per user action or API change (FR-TX-1). */
+  /** A change set was committed: one per user action or API change. */
   readonly tasksChange: (changeSet: ChangeSet) => void;
   /** Convenience: a task's dates changed, once per change, after `tasksChange`. */
   readonly taskDatesChange: (record: TaskRecord<TData>, dates: TaskDates) => void;
   /** Convenience: a task's progress changed, once per change, after `tasksChange`. */
   readonly taskProgressChange: (record: TaskRecord<TData>, progress: number) => void;
   /**
-   * A link was created (FR-LINK-6): the caller's `Link` as given and its id. Controlled data
+   * A link was created: the caller's `Link` as given and its id. Controlled data
    * appends it to its `links`.
    */
   readonly linkCreate: (link: Link, id: string) => void;
-  /** A link was deleted (FR-LINK-5), as it was in the graph. */
+  /** A link was deleted, as it was in the graph. */
   readonly linkDelete: (link: LinkRecord) => void;
-  /** A link was clicked (FR-SEL-1); it is now the selected link. */
+  /** A link was clicked; it is now the selected link. */
   readonly linkClick: (link: LinkRecord, event: unknown) => void;
-  /** A task bar was clicked (FR-EDIT-3); `event` is the renderer's input event. */
+  /** A task bar was clicked; `event` is the renderer's input event. */
   readonly taskClick: (record: TaskRecord<TData>, event: unknown) => void;
   /** A task bar was double-clicked. */
   readonly taskDoubleClick: (record: TaskRecord<TData>, event: unknown) => void;
   /** The task under the pointer changed; `null` when the pointer left the bars. */
   readonly taskHoverChange: (record: TaskRecord<TData> | null, event: unknown) => void;
-  /** The selected tasks or the selected link changed (FR-SEL-1, FR-SEL-2). */
+  /** The selected tasks or the selected link changed. */
   readonly selectionChange: (
     selectedKeys: readonly TaskId[],
     selectedLink: string | undefined,
   ) => void;
-  /** The view mode in use changed (FR-SCALE-3). */
+  /** The view mode in use changed. */
   readonly viewModeChange: (viewMode: ViewMode) => void;
-  /** The timeline range changed (FR-TL-7). */
+  /** The timeline range changed. */
   readonly rangeChange: (range: RangeChangeInfo) => void;
-  /** `expand` / `collapse` / `expandAll` / `collapseAll` changed the expanded parents (FR-ROW-2). */
+  /**
+   * `expand` / `collapse` / `expandAll` / `collapseAll`, or `scrollToTask` opening the ancestors of
+   * its task, changed the expanded parents. It is not fired for `hierarchy.expandedKeys` given to
+   * `setOptions` (the application already has that value), nor when a call changes nothing.
+   */
   readonly expandedChange: (expandedKeys: StoreExpandedKeys) => void;
-  /** The renderer reported a new scroll position (`scroll`, FR-SCROLL-5). */
+  /**
+   * The scroll position changed: the renderer reported a new one (`scroll`), or the core moved
+   * it itself. The core's own scroll requests (`scrollToDate`, `scrollToTask`, `scrollToToday`,
+   * a view mode switch or zoom, the initial scroll, a range that grew at its start) fire it
+   * too, before the renderer has performed them; the position the renderer then reports fires
+   * it again only if it differs.
+   */
   readonly scroll: (scroll: ScrollInfo) => void;
-  /** An edit session was rolled back (FR-TX-4): what controlled data has to revert. */
+  /** An edit session was rolled back: what controlled data has to revert. */
   readonly editRollback: (changes: SessionChanges) => void;
-  /** `edit.isDirty` flipped (FR-TX-6). */
+  /** `edit.isDirty` flipped. */
   readonly dirtyChange: (payload: DirtyChangePayload) => void;
-  /** `canUndo` or `canRedo` flipped (FR-TX-5). */
+  /** `canUndo` or `canRedo` flipped. */
   readonly historyChange: (payload: HistoryChangePayload) => void;
-  /** A gesture was refused (FR-EDIT-7, FR-LINK-6): busy, forbidden, or an invalid link target. */
+  /** A gesture was refused: busy, forbidden, or an invalid link target. */
   readonly editRefused: (refusal: EditRefusedPayload) => void;
   /**
-   * Problems found (FR-DATA-4): in the data (`'data'`: model, hierarchy, link graph) or the
+   * Problems found: in the data (`'data'`: model, hierarchy, link graph) or the
    * options (`'options'`) whenever their list changes, and in a change set being committed.
    */
   readonly issues: (payload: IssuesPayload) => void;
-  /** A listener or a before-hook threw (FR-EVT-1). */
+  /**
+   * A listener or a before-hook threw or rejected. Without a listener of `error`, the error is
+   * rethrown by the API call that caused the event (a throw, or a rejected promise), and goes to
+   * the host's unhandled-rejection channel when renderer input or a gesture caused it; see
+   * {@link ErrorPayload}.
+   */
   readonly error: (payload: ErrorPayload) => void;
 }
 
@@ -239,7 +260,7 @@ export interface GanttEventMap<TData = unknown> {
 export type GanttEventName = keyof GanttEventMap;
 
 /**
- * Option-style event handlers (FR-EVT-2): `onTasksChange` for `tasksChange`, and so on.
+ * Option-style event handlers: `onTasksChange` for `tasksChange`, and so on.
  * `setOptions` swaps them in O(1), keeping their place among the listeners; `undefined` removes
  * one.
  *
@@ -250,15 +271,15 @@ export type GanttEventHandlers<TData = unknown> = {
 };
 
 /**
- * Every option-style handler: the events plus the before-hooks `onBeforeTaskChange` (FR-TX-2)
- * and `onBeforeLinkCreate` (FR-LINK-6), which receive core's contexts as they are.
+ * Every option-style handler: the events plus the before-hooks `onBeforeTaskChange`
+ * and `onBeforeLinkCreate`, which receive core's contexts as they are.
  *
  * @typeParam TData - Type of `task.data`.
  */
 export type GanttHandlers<TData = unknown> = GanttEventHandlers<TData> & CoreHookHandlers;
 
 /**
- * The options of {@link createGanttCore}: the core part of `GanttOptions` (`docs/api.md` §3)
+ * The options of {@link createGanttCore}: the core part of `GanttOptions`
  * plus the handlers. Display, tooltip and toolbar options belong to the renderers: keys this type
  * does not know are ignored, so a renderer can pass its whole options object.
  *
@@ -269,12 +290,12 @@ export type GanttHandlers<TData = unknown> = GanttEventHandlers<TData> & CoreHoo
  * @typeParam TData - Type of `task.data`.
  */
 export type GanttCoreOptions<TData = unknown> = GanttHandlers<TData> & {
-  /** The tasks, in display order (FR-DATA-1). */
+  /** The tasks, in display order. */
   readonly tasks: readonly Task<TData>[];
-  /** The links (ADR-007); `Task.dependencies` are merged in. */
+  /** The links; `Task.dependencies` are merged in. */
   readonly links?: readonly Link[] | undefined;
   /**
-   * Who owns the data (FR-TX-3): `'uncontrolled'` (default) applies committed changes to the
+   * Who owns the data: `'uncontrolled'` (default) applies committed changes to the
    * facade's own tasks; `'controlled'` leaves them to the owner, who passes the new tasks back
    * with `setTasks` (until then the change shows as the snapshot's draft).
    */
@@ -284,20 +305,22 @@ export type GanttCoreOptions<TData = unknown> = GanttHandlers<TData> & {
   /** View mode overrides or a complete list (`resolveViewModes`). */
   readonly viewModes?: ViewModesInput | undefined;
   /**
-   * BCP 47 locale of the chart (FR-I18N-1); default `'en'`, not the runtime's, so that the same
+   * BCP 47 locale of the chart; default `'en'`, not the runtime's, so that the same
    * options draw the same text on a server and in a browser. Core formats the header labels with
    * it, and `snapshot.header.locale` hands it to renderers for what they write themselves
    * (tooltip dates and numbers). An invalid tag is an option issue and falls back to `'en'`;
    * `setOptions({ locale })` re-labels the header and nothing else.
    */
   readonly locale?: string | undefined;
-  /** Writing direction; default `'ltr'` (`'rtl'` is stored only, mirroring is P1). */
+  /**
+   * Writing direction; default `'ltr'`. `'rtl'` is stored only: mirroring is not available yet.
+   */
   readonly direction?: ScaleDirection | undefined;
   /** The source of "today"; default the system clock (`new Date()`). */
   readonly now?: (() => DateInput) | undefined;
   /** Date semantics: `endInclusive` (default `true`). */
   readonly dates?: StoreDatesOptions | undefined;
-  /** The work calendar (FR-CAL-*). */
+  /** The work calendar. */
   readonly calendar?: WorkCalendarOptions | undefined;
   /** Scheduling: duration mode, propagation, link type, granularity, snap, skipped days. */
   readonly scheduling?: StoreSchedulingOptions | undefined;
@@ -305,11 +328,11 @@ export type GanttCoreOptions<TData = unknown> = GanttHandlers<TData> & {
   readonly hierarchy?: GanttHierarchyOptions | undefined;
   /** Row, bar and header sizes (`resolveLayoutOptions`). */
   readonly layout?: LayoutOptions | undefined;
-  /** Editing from the UI (FR-EDIT-7): `false` turns it off; default `true`. */
+  /** Editing from the UI: `false` turns it off; default `true`. */
   readonly editing?: EditingOption | undefined;
-  /** Undo / redo (FR-TX-5); off by default. */
+  /** Undo / redo; off by default. */
   readonly history?: HistoryOption | undefined;
-  /** The timeline range and the infinite timeline (FR-TL-*); `infinite` is off by default. */
+  /** The timeline range and the infinite timeline; `infinite` is off by default. */
   readonly timeline?: TimelineOptions | undefined;
   /** Initial scroll, programmatic scroll behaviour and alignment, drag autoscroll. */
   readonly scroll?: ScrollOptionsInput | undefined;
@@ -318,10 +341,18 @@ export type GanttCoreOptions<TData = unknown> = GanttHandlers<TData> & {
 };
 
 /**
- * A partial update of {@link GanttCoreOptions} (`setOptions`): keys left out keep their value;
- * the groups (`calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`,
- * `interaction`) merge field by field, a field set to `undefined` returning to its default; other
- * options are replaced whole.
+ * A partial update of {@link GanttCoreOptions} (`setOptions`):
+ * - a key left out keeps its value; a key given with `undefined` returns to its default.
+ *   `tasks` has none and the types do not allow `undefined` for it: untyped code gets an
+ *   `invalid-option` issue, and the chart is emptied;
+ * - the groups (`calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`,
+ *   `interaction`) are merged one level deep: a field you give replaces that field, one you
+ *   leave out keeps its value, and one given with `undefined` returns to its default.
+ *   `undefined` for a whole group puts all of its fields back;
+ * - objects nested in a group are replaced whole, not merged (a field you leave out is back to
+ *   its default): `scheduling.skipNonWorkingDays`, `scheduling.snap`, `timeline.range`,
+ *   `timeline.infinite`, `scroll.autoScroll` and `interaction.handles`. So are lists (`tasks`,
+ *   `links`, `calendar.holidays`, …), `editing`, `history`, `viewModes` and every other option.
  *
  * @typeParam TData - Type of `task.data`.
  */
@@ -329,12 +360,12 @@ export type GanttCoreOptionsPatch<TData = unknown> = Partial<GanttCoreOptions<TD
 
 /**
  * A programmatic change of a task's dates or progress (`updateTask`). Dates take any
- * `DateInput`; `end` is read in the input semantics, as the task's own `end` is (FR-TIME-8): a
+ * `DateInput`; `end` is read in the input semantics, as the task's own `end` is: a
  * date-only `end` is the last day with `dates.endInclusive`, unless the task has
  * `precision: 'time'`. The end must come after the start (a milestone may end at its start).
- * Values are aligned to the granularity, not snapped (FR-SNAP-11); a day-precision task stays on
+ * Values are aligned to the granularity, not snapped; a day-precision task stays on
  * whole days unless `scheduling.keepDayPrecision` is `false`, which lets a value off midnight
- * make it timed (FR-SNAP-7).
+ * make it timed.
  */
 export interface TaskUpdate {
   /** The new start: alone, the task moves there and keeps its length (like a bar drag). */
@@ -377,10 +408,10 @@ export type ScrollRequestReason =
   'initial' | 'scroll-to' | 'view-mode' | 'zoom' | 'data' | 'options' | 'resize' | 'drag';
 
 /**
- * A scroll the renderer performs for the facade, which cannot touch the DOM (FR-SCROLL-1,
- * FR-SCROLL-2, FR-TL-6). Returned by the methods that make one and kept in the snapshot
- * (`scrollRequest`), so a renderer also sees the requests of calls it did not make. Values are in
- * the coordinates of the snapshot that carries the request. Frozen.
+ * A scroll the renderer performs for the facade, which cannot touch the DOM. Returned by the
+ * methods that make one and kept in the snapshot (`scrollRequest`), so a renderer also sees the
+ * requests of calls it did not make. Values are in the coordinates of the snapshot that carries the
+ * request. Frozen.
  *
  * Contract: apply each request once (by `id`), in the frame that renders its snapshot: first set
  * the horizontal offset to `from` instantly when it is set, then scroll to `left` / `top` with
@@ -462,7 +493,7 @@ export interface ScrollPosition {
 }
 
 /**
- * The selection (FR-SEL-1, FR-SEL-2): selected tasks (`select`) and the selected link (a click on
+ * The selection: selected tasks (`select`) and the selected link (a click on
  * a link, `selectLink`). Ids that leave the data leave the selection. Frozen.
  */
 export interface GanttSelection {
@@ -551,12 +582,12 @@ export interface GanttSnapshot<TData = unknown> {
    * tests, a server clock) and need no clock of their own; they call `refreshNow()` once a minute.
    */
   readonly now: DateTimeMs;
-  /** The drag autoscroll velocity in px per frame; `0` when none (FR-EDIT-6). */
+  /** The drag autoscroll velocity in px per frame; `0` when none. */
   readonly autoScroll: number;
   /**
    * Whether a commit or a link creation awaits a before-hook, or controlled data holds a
    * committed change the owner has not applied yet (`state.draft.committed`, until its next
-   * `setTasks`). No gesture and no `updateTask` starts meanwhile (FR-EDIT-7).
+   * `setTasks`). No gesture and no `updateTask` starts meanwhile.
    */
   readonly busy: boolean;
   /** The latest scroll request, see {@link ScrollRequest}. */
@@ -564,7 +595,7 @@ export interface GanttSnapshot<TData = unknown> {
 }
 
 /**
- * The edit session of a chart (`edit`, FR-TX-4, FR-TX-6): `begin` / `commit` / `rollback`,
+ * The edit session of a chart (`edit`): `begin` / `commit` / `rollback`,
  * `getChanges`, `isOpen`, `isDirty`, as `createEditSession` describes them. A rollback cancels a
  * gesture in progress first.
  */
@@ -580,32 +611,38 @@ export type GanttEditSession = Omit<EditSession, 'dispose'>;
  * @typeParam TData - Type of `task.data`.
  */
 export interface GanttCore<TData = unknown> {
-  /** Replaces the tasks (FR-DATA-7): diffed by id, only what changed is recomputed. */
+  /** Replaces the tasks: diffed by id, only what changed is recomputed. */
   readonly setTasks: (tasks: readonly Task<TData>[]) => void;
-  /** Replaces the links (FR-DATA-7). */
+  /** Replaces the links. */
   readonly setLinks: (links: readonly Link[] | undefined) => void;
   /**
    * Changes a task's dates or progress from code (reason `'api'`), see {@link createGanttCore}:
    * propagated like the same drag and passed through the before-hooks.
    */
   readonly updateTask: (id: TaskId, update: TaskUpdate) => Promise<UpdateTaskResult>;
-  /** Creates a link through the `beforeLinkCreate` hooks (FR-LINK-6). */
+  /**
+   * Creates a link through the `beforeLinkCreate` hooks. A value that is no valid link (not an
+   * object, an unknown type, …) is `'rejected'` as `'invalid'`, with the issues.
+   */
   readonly addLink: (link: Link) => Promise<LinkCreateResult>;
-  /** Deletes a link by id (FR-LINK-5). */
+  /**
+   * Deletes a link by id, whatever its `Link.editable`: that flag only hides the Remove action of
+   * the UI.
+   */
   readonly removeLink: (id: string) => Promise<LinkDeleteResult>;
   /**
-   * Changes options with minimal recomputation (FR-API-2), see {@link createGanttCore} for what
-   * each option invalidates.
+   * Changes options with minimal recomputation, see {@link createGanttCore} for what
+   * each option invalidates and {@link GanttCoreOptionsPatch} for how a patch is merged.
    *
    * @returns The issues of the options now in use.
    */
   readonly setOptions: (options: GanttCoreOptionsPatch<TData>) => readonly Issue[];
-  /** Switches the view mode (FR-SCALE-3); the returned request keeps or resets the scroll. */
+  /** Switches the view mode; the returned request keeps or resets the scroll. */
   readonly setViewMode: (id: string, options?: SetViewModeOptions) => ScrollRequest | undefined;
-  /** Sets the zoom level of the current view mode, keeping the anchor date in place (FR-SCALE-6). */
+  /** Sets the zoom level of the current view mode, keeping the anchor date in place. */
   readonly zoomTo: (pxPerDay: number, options?: ZoomToOptions) => ScrollRequest | undefined;
   /**
-   * Scrolls a date into view (FR-SCROLL-2); the infinite timeline grows first (FR-TL-6).
+   * Scrolls a date into view; the infinite timeline grows first.
    * `undefined` for an unreadable date, and before the viewport is known (the first non-zero
    * width): the call is then kept, the latest one wins, and the mount performs it (instantly)
    * in place of `scroll.initial`, which a later change of the option cannot override.
@@ -617,27 +654,27 @@ export interface GanttCore<TData = unknown> {
   /** Scrolls today into view; before the viewport is known it is kept like `scrollToDate`. */
   readonly scrollToToday: (options?: ScrollToDateOptions) => ScrollRequest | undefined;
   /**
-   * Scrolls a task's row and bar into view (FR-SCROLL-2); before the viewport is known it is kept
+   * Scrolls a task's row and bar into view; before the viewport is known it is kept
    * like `scrollToDate` (a task that is not there then leaves `scroll.initial` in charge).
    */
   readonly scrollToTask: (id: TaskId, options?: ScrollToTaskOptions) => ScrollRequest | undefined;
-  /** Expands a parent (FR-ROW-2). */
+  /** Expands a parent; a task without children, or an unknown id, is left as it is. */
   readonly expand: (id: TaskId) => void;
-  /** Collapses a parent. */
+  /** Collapses a parent; a task without children, or an unknown id, is left as it is. */
   readonly collapse: (id: TaskId) => void;
   /** Expands every parent. */
   readonly expandAll: () => void;
   /** Collapses every parent. */
   readonly collapseAll: () => void;
-  /** Replaces the selected tasks (FR-SEL-2); unknown ids are left out. */
+  /** Replaces the selected tasks; unknown ids are left out. */
   readonly select: (ids: readonly TaskId[]) => void;
-  /** Selects a link (FR-SEL-1), or none with `undefined`; an unknown id selects none. */
+  /** Selects a link, or none with `undefined`; an unknown id selects none. */
   readonly selectLink: (id: string | undefined) => void;
   /** Clears the selected tasks and the selected link. */
   readonly clearSelection: () => void;
-  /** The edit session (FR-TX-4). */
+  /** The edit session. */
   readonly edit: GanttEditSession;
-  /** Undoes the last action (FR-TX-5); a gesture in progress is cancelled first. */
+  /** Undoes the last action; a gesture in progress is cancelled first. */
   readonly undo: () => HistoryResult;
   /** Redoes the last undone action. */
   readonly redo: () => HistoryResult;
@@ -646,13 +683,13 @@ export interface GanttCore<TData = unknown> {
   /** Whether `redo()` has an entry. */
   readonly canRedo: boolean;
   /**
-   * Adds a listener (FR-EVT-3) with the same signature as the `on<Name>` option.
+   * Adds a listener with the same signature as the `on<Name>` option.
    *
    * @returns A function that removes it (idempotent).
    */
   readonly on: <K extends GanttEventName>(name: K, handler: GanttEventMap<TData>[K]) => Unsubscribe;
   /**
-   * The renderer reports the scroller's size (FR-API-4: from a `ResizeObserver`). The first
+   * The renderer reports the scroller's size (from a `ResizeObserver`). The first
    * non-zero width mounts the timeline: the infinite timeline settles and `scroll.initial` (or
    * the scroll the application asked for before, see `scrollToDate`) is applied, returned as a
    * request.
@@ -667,7 +704,7 @@ export interface GanttCore<TData = unknown> {
    */
   readonly setViewport: (size: ViewportSize) => ScrollRequest | undefined;
   /**
-   * The renderer reports a scroll position (FR-TL-2: from every `scroll` event, once per frame).
+   * The renderer reports a scroll position (from every `scroll` event, once per frame).
    * Runs the infinite timeline's policy and re-places a dragged bar under the pointer. Does not
    * throw after the range changed, see {@link GanttCore.setViewport}.
    *
@@ -699,18 +736,18 @@ export interface GanttCore<TData = unknown> {
    * @returns A function that removes it (idempotent).
    */
   readonly subscribe: (listener: () => void) => Unsubscribe;
-  /** A task as a public record (FR-API-5, FR-DATA-8); `undefined` for an unknown id. */
+  /** A task as a public record; `undefined` for an unknown id. */
   readonly getTask: (id: TaskId) => TaskRecord<TData> | undefined;
-  /** A link of the graph (FR-API-5); `undefined` for an unknown or dropped id. */
+  /** A link of the graph; `undefined` for an unknown or dropped id. */
   readonly getLink: (id: string) => LinkRecord | undefined;
-  /** The dates at the viewport's left and right edges (FR-API-5, FR-SCROLL-5). */
+  /** The dates at the viewport's left and right edges. */
   readonly getVisibleRange: () => DateRange;
   /**
-   * Where a task's row lies, in body px (FR-API-5, FR-ROW-5); `undefined` when hidden.
+   * Where a task's row lies, in body px; `undefined` when hidden.
    * Add `layout.rows.headerHeight` for scroller content px.
    */
   readonly getRowMetrics: (id: TaskId) => RowMetrics | undefined;
-  /** Where a task's bar lies as drawn (draft included), in body px (FR-API-5). */
+  /** Where a task's bar lies as drawn (draft included), in body px. */
   readonly getBarRect: (id: TaskId) => BarGeometry | undefined;
   /** The current problems of the data and the options. */
   readonly getIssues: () => GanttIssues;

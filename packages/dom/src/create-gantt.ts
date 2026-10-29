@@ -39,7 +39,7 @@ import {
 
 /**
  * A chart created by {@link createGantt}: the data, view, rows, selection, edit session, history
- * and event methods of `docs/api.md` §6, all on this one object and none needing `this`. After
+ * and event methods, all on this one object and none needing `this`. After
  * `destroy()` the commands (data, options, view, rows, selection, edit session, history,
  * `hideTooltip`) do nothing and `on` returns a function that does nothing, while the queries
  * (`getTask`, `getLink`, `getVisibleRange`, `getRowMetrics`, `getBarRect`, `getIssues`,
@@ -55,26 +55,27 @@ import {
 export interface Gantt<TData = unknown> {
   // ---- data ----
 
-  /** Replaces the tasks (FR-DATA-7): diffed by id, only what changed is recomputed. */
+  /** Replaces the tasks: diffed by id, only what changed is recomputed. */
   readonly setTasks: GanttCore<TData>['setTasks'];
-  /** Replaces the links (FR-DATA-7). */
+  /** Replaces the links. */
   readonly setLinks: GanttCore<TData>['setLinks'];
   /**
    * Changes a task's dates or progress from code (reason `'api'`): propagated like the same drag
    * and passed through `onBeforeTaskChange`. See `GanttCore.updateTask`.
    */
   readonly updateTask: GanttCore<TData>['updateTask'];
-  /** Creates a link through `onBeforeLinkCreate` (FR-LINK-6). */
+  /** Creates a link through `onBeforeLinkCreate`. */
   readonly addLink: GanttCore<TData>['addLink'];
-  /** Deletes a link by id (FR-LINK-5). */
+  /** Deletes a link by id. */
   readonly removeLink: GanttCore<TData>['removeLink'];
 
   // ---- options ----
 
   /**
-   * Changes options without recreating the chart (FR-API-2): a key left out keeps its value, a
-   * key given with `undefined` returns to its default, and each key is routed to what depends on
-   * it and nothing else:
+   * Changes options without recreating the chart: a key left out keeps its value, a
+   * key given with `undefined` returns to its default (`tasks` has none and the types do not
+   * allow `undefined` for it: untyped code gets an `invalid-option` issue and an emptied chart),
+   * and each key is routed to what depends on it and nothing else:
    *
    * | Key | Goes to |
    * | --- | --- |
@@ -85,16 +86,19 @@ export interface Gantt<TData = unknown> {
    * | `theme` | the renderer: `setTheme`, the `data-theme` attribute only |
    * | `strings` | the renderer: `setStrings` |
    * | `display`, `highlights`, `tooltip`, `linkMenu`, `highlightTooltip` | the renderer: `setDisplay` |
-   * | `toolbar` | checked only (reserved for P1) |
+   * | `toolbar` | checked only (not available yet) |
    * | `renderer` | ignored: it is for creation |
    *
-   * An option object is merged field by field with the one set before: the core's groups
-   * (`calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`,
-   * `interaction`), `display` and `strings`. Taken whole, so that a given value replaces the old
-   * one and a field it leaves out is back to its default: `tooltip`, `linkMenu`,
-   * `highlightTooltip`, `editing` and `history` as objects, `viewModes`, and every list (`tasks`,
-   * `links`, `highlights`, `calendar.holidays`, …). `undefined` for a whole group puts all of
-   * its fields back.
+   * An option object is merged field by field, one level deep, with the one set before: the
+   * core's groups (`calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`,
+   * `scroll`, `interaction`), `display` and `strings`. A field you give replaces that field, one
+   * you leave out keeps its value, and one given with `undefined` returns to its default.
+   * Taken whole, so that a given value replaces the old one and a field it leaves out is back to
+   * its default: the objects nested in a group (`scheduling.skipNonWorkingDays`,
+   * `scheduling.snap`, `timeline.range`, `timeline.infinite`, `scroll.autoScroll`,
+   * `interaction.handles`), `tooltip`, `linkMenu`, `highlightTooltip`, `editing` and `history`
+   * as objects, `viewModes`, and every list (`tasks`, `links`, `highlights`,
+   * `calendar.holidays`, …). `undefined` for a whole group puts all of its fields back.
    *
    * Unusable values become issues (`onIssues`, the result, {@link Gantt.getIssues}) and their
    * defaults are used; nothing throws.
@@ -107,14 +111,14 @@ export interface Gantt<TData = unknown> {
   // ---- view ----
 
   /**
-   * Switches the view mode (FR-SCALE-3): the date at the centre of the viewport stays in place
+   * Switches the view mode: the date at the centre of the viewport stays in place
    * unless `keepScroll` is `false`. The chart scrolls itself in its next frame; there is nothing
    * to apply (`gantt.core.setViewMode` returns the request the renderer applies).
    */
   readonly setViewMode: (...args: Parameters<GanttCore<TData>['setViewMode']>) => void;
   /** Sets the zoom level of the current view mode, keeping the anchor date in place. */
   readonly zoomTo: (...args: Parameters<GanttCore<TData>['zoomTo']>) => void;
-  /** Scrolls a date into view (FR-SCROLL-2); the infinite timeline grows first. */
+  /** Scrolls a date into view; the infinite timeline grows first. */
   readonly scrollToDate: (...args: Parameters<GanttCore<TData>['scrollToDate']>) => void;
   /** Scrolls today into view. */
   readonly scrollToToday: (...args: Parameters<GanttCore<TData>['scrollToToday']>) => void;
@@ -123,7 +127,7 @@ export interface Gantt<TData = unknown> {
 
   // ---- rows and selection ----
 
-  /** Expands a parent (FR-ROW-2). */
+  /** Expands a parent. */
   readonly expand: GanttCore<TData>['expand'];
   /** Collapses a parent. */
   readonly collapse: GanttCore<TData>['collapse'];
@@ -131,18 +135,18 @@ export interface Gantt<TData = unknown> {
   readonly expandAll: GanttCore<TData>['expandAll'];
   /** Collapses every parent. */
   readonly collapseAll: GanttCore<TData>['collapseAll'];
-  /** Replaces the selected tasks (FR-SEL-2); unknown ids are left out. */
+  /** Replaces the selected tasks; unknown ids are left out. */
   readonly select: GanttCore<TData>['select'];
-  /** Selects a link (FR-SEL-1), or none with `undefined`. */
+  /** Selects a link, or none with `undefined`. */
   readonly selectLink: GanttCore<TData>['selectLink'];
   /** Clears the selected tasks and the selected link. */
   readonly clearSelection: GanttCore<TData>['clearSelection'];
 
   // ---- queries ----
 
-  /** A task as a public record (FR-API-5); `undefined` for an unknown id. */
+  /** A task as a public record; `undefined` for an unknown id. */
   readonly getTask: GanttCore<TData>['getTask'];
-  /** A link of the graph (FR-API-5); `undefined` for an unknown id. */
+  /** A link of the graph; `undefined` for an unknown id. */
   readonly getLink: GanttCore<TData>['getLink'];
   /** The dates at the viewport's left and right edges. */
   readonly getVisibleRange: GanttCore<TData>['getVisibleRange'];
@@ -160,9 +164,9 @@ export interface Gantt<TData = unknown> {
 
   // ---- edit session and history ----
 
-  /** The edit session (FR-TX-4): `begin`, `commit`, `rollback`, `getChanges`, `isOpen`, `isDirty`. */
+  /** The edit session: `begin`, `commit`, `rollback`, `getChanges`, `isOpen`, `isDirty`. */
   readonly edit: GanttCore<TData>['edit'];
-  /** Undoes the last action (FR-TX-5); needs `history`. */
+  /** Undoes the last action; needs `history`. */
   readonly undo: GanttCore<TData>['undo'];
   /** Redoes the last undone action. */
   readonly redo: GanttCore<TData>['redo'];
@@ -174,14 +178,14 @@ export interface Gantt<TData = unknown> {
   // ---- events and life cycle ----
 
   /**
-   * Adds a listener (FR-EVT-3) with the same payload as the `on<Name>` option (`docs/api.md` §5).
+   * Adds a listener with the same payload as the `on<Name>` option.
    *
    * @returns A function that removes it (idempotent).
    */
   readonly on: <K extends GanttEventName>(name: K, handler: GanttEventMap<TData>[K]) => Unsubscribe;
   /**
    * Removes everything the chart added to its container, then destroys its core; safe to call
-   * twice (FR-API-4).
+   * twice.
    */
   readonly destroy: () => void;
   /**
@@ -298,8 +302,8 @@ export interface GanttChart<TData = unknown> {
  * changed, as for every event, but is rethrown by `setOptions` (or `createGantt`) when only the
  * renderer's issues changed, since the core has no event to carry it.
  *
- * **Events.** `on<Event>` options and `on(name, handler)` take the same payloads
- * (`docs/api.md` §5); the facade adds none. `setOptions({ onX })` swaps a handler in O(1)
+ * **Events.** `on<Event>` options and `on(name, handler)` take the same payloads;
+ * the facade adds none. `setOptions({ onX })` swaps a handler in O(1)
  * without recreating or redrawing anything.
  *
  * @typeParam TData - Type of `task.data`.
@@ -512,11 +516,12 @@ export function createChart<TData = unknown>(
 }
 
 /**
- * Creates a chart in `container` (FR-API-1): a core made from the options, the DOM renderer
- * mounted on it, and one object with every method of `docs/api.md` §6. The container should be
- * empty and have a height (or give the chart its own with `layout.height`). The stylesheet
- * (`@ganttlane/dom/styles.css`) is a separate import. How the options are routed, validated and
- * their issues merged is described at {@link createChart}, which this function is a call of.
+ * Creates a chart in `container`: a core made from the options, the DOM renderer
+ * mounted on it, and one object with every method of the chart ({@link Gantt}). The container
+ * should be empty and have a height (or give the chart its own with `layout.height`). The
+ * stylesheet (`@ganttlane/dom/styles.css`) is a separate import. How the options are routed,
+ * validated and their issues merged is described at {@link createChart}, which this function is a
+ * call of.
  *
  * @typeParam TData - Type of `task.data`.
  * @param container - Element to render into.

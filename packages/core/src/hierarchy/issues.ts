@@ -2,7 +2,7 @@ import type { TaskId } from '../model';
 import { DEV, type Issue, type IssueSeverity, shortMessage } from '../shared';
 
 /**
- * Issue codes produced by `buildHierarchy` (FR-ROW-1, FR-DATA-4):
+ * Issue codes produced by `buildHierarchy`:
  * - `'unknown-parent'` (warning): `parentId` matches no task; the task is shown as a root;
  * - `'parent-cycle'` (error): parent links form a loop (`a → b → a`, or a task that is its own
  *   parent). `value` lists the members; the member that comes first in the input becomes a

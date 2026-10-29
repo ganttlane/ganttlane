@@ -1,5 +1,5 @@
 /**
- * The caller's `timeline` and `scroll` options (`docs/api.md` §3): defaults, parsing of dates and
+ * The caller's `timeline` and `scroll` options: defaults, parsing of dates and
  * durations, and typed issues for bad values. The viewport math takes the parsed values.
  */
 
@@ -30,7 +30,7 @@ export type ViewportIssueCode = 'invalid-timeline-option' | 'invalid-scroll-opti
 /** An {@link Issue} raised by the `viewport` module. */
 export type ViewportIssue = Issue<ViewportIssueCode>;
 
-/** The caller's `timeline.infinite` object (FR-TL-2, FR-TL-4). */
+/** The caller's `timeline.infinite` object. */
 export interface InfiniteTimelineOptions {
   /** Distance in px to a range edge at which it is extended; default the viewport width. */
   readonly threshold?: number | undefined;
@@ -43,7 +43,7 @@ export interface InfiniteTimelineOptions {
   readonly maxSpan?: DurationInput | undefined;
 }
 
-/** The caller's `timeline` options (FR-TL-1 … FR-TL-4). */
+/** The caller's `timeline` options. */
 export interface TimelineOptions {
   /** `'auto'` (default: from the tasks) or an explicit range; a date-only `end` is inclusive. */
   readonly range?: 'auto' | { readonly start: DateInput; readonly end: DateInput } | undefined;
@@ -56,7 +56,7 @@ export interface TimelineOptions {
 }
 
 /**
- * The caller's `scroll` options (FR-SCROLL-1, FR-EDIT-6). Named apart from the DOM's
+ * The caller's `scroll` options. Named apart from the DOM's
  * `ScrollOptions`, which renderers use next to it.
  */
 export interface ScrollOptionsInput {
@@ -159,7 +159,7 @@ const BEHAVIORS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(['smooth', 'inst
 const ALIGN_KEYWORDS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(['start', 'center', 'end']);
 
 /**
- * Parses the `timeline` options (FR-TL-1 … FR-TL-4). Never throws: an unusable value gives an
+ * Parses the `timeline` options. Never throws: an unusable value gives an
  * `'invalid-timeline-option'` error and its default instead.
  *
  * - `range`: `'auto'` / absent → automatic; `{ start, end }` → explicit, a date-only `end`
@@ -200,7 +200,7 @@ export function resolveTimelineOptions(
 }
 
 /**
- * Parses the `scroll` options (FR-SCROLL-1, FR-EDIT-6). Never throws: an unusable value gives an
+ * Parses the `scroll` options. Never throws: an unusable value gives an
  * `'invalid-scroll-option'` error and its default instead.
  *
  * - `initial`: `'today'` (default), `'start'`, `'end'`, `'first-task'`, `'none'` or a date.

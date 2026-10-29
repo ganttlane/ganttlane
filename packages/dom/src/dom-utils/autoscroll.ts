@@ -52,10 +52,10 @@ export interface AutoScroller {
 }
 
 /**
- * The autoscroll of a drag near the edge of the viewport (FR-EDIT-6): every animation frame
+ * The autoscroll of a drag near the edge of the viewport: every animation frame
  * `scrollLeft` moves by the core's current velocity, until that is `0`. It only writes
  * `scrollLeft` and says so (`scrolled`): the host reports the offset to the core like any other
- * scroll, which grows the infinite timeline (FR-TL-5) and places the dragged bar under the
+ * scroll, which grows the infinite timeline and places the dragged bar under the
  * still pointer again, all before the frame is painted.
  *
  * The velocity is px per frame of a 60 Hz display, and a frame moves `velocity * dt / 16.67`, with

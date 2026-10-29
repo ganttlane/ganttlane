@@ -18,7 +18,7 @@ import { estimateTextWidth } from './label';
 export interface BarsLayerOptions {
   /**
    * Width in px of a label text, for `auto` placement. The default estimates from character
-   * widths (`estimateTextWidth`) because `update` must not read layout (NFR-PERF-2); give a
+   * widths (`estimateTextWidth`) because `update` must not read layout; give a
    * measuring function (a canvas `measureText` with a cache, say) for an unusual font.
    */
   readonly measureText?: ((text: string) => number) | undefined;
@@ -43,7 +43,7 @@ function sameList<T>(a: readonly T[], b: readonly T[]): boolean {
 }
 
 /**
- * The bars layer (FR-BAR-1 … FR-BAR-5, FR-ROW-3): one view per bar of `snapshot.window`
+ * The bars layer: one view per bar of `snapshot.window`
  * (`barsInWindow`), keyed by task id, drawn into `g.gantt__bars`.
  *
  * - **Markup.** `g.gantt__bar[data-task-id][data-type]` with the task's `className`, `color`
@@ -73,8 +73,8 @@ function sameList<T>(a: readonly T[], b: readonly T[]): boolean {
  * - **Cost.** A view keeps its nodes and writes only the attributes that changed. A bar whose
  *   inputs are as before is not touched (a scroll that leaves the same bars in the window
  *   touches nothing); a bar that enters the window gets new nodes, and those of a bar that left
- *   are dropped (a pool of them was measured at under 0.1 ms per frame, step 4.5, and removed
- *   in step 5.3 to make room for the disposal contract). No layout is ever read: label widths
+ *   are dropped (nodes are not pooled: a pool was measured at under 0.1 ms per frame and
+ *   removed to make room for the disposal contract). No layout is ever read: label widths
  *   are estimated (see {@link BarsLayerOptions.measureText}).
  *
  * @param options - See {@link BarsLayerOptions}.

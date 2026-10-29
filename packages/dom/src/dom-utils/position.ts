@@ -88,7 +88,7 @@ const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(value, max));
 
 /**
- * Places a popover above or below an anchor, inside the bounds (FR-TIP-2). Pure: it reads no
+ * Places a popover above or below an anchor, inside the bounds. Pure: it reads no
  * layout, so the caller measures once (when the popover opens or its content or anchor changes)
  * and calls it again for every move of the cursor or the scroll position.
  *

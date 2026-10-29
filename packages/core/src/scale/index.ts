@@ -1,8 +1,7 @@
 /**
- * The time scale (FR-SCALE-*): the linear date ↔ x mapping (`TimeScale`), view modes with their
- * presets, header rows and grid lines (`docs/architecture.md` §6), and snapping: the caller-facing
- * snap settings, their resolution against `scheduling.granularity` and the snap of dragged edges
- * (FR-SNAP, §5.1).
+ * The time scale: the linear date ↔ x mapping (`TimeScale`), view modes with their
+ * presets, header rows and grid lines, and snapping: the caller-facing
+ * snap settings, their resolution against `scheduling.granularity` and the snap of dragged edges.
  *
  * Other core modules import scale only through this file.
  *

@@ -19,9 +19,9 @@ export interface LineItem {
   readonly y1: number;
   readonly x2: number;
   readonly y2: number;
-  /** A major line of the view mode (FR-SCALE-5). */
+  /** A major line of the view mode. */
   readonly major: boolean;
-  /** A minor line of the view mode (FR-SNAP-9). */
+  /** A minor line of the view mode. */
   readonly minor: boolean;
 }
 
@@ -42,8 +42,7 @@ export interface LinesSection {
 
 /**
  * Creates the grid lines' section: `line.gantt__gridline[data-orientation][data-major?]
- * [data-minor?]`, keyed by position (vertical) or row index (horizontal) in one group
- * (FR-SCALE-5, FR-UI-4).
+ * [data-minor?]`, keyed by position (vertical) or row index (horizontal) in one group.
  *
  * @param document - Document that owns the nodes.
  * @param container - The group the lines go into; the section owns it.
@@ -164,7 +163,7 @@ export function horizontalLines(snapshot: GanttSnapshot): readonly LineItem[] {
   return items;
 }
 
-/** The "today" line (`line.gantt__today`, FR-UI-1). */
+/** The "today" line (`line.gantt__today`). */
 export interface TodayLine {
   /**
    * Shows the line at `now`, or removes it for `undefined` and for a time outside the content.

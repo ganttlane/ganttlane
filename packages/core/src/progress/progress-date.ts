@@ -1,6 +1,6 @@
 /**
- * Progress percentage ↔ progress date (FR-PROG-1, FR-SNAP-15): pure functions over a time span and
- * the work calendar. They know nothing about tasks (`docs/architecture.md` §3.1), so `model/` can
+ * Progress percentage ↔ progress date: pure functions over a time span and
+ * the work calendar. They know nothing about tasks, so `model/` can
  * use them for `progressDate` and the progress handle (`progress-handle.ts`) and anchoring
  * (`progress-anchor.ts`) build on them.
  */
@@ -32,7 +32,7 @@ export interface ProgressSpan extends ProgressBounds {
 export interface ProgressToDateInput extends ProgressSpan {
   /** Progress in percent; values outside `0` … `100` are clamped, `NaN` counts as `0`. */
   readonly progress: number;
-  /** The data step the date is aligned down to (FR-SNAP-15). */
+  /** The data step the date is aligned down to. */
   readonly granularity: Granularity;
 }
 
@@ -56,11 +56,11 @@ export interface ProgressBoundary {
 }
 
 /**
- * The progress boundary of a span: the date at `progress` % of its calendar or working time
- * (FR-PROG-1), aligned **down** to `granularity` (FR-SNAP-15: the percentage itself is never
+ * The progress boundary of a span: the date at `progress` % of its calendar or working time,
+ * aligned **down** to `granularity` (the percentage itself is never
  * changed, only the drawn boundary is) and clamped to `[start, endExclusive]`.
  *
- * `0 %` is always `start` and `100 %` always `endExclusive` (fork bugs D4 / D5), also in working
+ * `0 %` is always `start` and `100 %` always `endExclusive`, also in working
  * mode when the span ends with non-working days. In working mode the boundary is the first
  * instant at which the share of working time is reached, so it never lies in the middle of a
  * non-working stretch; it may sit at its start (Friday 24:00).

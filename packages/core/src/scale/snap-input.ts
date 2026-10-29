@@ -1,8 +1,7 @@
 /**
- * The caller-facing shape of snap settings (`docs/api.md` §2, FR-SNAP-1 … FR-SNAP-4), shared by
+ * The caller-facing shape of snap settings, shared by
  * `ViewMode.snap` and `scheduling.snap`. This file only describes and syntax-checks the input;
- * resolving the effective step (granularity, `'unit'`, per-interaction steps) is `scale/snap`
- * (plan step 1.6).
+ * resolving the effective step (granularity, `'unit'`, per-interaction steps) is `scale/snap`.
  */
 
 import { DEV, isRecord } from '../shared';
@@ -10,19 +9,19 @@ import type { DurationFields } from '../time';
 import { checkDuration, describeValue, joinPath, type Report } from './check';
 
 /**
- * One snap step (FR-SNAP-1): a duration (`DurationInput`) from `'1min'` up (`'15min'`, `'1h'`,
+ * One snap step: a duration (`DurationInput`) from `'1min'` up (`'15min'`, `'1h'`,
  * `'1d'`, `'1w'`, `'1mo'`, `{ hours: 1 }`, …), `'unit'` for the view mode's column unit, or
  * `false` to disable snapping.
  */
 export type SnapStep = 'unit' | false | DurationFields | (string & Record<never, never>);
 
 /**
- * How an edge snaps (FR-SNAP-2, FR-SNAP-3): `'grid'` to the nearest calendar boundary of the
- * step, `'relative'` by whole steps from where the drag started (the fork's behaviour).
+ * How an edge snaps: `'grid'` to the nearest calendar boundary of the
+ * step, `'relative'` by whole steps from where the drag started.
  */
 export type SnapMode = 'grid' | 'relative';
 
-/** Snap settings in object form: a shared step, a mode and per-interaction steps (FR-SNAP-4). */
+/** Snap settings in object form: a shared step, a mode and per-interaction steps. */
 export interface SnapOptions {
   /** Step shared by all interactions; defaults to the view mode's snap. */
   readonly step?: SnapStep;

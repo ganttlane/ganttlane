@@ -1,5 +1,5 @@
 /**
- * The data step `scheduling.granularity` (FR-SNAP-12, ADR-017): the smallest time step of task
+ * The data step `scheduling.granularity`: the smallest time step of task
  * dates, durations and lags, plus the helpers that align values to it. Used by normalization
  * (`model/`) and by snapping (`scale/snap`).
  *
@@ -31,13 +31,13 @@ export type AlignMode = 'floor' | 'ceil' | 'nearest';
 /** Which way {@link alignNearest} goes when a value is exactly halfway between boundaries. */
 export type AlignTie = 'up' | 'down';
 
-/** The default granularity: one day (`'1d'`), day-level planning as in the fork. */
+/** The default granularity: one day (`'1d'`), day-level planning. */
 export const DEFAULT_GRANULARITY: Granularity = /* @__PURE__ */ Object.freeze({
   ms: DAY,
 }) as Granularity;
 
 /**
- * Parses `scheduling.granularity` (FR-SNAP-12). Allowed: a fixed sub-day step that divides 24 h
+ * Parses `scheduling.granularity`. Allowed: a fixed sub-day step that divides 24 h
  * exactly (`'1min'`, `'5min'`, `'15min'`, `'90min'`, `'1h'`, `'6h'`, `'12h'`, …) or exactly one
  * day (`'1d'`, the default). Never throws.
  *

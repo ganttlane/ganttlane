@@ -1,10 +1,9 @@
 /**
- * Propagation of an edit (FR-SCH-1 … FR-SCH-5, FR-SCH-7, FR-SCH-9, FR-LINK-1, FR-LINK-2,
- * FR-PROG-2): a move or resize of one task becomes a {@link ChangeSet} with every task the edit
- * moves through links and the hierarchy. The semantics are those of the frappe-gantt fork's
- * `update_nested_bars_dates` (rigid links that keep their lag in both directions, edge pins,
- * `frozen`, `duration_as_constant`, `move_children`; `docs/audit/02-fork.md` §2.5–2.7) without its
- * defects: no mutation, a single topological pass instead of unbounded recursion (I4).
+ * Propagation of an edit: a move or resize of one task becomes a {@link ChangeSet} with every
+ * task the edit moves through links and the hierarchy: rigid links that keep their lag in both
+ * directions, edge pins, locked tasks (`locked`), tasks that keep their duration
+ * (`fixedDuration`) and `moveChildren`. It never mutates its input and makes a single
+ * topological pass instead of recursing without bound.
  */
 
 import type { WorkCalendar } from '../calendar';
@@ -42,38 +41,37 @@ import type { ScheduleHierarchy } from './hierarchy-view';
 import { cyclicComponents, sortIndexes } from './topo-sort';
 
 /**
- * How an edit spreads along links (`scheduling.propagation`, FR-SCH-1):
- * - `'preserve-lag'` (default, legacy `move_dependencies: true`): successors move in both
+ * How an edit spreads along links (`scheduling.propagation`):
+ * - `'preserve-lag'` (default): successors move in both
  *   directions so that every link keeps its lag;
  * - `'none'`: links are only drawn; children still follow their parent per {@link MoveChildren}.
  */
 export type PropagationPolicy = 'none' | 'preserve-lag';
 
 /**
- * Which children move with their parent (`hierarchy.moveChildren`, FR-SCH-2; the fork's
- * `move_children` and `follows_parent`):
- * - `'all'` (default, legacy `move_children: true`): children with `followParent` follow their
+ * Which children move with their parent (`hierarchy.moveChildren`):
+ * - `'all'` (default): children with `followParent` follow their
  *   `parentAnchor`; the others shift with the parent's start (keeping their start-to-start offset)
  *   when it changes;
- * - `'following'` (legacy `move_children: false`): only children with `followParent`;
+ * - `'following'`: only children with `followParent`;
  * - `'none'`: no child moves.
  */
 export type MoveChildren = 'all' | 'following' | 'none';
 
-/** Whether the edited edge skips non-working days (`scheduling.skipNonWorkingDays`, FR-SCH-4). */
+/** Whether the edited edge skips non-working days (`scheduling.skipNonWorkingDays`). */
 export interface SkipNonWorkingDays {
-  /** For `'move'`; default `true` (legacy `on_move_skip_ignored_days`). */
+  /** For `'move'`; default `true`. */
   readonly move?: boolean | undefined;
-  /** For `'resize-start'` and `'resize-end'`; default `false` (legacy `on_resize_skip_ignored_days`). */
+  /** For `'resize-start'` and `'resize-end'`; default `false`. */
   readonly resize?: boolean | undefined;
   /**
-   * For the progress handle (FR-PROG-3), read by the interaction layer (`progressFromDate`);
+   * For the progress handle, read by the interaction layer (`progressFromDate`);
    * default `true` there. {@link propagate} ignores it.
    */
   readonly progress?: boolean | undefined;
 }
 
-/** Scheduling options of {@link propagate}; every field has the fork's default. */
+/** Scheduling options of {@link propagate}; every field has a default. */
 export interface PropagationOptions {
   /** Default `'preserve-lag'`. */
   readonly propagation?: PropagationPolicy | undefined;
@@ -82,14 +80,14 @@ export interface PropagationOptions {
   /** Default `{ move: true, resize: false, progress: true }`. */
   readonly skipNonWorkingDays?: SkipNonWorkingDays | undefined;
   /**
-   * `scheduling.keepDayPrecision` (FR-SNAP-7), default `true`: a day-precision edited task stays
+   * `scheduling.keepDayPrecision`, default `true`: a day-precision edited task stays
    * on whole days. With `false` its command is aligned to the granularity instead, and an edge off
    * midnight turns it into a time-precision task: its change carries `before.precision: 'day'`
-   * and `after.precision: 'time'`. Propagated tasks keep their own precision (FR-SCH-9).
+   * and `after.precision: 'time'`. Propagated tasks keep their own precision.
    */
   readonly keepDayPrecision?: boolean | undefined;
   /**
-   * Whether to compute `ChangeSet.conflicts`. Default `true`. Drag previews (plan step 3.7), which
+   * Whether to compute `ChangeSet.conflicts`. Default `true`. Drag previews, which
    * call {@link propagate} on every pointer move and only need the new bounds, pass `false` and
    * get `conflicts: []`; the commit uses the default, so `onBeforeTaskChange` sees the conflicts.
    */
@@ -158,20 +156,20 @@ export type PropagationCommand =
   MoveCommand | ResizeStartCommand | ResizeEndCommand | RescheduleCommand;
 
 /**
- * Applies an edit to one task and propagates it through links and the hierarchy (FR-SCH-1 …
- * FR-SCH-5, FR-SCH-6, FR-SCH-9). Pure: reads the model, graph and tree, never changes them, and
- * returns a new frozen {@link ChangeSet} (`reason` = `command.kind`, `'api'` for `'reschedule'`).
+ * Applies an edit to one task and propagates it through links and the hierarchy. Pure: reads the
+ * model, graph and tree, never changes them, and returns a new frozen {@link ChangeSet} (`reason` =
+ * `command.kind`, `'api'` for `'reschedule'`).
  *
  * Times are floating date-times. Every value in the result is a multiple of the model's
- * granularity, and of a whole day for day-precision tasks (FR-SNAP-12, FR-SCH-9). The calendar
+ * granularity, and of a whole day for day-precision tasks. The calendar
  * and the granularity are the model's (`model.options`), the ones its lengths and lags were
  * measured with.
  *
- * **The edited task** (`cause: 'direct'`). The command's date is expected to be snapped already
- * (plan step 3.7); a misaligned one is aligned to the nearest boundary of the task's step (a day
+ * **The edited task** (`cause: 'direct'`). The command's date is expected to be snapped already;
+ * a misaligned one is aligned to the nearest boundary of the task's step (a day
  * for day-precision tasks, else the granularity) and a non-finite one is ignored. With
- * `options.keepDayPrecision: false` a day-precision task's step is the granularity too
- * (FR-SNAP-7): when its new start or end is off midnight it becomes a time-precision task (its
+ * `options.keepDayPrecision: false` a day-precision task's step is the granularity too:
+ * when its new start or end is off midnight it becomes a time-precision task (its
  * lengths below then follow the time rules) and its change has `before.precision: 'day'` and
  * `after.precision: 'time'`; on whole days it stays a day task.
  * - `move`: the task starts at `start` and keeps its length in its `durationMode`: calendar time,
@@ -186,7 +184,7 @@ export type PropagationCommand =
  * - With `skipNonWorkingDays.move` (`move`) or `.resize` (resizes), a start on a non-working day
  *   moves **forward** to the next working day at the same time of day, and an exclusive end inside
  *   a non-working stretch (the instant before it lies on a non-working day) moves **back** to the
- *   end of the last working day (FR-SCH-7: "start on Saturday + accept → Monday";
+ *   end of the last working day ("start on Saturday + accept → Monday";
  *   `WorkCalendar.rollToWorking`). A resize is first clamped to the minimum length, then rolled:
  *   when the roll carries the dragged edge past that minimum (a start rolled forward beyond
  *   `endExclusive - step`, an end rolled back before `start + step`), the edit is a no-op rather
@@ -201,19 +199,19 @@ export type PropagationCommand =
  * edges (per `moveChildren`), restricted to the tasks the edited task reaches. Every task is
  * visited at most once, after all its predecessors in that pass, so cycles cannot loop. Links
  * alone are acyclic here, but with parent → child edges they can still form a cycle (e.g. a link
- * from a child to its own parent): like the links of a cycle of links (FR-LINK-7), every link of
+ * from a child to its own parent): like the links of a cycle of links, every link of
  * such a cycle (of its strongly connected component) is ignored. Tasks without a bar and `locked`
  * tasks never move and **stop** the propagation: a change does not travel through them.
  *
  * A visited task collects **pins** from its predecessors that changed:
- * - a link (FR-LINK-1) pins the target's edge of its type (`FS`, `SS`: the start; `FF`, `SF`: the
+ * - a link pins the target's edge of its type (`FS`, `SS`: the start; `FF`, `SF`: the
  *   end) at `anchorTime(newSourceSpan, sourceAnchor) + lag`, the lag counted in the target's
  *   `durationMode` (working time with `addWorkingTime`, else plain milliseconds);
  * - a parent pins a `followParent` child per `parentAnchor` (`SS` / `FS` the start, `FF` / `SF`
  *   the end) at the parent's new edge + the offset measured from the parent's **old** span to the
  *   child's edge in the child's mode (`measureLag`); with `moveChildren: 'all'` it pins the start
  *   of any other child at the parent's new start + their old start-to-start offset, when the
- *   parent's start changed (the fork's later `move_children` rule).
+ *   parent's start changed.
  *
  * When several pins hit the same edge, the one **furthest in the direction of the edit** wins (the
  * latest after a forward edit, the earliest after a backward one); on equal times the parent comes
@@ -223,7 +221,7 @@ export type PropagationCommand =
  * - only the start pinned → the task **moves** there, keeping its length as above;
  * - only the end pinned → it moves so that it ends there, keeping its length (working time is
  *   counted back from the end);
- * - both pinned (`FS` + `FF`, FR-LINK-2; `parentAnchor: ['SS', 'FF']`) → it **stretches** to both
+ * - both pinned (`FS` + `FF`; `parentAnchor: ['SS', 'FF']`) → it **stretches** to both
  *   pins, unless it is `fixedDuration` or a milestone, or the pins leave less than one step: then
  *   it moves by the start pin. (Both pins of an `FS` + `FF` pair hang on the predecessor's end, so
  *   with the current gaps as lags they move together and the successor keeps its length; it
@@ -231,7 +229,7 @@ export type PropagationCommand =
  *   tasks, e.g. `SS` + `FF` after a resize.)
  *
  * Pins of a day-precision task are aligned to the nearest day (ties in the direction of the edit),
- * so day tasks in a chain of time tasks stay on day boundaries (FR-SCH-9). Pins of a working-mode
+ * so day tasks in a chain of time tasks stay on day boundaries. Pins of a working-mode
  * task are then rolled onto working time: a start on a non-working day moves forward to the next
  * working day at the same time of day; an end inside a non-working stretch moves back to the end of
  * the last working day (a predecessor ending on Friday with an `FS` lag of 0 starts its successor
@@ -241,14 +239,14 @@ export type PropagationCommand =
  * A changed task's change has `cause: 'link'` or `'parent'` and `via`, the predecessor of the pin
  * that placed it (the start pin when there is one).
  *
- * **Progress** (FR-PROG-2): each changed task's progress is rebased with `rebaseProgress` from the
+ * **Progress**: each changed task's progress is rebased with `rebaseProgress` from the
  * old to the new span, keeping the done part (`progressAnchor: 'start'`, default) or the remainder
  * (`'end'`); a move keeps the percentage.
  *
  * **Order**: the edited task first, then the other changed tasks in the pass's topological order
  * (ties in model order).
  *
- * **Conflicts** (FR-SCH-6): `conflicts` are those of the model with the changes applied that
+ * **Conflicts**: `conflicts` are those of the model with the changes applied that
  * involve a changed task — `detectConflicts(applyChangeSet(model, changeSet), context, changedIds)`:
  * its own non-working start or end, it outside its parent or its children outside it, and violated
  * links into or out of it (e.g. into a `locked` successor, or any link under `'none'`). Conflicts
@@ -367,12 +365,12 @@ function emptyChangeSet(reason: ChangeReason): ChangeSet {
   return Object.freeze({ reason, changes: NO_CHANGES, conflicts: NO_CONFLICTS });
 }
 
-/** Whether a task can move: it has a bar and is not locked (legacy `frozen`). */
+/** Whether a task can move: it has a bar and is not locked. */
 function isMovable(task: TaskModel): task is Dated {
   return task.span !== undefined && task.task.locked !== true;
 }
 
-/** The data step of a task: a whole day for day precision (FR-SCH-9), else the granularity. */
+/** The data step of a task: a whole day for day precision, else the granularity. */
 function stepOf(task: TaskModel, granularity: Granularity): Granularity {
   return task.precision === 'day' ? DEFAULT_GRANULARITY : granularity;
 }
@@ -380,7 +378,7 @@ function stepOf(task: TaskModel, granularity: Granularity): Granularity {
 /**
  * The edited task's new bounds and precision, or `undefined` for a no-op command. Without
  * `keepDayPrecision` a day-precision task is edited at the granularity and becomes timed when an
- * edge leaves midnight (FR-SNAP-7).
+ * edge leaves midnight.
  */
 function directBounds(
   command: PropagationCommand,
@@ -734,7 +732,7 @@ function rollEnd(t: DateTimeMs, calendar: WorkCalendar): DateTimeMs {
 }
 
 /**
- * The progress of a task on its new span (FR-PROG-2): `rebaseProgress`. A span of the same
+ * The progress of a task on its new span: `rebaseProgress`. A span of the same
  * measured length (any move) keeps the percentage exactly, as `rebaseProgress` guarantees; that
  * common case is answered here without it, since its progress date is not needed.
  */
@@ -762,7 +760,7 @@ function progressOn(task: Dated, to: Bounds, settings: ResolvedModelOptions): nu
 }
 
 /**
- * The frozen change of a task, with its progress rebased onto the new span (FR-PROG-2); a
+ * The frozen change of a task, with its progress rebased onto the new span; a
  * `precision` other than the task's is recorded on both sides (`TaskPatch.precision`).
  */
 function changeOf(

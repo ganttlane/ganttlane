@@ -150,6 +150,23 @@ describe('createEmitter', () => {
     expect(calls).toEqual(['a']);
   });
 
+  it('FR-EVT-3: hasListeners tells whether an event has a listener left', () => {
+    const emitter = createEmitter<TestEvents>();
+    expect(emitter.hasListeners('ping')).toBe(false);
+    const off = emitter.on('ping', () => undefined);
+    const other = emitter.on('ping', () => undefined);
+    expect(emitter.hasListeners('ping')).toBe(true);
+    expect(emitter.hasListeners('error')).toBe(false);
+    off();
+    expect(emitter.hasListeners('ping')).toBe(true);
+    other();
+    expect(emitter.hasListeners('ping')).toBe(false);
+    emitter.on('error', () => undefined);
+    expect(emitter.hasListeners('error')).toBe(true);
+    emitter.clear();
+    expect(emitter.hasListeners('error')).toBe(false);
+  });
+
   it('FR-EVT-3: emitters are independent (no globals)', () => {
     const a = createEmitter<TestEvents>();
     const b = createEmitter<TestEvents>();

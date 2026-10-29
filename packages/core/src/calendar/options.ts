@@ -1,6 +1,6 @@
 /**
- * Options of the work calendar (`docs/api.md` §3, `calendar`) and their validation into the
- * normalized rule set the day index evaluates (FR-CAL-1 … FR-CAL-3).
+ * Options of the work calendar (`calendar`) and their validation into the
+ * normalized rule set the day index evaluates.
  */
 
 import { DEV } from '../shared';
@@ -17,7 +17,7 @@ import {
 } from '../time';
 import { type CalendarIssue, calendarIssue, type CalendarIssueCode } from './issues';
 
-/** A holiday with an optional name, shown as the label of the day (FR-CAL-2). */
+/** A holiday with an optional name, shown as the label of the day. */
 export interface HolidayEntry {
   /** The day; a time of day is ignored (with a `'time-ignored'` warning unless it is midnight). */
   readonly date: DateInput;
@@ -45,7 +45,7 @@ export interface CalendarDay {
 }
 
 /**
- * A custom working-day rule (FR-CAL-3): `true` makes the day a working day, `false` a non-working
+ * A custom working-day rule: `true` makes the day a working day, `false` a non-working
  * day, and `undefined` (or any other value) leaves the decision to `weekends`.
  *
  * It must be **pure**: the calendar caches the answer for its whole life and calls the rule once
@@ -57,8 +57,8 @@ export interface CalendarDay {
 export type WorkingDayRule = (day: CalendarDay) => boolean | undefined;
 
 /**
- * Options of `createWorkCalendar` (`docs/api.md` §3, `calendar`). Which rule decides a day
- * (FR-CAL-3), from the strongest: `workingDays` exception > `holidays` > `isWorkingDay` rule >
+ * Options of `createWorkCalendar` (`calendar`). Which rule decides a day,
+ * from the strongest: `workingDays` exception > `holidays` > `isWorkingDay` rule >
  * `weekends`.
  *
  * The calendar copies what it needs: changing these objects afterwards has no effect, and they are
@@ -66,18 +66,18 @@ export type WorkingDayRule = (day: CalendarDay) => boolean | undefined;
  */
 export interface WorkCalendarOptions {
   /**
-   * Days of the week that are not working days (FR-CAL-1), `0` = Sunday … `6` = Saturday.
+   * Days of the week that are not working days, `0` = Sunday … `6` = Saturday.
    * Default `[0, 6]` (Saturday and Sunday); `[]` makes every day of the week a working day.
    */
   readonly weekends?: readonly number[] | undefined;
-  /** Non-working days, optionally named (FR-CAL-2). Invalid entries are reported and skipped. */
+  /** Non-working days, optionally named. Invalid entries are reported and skipped. */
   readonly holidays?: readonly HolidayInput[] | undefined;
   /**
    * Exceptions that make a day a working day whatever the other rules say, e.g. a working
    * Saturday or a holiday that is worked anyway.
    */
   readonly workingDays?: readonly DateInput[] | undefined;
-  /** Custom rule between holidays and weekends (FR-CAL-3); see {@link WorkingDayRule}. */
+  /** Custom rule between holidays and weekends; see {@link WorkingDayRule}. */
   readonly isWorkingDay?: WorkingDayRule | undefined;
 }
 

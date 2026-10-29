@@ -1,5 +1,5 @@
 /**
- * The horizontal state of the timeline (`docs/architecture.md` §7): the range, the time scale
+ * The horizontal state of the timeline: the range, the time scale
  * placed on it and the scroll position, plus the checks and small helpers every viewport
  * function shares.
  */

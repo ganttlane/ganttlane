@@ -1,5 +1,5 @@
 /**
- * Calendar arithmetic on floating date-times (ADR-003, ADR-018). Calendar units (months,
+ * Calendar arithmetic on floating date-times. Calendar units (months,
  * quarters, years, week / month / quarter / year starts, weekdays, month lengths) go through
  * `@internationalized/date` (see `engine.ts` for the conversion window); fixed-length units
  * (minutes, hours, days, weeks) and day keys stay plain arithmetic on numbers, the hot path.
@@ -296,7 +296,7 @@ export function diffDays(start: DateTimeMs, end: DateTimeMs): number {
  * `addMonths(start, n) <= end` (month-end clamping included, so Jan 31 → Feb 28 is `1`).
  * Antisymmetric: `diffMonths(a, b) === -diffMonths(b, a)`.
  *
- * `@internationalized/date` has no difference API (ADR-003), so this estimates `n` from the
+ * `@internationalized/date` has no difference API, so this estimates `n` from the
  * year and month and corrects it with the library-backed {@link addMonths}.
  *
  * @param start - Floating date-time.

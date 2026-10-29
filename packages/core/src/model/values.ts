@@ -1,6 +1,6 @@
 /**
  * Helpers shared by task and link normalization: reading days-or-duration values, alignment to
- * the granularity per `alignInput` (ADR-017) and the formatting used in issue messages.
+ * the granularity per `alignInput` and the formatting used in issue messages.
  */
 
 import { assertNever, DEV } from '../shared';

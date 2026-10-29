@@ -1,6 +1,6 @@
 /**
  * Locale-aware formatting of floating time through the `DateFormatter` of
- * `@internationalized/date` (ADR-018): `Intl.DateTimeFormat` with fixes for engine bugs such as
+ * `@internationalized/date`: `Intl.DateTimeFormat` with fixes for engine bugs such as
  * `hour12: false` resolving to a 24:00 clock.
  *
  * There is no module-level state: each `DateAdapter` owns a {@link FormatterCache} created

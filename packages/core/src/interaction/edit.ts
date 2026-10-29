@@ -1,7 +1,7 @@
 /**
  * What a date gesture (move, resize, progress) does to the model for a dragged edge: snapping
- * per gesture (FR-SNAP-*), the minimum length of a resize, the progress handle with skipped
- * non-working days (FR-PROG-3), and the live propagation preview (FR-EDIT-5).
+ * per gesture, the minimum length of a resize, the progress handle with skipped
+ * non-working days, and the live propagation preview.
  */
 
 import type { TaskModel, TaskSpan } from '../model';
@@ -31,24 +31,23 @@ const NO_CONFLICTS: readonly Conflict[] = /* @__PURE__ */ Object.freeze([]);
  * The value a date gesture puts the task at when its edge is dragged to `raw`: the snapped start
  * (`'move'`, `'resize-start'`), exclusive end (`'resize-end'`) or the progress in percent.
  *
- * The step is the gesture's rule of `context.snap` (`false`, the data step, with `alt`,
- * FR-SNAP-10) raised for day-precision tasks unless `keepDayPrecision` is off (`snapTime`,
- * FR-SNAP-7); `'relative'` snapping counts from the edge at the start of the drag (`origin`). The
- * direction (ties, skipped days) is the side of `raw` relative to `origin`, so the result depends
- * on the pointer position only, not on its history. Moves skip non-working days by default and
- * resizes do not (FR-SNAP-8), in the direction of the drag.
+ * The step is the gesture's rule of `context.snap` (`false`, the data step, with `alt`) raised for
+ * day-precision tasks unless `keepDayPrecision` is off (`snapTime`); `'relative'` snapping counts
+ * from the edge at the start of the drag (`origin`). The direction (ties, skipped days) is the side
+ * of `raw` relative to `origin`, so the result depends on the pointer position only, not on its
+ * history. Moves skip non-working days by default and resizes do not, in the direction of the drag.
  *
- * A resize keeps one step at least (FR-SNAP-6): the edge is snapped (and rolled), then clamped to
+ * A resize keeps one step at least: the edge is snapped (and rolled), then clamped to
  * the minimum. When skipping put the edge past the minimum and the clamp leaves it on non-working
  * time, it is rolled back onto the last working position short of the minimum (away from the
- * fixed edge, keeping the time of day, FR-SCH-4); when that would carry it back past `origin`
+ * fixed edge, keeping the time of day); when that would carry it back past `origin`
  * against the drag, the edge stays at `origin` (no change).
  *
  * Progress snaps to its rule, then `progressFromDate` clamps it to the bar and, unless
- * `skipNonWorkingDays.progress` is `false`, leaves non-working stretches in the drag direction
- * (FR-PROG-3). A progress date equal to `origin` (the task's `progressDate`) keeps the task's
+ * `skipNonWorkingDays.progress` is `false`, leaves non-working stretches in the drag direction.
+ * A progress date equal to `origin` (the task's `progressDate`) keeps the task's
  * own progress, so a drag back onto the handle changes nothing even when the progress is not on
- * an aligned date (FR-SNAP-15).
+ * an aligned date.
  */
 export function snapEdit(
   gesture: DateGesture,
@@ -121,10 +120,10 @@ export function snapEdit(
 
 /**
  * The change set of a date gesture at `value` (from {@link snapEdit}): `propagate` with
- * `conflicts: false` for move and resize (successors and children move in the preview,
- * FR-EDIT-5), a single direct change for progress. Empty when nothing changes. `propagate` gets
- * the snap's `keepDayPrecision`, so a day-precision task dragged to a time of day without it
- * becomes a timed task (`after.precision: 'time'`, FR-SNAP-7).
+ * `conflicts: false` for move and resize (successors and children move in the preview), a
+ * single direct change for progress. Empty when nothing changes. `propagate` gets the snap's
+ * `keepDayPrecision`, so a day-precision task dragged to a time of day without it becomes a
+ * timed task (`after.precision: 'time'`).
  */
 export function editChangeSet(
   gesture: DateGesture,

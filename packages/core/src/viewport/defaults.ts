@@ -1,5 +1,5 @@
 /**
- * Defaults of the viewport module (`docs/api.md` §3 `timeline`, `scroll`).
+ * Defaults of the viewport module (the `timeline` and `scroll` options).
  */
 
 import type { ScrollAlign } from './align';
@@ -12,9 +12,8 @@ import type { ScrollAlign } from './align';
  *   million in Chromium and WebKit); 8 million stays well below. At the hour preset (960 px per
  *   day) 4 million px are about 11 years;
  * - `autoScrollEdge` 40 and `autoScrollMaxSpeed` 20: the drag autoscroll zone at each viewport
- *   edge, in px, and the speed at its outer side, in px per frame (FR-EDIT-6);
- * - `initialScroll` `'today'`, `align` `'start'` and `behavior` `'smooth'`: the fork's
- *   `scroll_to`, `scroll_to_viewport_position` (0) and `scroll_to_behavior`.
+ *   edge, in px, and the speed at its outer side, in px per frame;
+ * - `initialScroll` `'today'`, `align` `'start'` and `behavior` `'smooth'`.
  */
 export const VIEWPORT_DEFAULTS: {
   readonly maxWidth: number;

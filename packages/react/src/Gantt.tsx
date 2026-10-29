@@ -56,7 +56,7 @@ function GanttImpl(props: GanttProps, ref: ForwardedRef<GanttHandle>): ReactElem
 
 /**
  * A gantt chart: a `div` that the vanilla renderer of `@ganttlane/dom` draws into, with the
- * options as props (FR-REACT-1). It is {@link useGantt} and a container; see there for how props
+ * options as props. It is {@link useGantt} and a container; see there for how props
  * reach the chart (only what changed, group by group), for the handlers that are always current
  * and for what happens under StrictMode and on a server.
  *
@@ -68,13 +68,13 @@ function GanttImpl(props: GanttProps, ref: ForwardedRef<GanttHandle>): ReactElem
  * `tasks`, `links`, `viewMode`, `expandedKeys` and `selectedKeys` are controlled by their prop
  * and uncontrolled by their `default…` prop, see {@link GanttControlledProps}.
  *
- * **Slots (FR-REACT-4).** `renderTooltip`, `renderLinkMenu` and `renderBarLabel` return a
+ * **Slots.** `renderTooltip`, `renderLinkMenu` and `renderBarLabel` return a
  * `ReactNode` that is drawn inside the tooltip, the link menu and the bar labels of the chart
  * through portals: see {@link GanttSlotProps}. The portals are siblings of the container, so the
  * content sees the providers above `<Gantt>`.
  *
- * **Ref (FR-REACT-3).** `ref` is the {@link GanttHandle} of the chart: the same object for the life
- * of the component, with the methods of `docs/api.md` §6 (`scrollToTask`, `updateTask`,
+ * **Ref.** `ref` is the {@link GanttHandle} of the chart: the same object for the life
+ * of the component, with the methods of the chart (`scrollToTask`, `updateTask`,
  * `select`, `edit.begin`, `undo`, `on`, …). It is made with `forwardRef`, which works in React 18.3
  * and 19, and `forwardRef` cannot be generic: `Gantt` is `forwardRef` cast to a generic function
  * component, so `TData` is inferred from the props and types the handle (a `useRef<GanttHandle<MyData>>`

@@ -1,5 +1,5 @@
 /**
- * Runtime shape of the input data (FR-DATA-11, ADR-016): valibot schemas for `Task` and
+ * Runtime shape of the input data: valibot schemas for `Task` and
  * `Link`. They check the **shape** only (types of fields, allowed literals); domain rules
  * (real dates, durations, alignment, references, cycles) are plain code in normalization and in
  * later modules. A type test keeps `v.InferInput` of each schema equal to the hand-written type.
@@ -7,7 +7,7 @@
  * Numbers in date, duration and lag fields may be `NaN` here, so normalization reports them as
  * `'invalid-date'` / `'invalid-duration'` with a precise message instead of a shape error.
  *
- * Planned public entry: `@ganttlane/core/schema` (FR-DATA-13, plan step 7.6), where callers can
+ * Planned public entry: `@ganttlane/core/schema`, where callers can
  * validate API data and extend the payload: `v.object({ ...TaskSchema.entries, data: MySchema })`.
  * The explicit schema types below are required by `isolatedDeclarations`.
  */
@@ -85,7 +85,7 @@ const optionalString: Optional<StringS> = v.optional(string);
 const optionalBoolean: Optional<BooleanS> = v.optional(boolean);
 
 /**
- * Shape of a `Task` (FR-DATA-11). Unknown keys are allowed (and stripped from the parse
+ * Shape of a `Task`. Unknown keys are allowed (and stripped from the parse
  * output); `data` is `unknown`, narrow it with your own schema.
  */
 export const TaskSchema: v.ObjectSchema<
@@ -164,7 +164,7 @@ export const TaskSchema: v.ObjectSchema<
   data: v.optional(v.unknown()),
 });
 
-/** Shape of a `Link` (FR-DATA-11). Unknown keys are allowed. */
+/** Shape of a `Link`. Unknown keys are allowed. */
 export const LinkSchema: v.ObjectSchema<
   {
     readonly id: Optional<StringS>;

@@ -260,7 +260,7 @@ function drawShape(view: BarView, env: BarEnv, bar: BarGeometry): void {
   setAttrs(progress, { x, y, width: bar.progressWidth, height, rx: radius, ry: radius });
 }
 
-/** Draws the label (FR-BAR-1, FR-BAR-5): its text or custom node, placed by `placeLabel`. */
+/** Draws the label: its text or custom node, placed by `placeLabel`. */
 function drawLabel(view: BarView, env: BarEnv, item: BarItem): void {
   const { bar, model, progress } = item;
   const { barLabel: mode, renderBarLabel: renderer } = env.display;
@@ -331,7 +331,7 @@ function drawLabel(view: BarView, env: BarEnv, item: BarItem): void {
   view.shown = content;
 }
 
-/** Draws the edit handles the task's permissions allow (FR-EDIT-7), where `barHandles` puts them. */
+/** Draws the edit handles the task's permissions allow, where `barHandles` puts them. */
 function drawHandles(view: BarView, env: BarEnv, bar: BarGeometry, can: TaskPermissions): void {
   const boxes = barHandles(bar, env.handles);
   for (const spec of HANDLES) {
@@ -351,7 +351,7 @@ function drawHandles(view: BarView, env: BarEnv, bar: BarGeometry, can: TaskPerm
 }
 
 /**
- * Brings a bar's view in line with its item (FR-BAR-1 … FR-BAR-3, FR-BAR-5): attributes go
+ * Brings a bar's view in line with its item: attributes go
  * through `setAttrs`, so only what changed is written, and nothing at all when the item is the
  * one drawn last. Reads no layout.
  *

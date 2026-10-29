@@ -182,7 +182,7 @@ const SLOT_PROPS = {
 
 /**
  * Hands errors to the host's unhandled-rejection channel instead of throwing them, as the core
- * does where it must not throw (ADR-025): one `Error` as it is, anything else as an `AggregateError`.
+ * does where it must not throw: one `Error` as it is, anything else as an `AggregateError`.
  */
 function reportLater(errors: readonly unknown[]): void {
   const [only] = errors;
@@ -216,8 +216,8 @@ function reportLater(errors: readonly unknown[]): void {
  * **Events.** The application's handlers are never called while React renders, and what they
  * throw never reaches React: a handler that throws while the controller drives the chart (`update`,
  * `settle`) is reported the way the core reports a listener's error, to `onError` with
- * `source: 'listener'` and the event's name, and without a listener of `error` outside the commit
- * (ADR-025). Where the core drives the chart (a click) it does that by itself.
+ * `source: 'listener'` and the event's name, and without a listener of `error` outside the commit.
+ * Where the core drives the chart (a click) it does that by itself.
  *
  * **Slots.** `renderTooltip`, `renderLinkMenu` and `renderBarLabel` are not options: the chart is given
  * one stable function of its own for each, in the place of the vanilla `tooltip.render`,

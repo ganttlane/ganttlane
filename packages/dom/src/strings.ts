@@ -1,6 +1,6 @@
 /**
- * Every piece of text the renderer writes on its own, so that it can be translated or reworded
- * (FR-I18N-2). The defaults are English; override any subset with the `strings` renderer option
+ * Every piece of text the renderer writes on its own, so that it can be translated or reworded.
+ * The defaults are English; override any subset with the `strings` renderer option
  * (`mountRenderer`) or `MountedRenderer.setStrings`.
  *
  * Text that comes from the application (task names, highlight and holiday labels, the output of
@@ -33,7 +33,7 @@ export interface GanttStrings {
   /** The action that removes the link. */
   readonly removeLink: string;
 
-  // ---- the toolbar (reserved for P1: nothing draws these yet) ----
+  // ---- the toolbar (not available yet: nothing draws these) ----
 
   /** The button that scrolls to today. */
   readonly today: string;
@@ -44,7 +44,8 @@ export interface GanttStrings {
   /** The name of the view mode switcher. */
   readonly viewMode: string;
 
-  // ---- view mode names (reserved for P1, the switcher's items; `quarterDay` is `quarter-day`) ----
+  // ---- view mode names (for the switcher's items, not available yet; `quarterDay` is
+  // `quarter-day`) ----
 
   readonly hour: string;
   readonly quarterDay: string;

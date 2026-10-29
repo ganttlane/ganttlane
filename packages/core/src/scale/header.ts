@@ -1,10 +1,10 @@
 /**
- * Header rows (FR-SCALE-4, `docs/architecture.md` §6): lazy generators of the cells of each
+ * Header rows: lazy generators of the cells of each
  * header row for a range, and the cell under a position for sticky labels.
  *
  * Every row produces cells of its own unit and step, each as wide as its real interval on the
  * linear scale, so a month cell over day columns is one merged cell. Generation is lazy, so the
- * renderer asks only for the visible window plus overscan (`docs/architecture.md` §7a).
+ * renderer asks only for the visible window plus overscan.
  */
 
 import type { DateAdapter, DateTimeMs } from '../time';
@@ -40,7 +40,7 @@ export interface HeaderCell extends HeaderCellRange {
 }
 
 /**
- * Lazily generates the cells of one header row that intersect `range` (FR-SCALE-4), in order.
+ * Lazily generates the cells of one header row that intersect `range`, in order.
  *
  * Cells are `row.step` (default `1`) × `row.unit` long and anchored to fixed points, so they do
  * not move while scrolling: hours and minutes count from midnight (`step: 6` → 00, 06, 12, 18;
@@ -115,7 +115,7 @@ export function headerRows(
 
 /**
  * The cell of a header row that contains the date at `x`, e.g. the cell under the left edge of
- * the viewport for a sticky label (FR-SCALE-4). O(1): the cell start comes from
+ * the viewport for a sticky label. O(1): the cell start comes from
  * `adapter.startOf` for the row unit, nothing is scanned. Cells are half-open, so an `x` exactly
  * on a boundary belongs to the cell that starts there.
  *

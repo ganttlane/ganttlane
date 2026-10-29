@@ -111,7 +111,7 @@ const SCROLLING_OVERFLOW = new Set(['auto', 'scroll', 'overlay']);
  * moment: a chart that has no rows yet fits everywhere, so look again once it has its height.
  *
  * Reads computed styles and sizes up the tree: call it when the mode is set and when the
- * chart's height changes, never while scrolling (NFR-PERF-2).
+ * chart's height changes, never while scrolling.
  *
  * @param element - The chart's element (its scroller).
  * @returns The host.

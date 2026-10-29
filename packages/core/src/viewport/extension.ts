@@ -1,5 +1,5 @@
 /**
- * The infinite timeline (FR-TL-2 … FR-TL-6, `docs/architecture.md` §7): when to grow or trim the
+ * The infinite timeline: when to grow or trim the
  * range, by how much, and the `scrollLeft` compensation that keeps the date under the viewport's
  * left edge in place. Pure math over a {@link TimelineState}: the renderer feeds it the scroll
  * position from every `scroll` event and applies the returned change in the same frame.
@@ -131,7 +131,7 @@ interface Plan {
 }
 
 /**
- * The next step of the infinite timeline for a scroll position (FR-TL-2 … FR-TL-5), or
+ * The next step of the infinite timeline for a scroll position, or
  * `undefined` when the range is fine as it is. Pure, O(1); at most **one** change per call: the
  * renderer calls it once per frame from its `scroll` listener (every scroll source: wheel,
  * scrollbar, keyboard, touch, programmatic, drag autoscroll), applies the change and lets the
@@ -163,7 +163,7 @@ interface Plan {
  *    so no edge is ever blocked while there is room. The content never exceeds `2 × maxWidth`
  *    by an extension.
  *
- * **Compensation** (FR-TL-3): changing the start moves the scale origin, so every x moves by
+ * **Compensation**: changing the start moves the scale origin, so every x moves by
  * `shift = oldScale.durationToPx(oldStart - newStart)` and `scrollLeft += shift`. The date under
  * the viewport's left edge is exactly the same before and after (up to float rounding, far
  * below a pixel) whenever the content is at least as wide as the viewport. Changing the end
@@ -228,7 +228,7 @@ export function planExtension(
 
 /**
  * Grows the range so it contains a date or an interval with `padding` px around it, for a
- * programmatic scroll outside the range (FR-TL-6, `scrollToDate` / `scrollToTask`): extend
+ * programmatic scroll outside the range (`scrollToDate` / `scrollToTask`): extend
  * first, then scroll in the returned state. `undefined` when the range already contains it.
  *
  * - Each edge that does not cover `target ± padding` moves outward to a column boundary, within

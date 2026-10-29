@@ -129,7 +129,7 @@ export interface GanttSlotProps<TData = unknown> {
 }
 
 /**
- * The options of {@link useGantt}: those of `createGantt` (`@ganttlane/dom`, `docs/api.md` §3,
+ * The options of {@link useGantt}: those of `createGantt` (`@ganttlane/dom`,
  * flat: data, view mode, calendar, scheduling, layout, `display`, `theme`, `tooltip`, the `on<Event>`
  * handlers, …) with the controlled / uncontrolled groups of {@link GanttControlledProps} in place
  * of `tasks`, `links`, `viewMode`, `hierarchy.expandedKeys` and `dataMode`, and the slots of
@@ -186,7 +186,7 @@ export interface SnapshotSource<TData = unknown> {
 
 /**
  * A chart made by {@link useGantt}: the methods of the vanilla `Gantt` of `@ganttlane/dom`
- * (`docs/api.md` §6) minus `destroy`, which belongs to React, plus what React needs. It is the
+ * minus `destroy`, which belongs to React, plus what React needs. It is the
  * same object for the life of the component, also while StrictMode mounts, unmounts and mounts it
  * again.
  *
@@ -219,7 +219,7 @@ export interface GanttInstance<TData = unknown>
 
 /**
  * What `<Gantt ref>` gives: the {@link GanttInstance} of the chart without what is for React
- * (`setContainer`, `slots`), so the methods of `docs/api.md` §6 (`scrollToTask`, `updateTask`,
+ * (`setContainer`, `slots`), so the methods of the chart (`scrollToTask`, `updateTask`,
  * `select`, `setViewMode`, `edit.begin`, `undo`, `on`, queries, …), `core`, `getSnapshot` and
  * `subscribe`, as an object of its own that has nothing of what is for React. It is the same object
  * for the life of the component: it is set when the chart is committed, before the layout

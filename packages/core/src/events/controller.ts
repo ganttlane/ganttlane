@@ -1,5 +1,5 @@
 /**
- * The change controller (`docs/architecture.md` §4): the orchestration between the synchronous
+ * The change controller: the orchestration between the synchronous
  * store and the outside world. It shows previews, runs the before-hook chains (sync or async),
  * re-validates what they return, commits through the store and emits the after-events.
  */
@@ -56,11 +56,15 @@ export interface CancelledResult {
   readonly status: 'cancelled';
   /** Why. */
   readonly reason: CancelReason;
-  /** For `'error'`: what the hook threw or rejected with (also emitted on `error`). */
+  /**
+   * For `'error'`: what the hook threw or rejected with (also emitted on `error`). A chart's
+   * gesture has no result to return it in: without a listener of `error` the facade reports it to
+   * the host's unhandled-rejection channel.
+   */
   readonly error?: unknown;
 }
 
-/** The change set was committed (FR-TX-1). */
+/** The change set was committed. */
 export interface CommittedResult {
   /** Discriminant. */
   readonly status: 'committed';
@@ -83,13 +87,13 @@ export type CommitResult = CommittedResult | UnchangedResult | CancelledResult |
 
 /**
  * Why a link operation was refused without asking the hooks (or despite them, for a cycle):
- * - `'invalid'`: the model would drop the link (FR-DATA-11): a malformed field (`'invalid-shape'`,
+ * - `'invalid'`: the model would drop the link: a malformed field (`'invalid-shape'`,
  *   e.g. an unknown type), an invalid lag or one with months (`'invalid-duration'`), or a
  *   misaligned lag with `alignInput: 'reject'` (`'misaligned'`); see `issues`;
  * - `'unknown-task'`: the source or the target is not a task;
  * - `'duplicate'`: a link with the same source, target and type exists (whatever its id), or the
  *   explicit `link.id` is in use (an id-less link whose default id is taken gets a free one);
- * - `'cycle'`: the link would close a cycle of links (FR-LINK-7), or is a self-link;
+ * - `'cycle'`: the link would close a cycle of links, or is a self-link;
  * - `'unknown-link'`: no link has the id to delete.
  */
 export type LinkRejectReason = 'invalid' | 'unknown-task' | 'duplicate' | 'cycle' | 'unknown-link';
@@ -104,7 +108,7 @@ export interface LinkRejectedResult {
   readonly issues?: readonly ModelIssue[];
 }
 
-/** The link was created (FR-LINK-6). */
+/** The link was created. */
 export interface LinkCreatedResult {
   /** Discriminant. */
   readonly status: 'created';
@@ -121,7 +125,7 @@ export interface LinkCreatedResult {
 export type LinkCreateResult =
   LinkCreatedResult | LinkRejectedResult | CancelledResult | BusyResult;
 
-/** The link was deleted (FR-LINK-5). */
+/** The link was deleted. */
 export interface LinkDeletedResult {
   /** Discriminant. */
   readonly status: 'deleted';
@@ -210,7 +214,7 @@ export type ControllerObserver<TData = unknown> = (operation: ControllerOperatio
  */
 export interface ChangeController<TData = unknown> {
   /**
-   * Shows a change set over the committed data (`setDraft`, FR-EDIT-5): the preview layer of the
+   * Shows a change set over the committed data (`setDraft`): the preview layer of the
    * draft, as given (a drag preview from `propagate` is valid), over a committed change the owner
    * of controlled data has not applied yet. Refused while an operation is
    * {@link ChangeController.pending} (the draft then shows the change set being confirmed) and
@@ -220,25 +224,25 @@ export interface ChangeController<TData = unknown> {
    */
   readonly preview: (changeSet: ChangeSet) => boolean;
   /**
-   * Removes the preview (`setDraft(undefined)`, FR-EDIT-4); a committed change the owner has not
+   * Removes the preview (`setDraft(undefined)`); a committed change the owner has not
    * applied yet stays. Refused like `preview`.
    *
    * @returns Whether the preview was removed.
    */
   readonly cancelPreview: () => boolean;
   /**
-   * Commits a change set computed on the store's current model (FR-TX-1, FR-TX-2, FR-SNAP-13),
+   * Commits a change set computed on the store's current model,
    * see {@link createChangeController}.
    */
   readonly commit: (changeSet: ChangeSet) => Promise<CommitResult>;
-  /** Creates a link (FR-LINK-6), see {@link createChangeController}. */
+  /** Creates a link, see {@link createChangeController}. */
   readonly createLink: (link: Link) => Promise<LinkCreateResult>;
-  /** Deletes a link by id (FR-LINK-5), see {@link createChangeController}. */
+  /** Deletes a link by id, see {@link createChangeController}. */
   readonly deleteLink: (id: string) => Promise<LinkDeleteResult>;
   /**
    * Applies a change set like `commit`, but synchronously and without the before-hooks: for
-   * changes that must not be vetoed, such as undo and redo (FR-TX-5). It is re-validated
-   * (FR-SNAP-13), applied and emitted exactly like a commit; a change set that is empty after
+   * changes that must not be vetoed, such as undo and redo. It is re-validated,
+   * applied and emitted exactly like a commit; a change set that is empty after
    * re-validation leaves the store (and its draft) as it is. `'busy'` while an operation is
    * {@link ChangeController.pending} or a committed change waits for the owner of controlled
    * data.
@@ -254,7 +258,7 @@ export interface ChangeController<TData = unknown> {
   readonly applyLinkDelete: (id: string) => LinkDeleteResult;
   /**
    * Forwards a command of the data owner to the store (`setTasks`, `setLinks`, `setOptions`, or
-   * `setData` for several at once, FR-DATA-7) and tells the observers when the snapshot changed,
+   * `setData` for several at once) and tells the observers when the snapshot changed,
    * so that edit sessions and the history see data replaced from outside: one operation per
    * command, so `setData` is one owner change for them. Never refused while an operation is
    * pending (a pending commit is re-validated against the new data); does nothing after
@@ -289,7 +293,7 @@ export interface ChangeController<TData = unknown> {
    */
   readonly report: (emit: () => void) => void;
   /**
-   * Sets, swaps or removes option-style handlers (FR-EVT-2): `onTasksChange` listens to
+   * Sets, swaps or removes option-style handlers: `onTasksChange` listens to
    * `tasksChange` and so on, `onBeforeTaskChange` / `onBeforeLinkCreate` run in their hook chains.
    * Keys missing from `handlers` are kept; a key set to anything but a function removes its
    * handler. Swapping a handler keeps its place among the listeners and hooks (it is subscribed
@@ -322,7 +326,7 @@ interface CheckedLink {
   readonly id: string;
   /** The link to write: as given, or a copy with the free id as its explicit id. */
   readonly link: Link;
-  /** Whether it would close a cycle of links (FR-LINK-7). */
+  /** Whether it would close a cycle of links. */
   readonly wouldCreateCycle: boolean;
 }
 
@@ -363,9 +367,8 @@ const HOOK_HANDLERS: ReadonlyMap<string, HookName> = /* @__PURE__ */ new Map([
 ]);
 
 /**
- * Creates the change controller over a store, an emitter and a hook registry (FR-TX-1, FR-TX-2,
- * FR-TX-3, FR-EVT-1 … FR-EVT-3, FR-LINK-6, FR-SNAP-13). The store stays synchronous and
- * hook-free; the controller is the only place where edits wait for hooks.
+ * Creates the change controller over a store, an emitter and a hook registry. The store stays
+ * synchronous and hook-free; the controller is the only place where edits wait for hooks.
  *
  * **`commit(changeSet)`** — one user action or API change:
  * 1. The change set is re-validated against the store's current model (`revalidateChangeSet`):
@@ -383,8 +386,8 @@ const HOOK_HANDLERS: ReadonlyMap<string, HookName> = /* @__PURE__ */ new Map([
  * 4. Otherwise the change set is re-validated once more if the store changed while a hook was
  *    awaited, and applied with the store's `applyChangeSet`: uncontrolled data is patched,
  *    controlled data stays and the change set goes to the committed layer of the draft until the
- *    owner's next `setTasks` (FR-TX-3). Then the observers (`observe`) and the events: `issues`
- *    (when re-validation reported any, also on cancel), **exactly one `tasksChange`** (FR-TX-1),
+ *    owner's next `setTasks`. Then the observers (`observe`) and the events: `issues`
+ *    (when re-validation reported any, also on cancel), **exactly one `tasksChange`**,
  *    then per change `taskDatesChange` (when `start` or `endExclusive` changed; with the
  *    `precision` of `after` when the change sets one) and `taskProgressChange` (when `progress`
  *    changed).
@@ -398,7 +401,7 @@ const HOOK_HANDLERS: ReadonlyMap<string, HookName> = /* @__PURE__ */ new Map([
  * drag while pending). The lock is released before the after-events, so their listeners may
  * start the next operation.
  *
- * **Waiting for the owner** (controlled data, FR-TX-3). While the store shows a committed change
+ * **Waiting for the owner** (controlled data). While the store shows a committed change
  * the owner has not applied yet (`state.draft?.committed`), every operation that changes data
  * (`commit`, `apply`, `createLink`, `applyLinkCreate`, `deleteLink`, `applyLinkDelete`) resolves
  * `'busy'`: it would be computed on the owner's old data, and the change would be lost. Previews
@@ -415,7 +418,7 @@ const HOOK_HANDLERS: ReadonlyMap<string, HookName> = /* @__PURE__ */ new Map([
  * also for a nested one, and a session step started by a listener reports after the running
  * operation's events.
  *
- * **`createLink(link)`** (FR-LINK-6): the link is checked as the model normalizes it
+ * **`createLink(link)`**: the link is checked as the model normalizes it
  * (`normalizeLink`): one the model would drop (a malformed field, an invalid lag or one with
  * months, a misaligned lag with `alignInput: 'reject'`) is `'rejected'` as `'invalid'` with the
  * issues; a link to or from an unknown task, or a duplicate (the same source, target and type,
@@ -432,19 +435,21 @@ const HOOK_HANDLERS: ReadonlyMap<string, HookName> = /* @__PURE__ */ new Map([
  * link appended (`setLinks`), controlled ones stay for the owner to apply, and `linkCreate` is
  * emitted.
  *
- * **`deleteLink(id)`** (FR-LINK-5): an unknown id is `'rejected'`. Uncontrolled data loses the
+ * **`deleteLink(id)`**: an unknown id is `'rejected'`. Uncontrolled data loses the
  * link: removed from `links`, or, for a link from the `Task.dependencies` shorthand, the matching
  * entries are removed from its target task (`setTasks`). Controlled data stays for the owner.
  * Then `linkDelete` is emitted. Permissions (`linkable`, `editable`) are the interaction layer's
- * job (plan step 3.7); API calls are never refused for them.
+ * job; API calls are never refused for them.
  *
  * **Without hooks.** `apply`, `applyLinkCreate` and `applyLinkDelete` do the same synchronously
- * and skip the before-hooks (undo, redo: FR-TX-5); they are `'busy'` like the others.
+ * and skip the before-hooks (undo, redo); they are `'busy'` like the others.
  * **`update(command)`** forwards the owner's `setTasks` / `setLinks` / `setOptions` / `setData`
  * to the store and reports it to the observers, which is how edit sessions and the history learn
  * about data replaced from outside.
  *
- * **Errors.** An exception of an after-event listener reaches the `error` listeners; when there
+ * **Errors.** A before-hook that throws, rejects or answers something invalid cancels the
+ * operation (`'cancelled'`, `reason: 'error'`, with the error) and the error is emitted on
+ * `error`. An exception of an after-event listener reaches the `error` listeners; when there
  * are none it rejects the returned promise (or is thrown by the synchronous methods), after the
  * change was applied (it is never swallowed). So does what a store listener throws: the
  * observers and the events still run. Several errors are one `AggregateError` naming the
@@ -1027,7 +1032,7 @@ function rejected(reason: LinkRejectReason): LinkRejectedResult {
 
 /**
  * The first of `` `${id}#2` ``, `` `${id}#3` ``, … that no link of the model has: the id of an
- * id-less link whose default id is taken (FR-LINK-6). It is written into the link as its
+ * id-less link whose default id is taken. It is written into the link as its
  * explicit id, which the model then keeps (it drops a later link with an id already in use).
  */
 function freeLinkId(id: string, links: ReadonlyMap<string, unknown>): string {

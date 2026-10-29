@@ -14,7 +14,7 @@ export type FrameTask = () => void;
 /**
  * Collects work and runs it once per frame, newest information last: scheduling the same task
  * twice before the frame runs it once, however many core publishes, display changes and
- * resizes come before the frame. That is the renderer's whole batching story (NFR-PERF-2): one
+ * resizes come before the frame. That is the renderer's whole batching story: one
  * render per frame, and a `flush` (the scroll compensation, which must land before paint) takes
  * the pending render with it and cancels its frame, so a publish and a compensation in the same
  * turn render once.

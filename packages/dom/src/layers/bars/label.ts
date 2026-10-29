@@ -54,7 +54,7 @@ export const ESTIMATE_MARGIN = 1.06;
  * Estimates the width of a label without touching the DOM: the sum of per-character advances of
  * an Arial-like face, widened by {@link ESTIMATE_MARGIN}. Bar labels use it to decide `auto`
  * placement, because measuring text (`getComputedTextLength`, `getBBox`) forces a layout, which
- * `update` must never do (NFR-PERF-2). Measured in Chromium on macOS for Latin and Cyrillic
+ * `update` must never do. Measured in Chromium on macOS for Latin and Cyrillic
  * names, it lands between -3 % and +13 % of the real width for system-ui, Arial, Helvetica,
  * Tahoma, Trebuchet and Georgia (Times: up to +18 %), runs up to 8 % short for Verdana and up
  * to 21 % short for monospace faces; an app with such a label font passes `measureText` to
@@ -105,7 +105,7 @@ function isNode(value: unknown): value is Node {
 }
 
 /**
- * Resolves what a bar's label shows (FR-BAR-1, FR-BAR-5): the `renderBarLabel` result, a string
+ * Resolves what a bar's label shows: the `renderBarLabel` result, a string
  * as text, a node (or the `node` of a `DisposableNode`) as is, or the task name when there is no
  * renderer or it returns nothing. A renderer that throws is reported to `fail` and the name is
  * shown. The width of a plain node is estimated from its text. The width of content with a

@@ -1,6 +1,5 @@
 /**
- * Conversion between caller dates (`Date`, ISO strings, epoch ms) and floating time
- * (FR-TIME-1, FR-TIME-2, FR-TIME-8).
+ * Conversion between caller dates (`Date`, ISO strings, epoch ms) and floating time.
  */
 
 import { parseDate, parseDateTime } from '@internationalized/date';
@@ -18,7 +17,7 @@ import {
 import { describeValue, type ParseOptions, type TimeIssue, timeIssue, withPath } from './issues';
 
 /**
- * A date as callers pass it (`docs/api.md` §2):
+ * A date as callers pass it:
  * - `Date` or epoch-ms `number`: read through the runtime's **local** wall clock;
  * - `'YYYY-MM-DD'`: a date-only value (precision `'day'`);
  * - `'YYYY-MM-DDTHH:mm[:ss[.sss]]'` (or with a space instead of `T`): a floating date-time
@@ -27,7 +26,7 @@ import { describeValue, type ParseOptions, type TimeIssue, timeIssue, withPath }
 export type DateInput = Date | string | number;
 
 /**
- * Precision of a date (ADR-015): `'day'` for date-only values (midnight, whole days), `'time'`
+ * Precision of a date: `'day'` for date-only values (midnight, whole days), `'time'`
  * for values that carry a time of day.
  */
 export type DatePrecision = 'day' | 'time';
@@ -50,7 +49,7 @@ const ISO_WITH_OFFSET =
 const MAX_TIME_VALUE = 8.64e15;
 
 /**
- * Parses a caller date into floating time (FR-TIME-1, FR-TIME-2, ADR-015). Strict and total: it
+ * Parses a caller date into floating time. Strict and total: it
  * never throws, also for values outside {@link DateInput} coming from untyped JS.
  *
  * - `Date` and epoch-ms `number`: the runtime-local wall-clock components (`getFullYear()` …)
@@ -91,7 +90,7 @@ export function parseDateInput(
 /**
  * Converts a floating date-time to a `Date` with the same **local** wall-clock components
  * (`new Date(year, month - 1, day, hour, minute, second, ms)`), the inverse of passing a `Date`
- * to {@link parseDateInput} (FR-TIME-2, FR-TIME-8).
+ * to {@link parseDateInput}.
  *
  * DST caveat: a wall-clock time inside the runtime zone's spring-forward gap does not exist, so
  * the `Date` is moved forward by the gap (e.g. `2026-03-08T02:30` in New York becomes 03:30

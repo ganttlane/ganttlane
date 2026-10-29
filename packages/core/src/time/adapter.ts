@@ -1,6 +1,6 @@
 /**
- * `DateAdapter`: the Strategy through which core does calendar-aware math (ADR-003). The
- * built-in implementation runs on `@internationalized/date` (ADR-018).
+ * `DateAdapter`: the Strategy through which core does calendar-aware math. The
+ * built-in implementation runs on `@internationalized/date`.
  */
 
 import {
@@ -28,7 +28,7 @@ import { addDuration, type Duration } from './duration';
 import { createFormatterCache, type DateFormatFn } from './format';
 
 /**
- * Calendar-aware operations on {@link DateTimeMs} (ADR-003, Strategy). Core modules whose
+ * Calendar-aware operations on {@link DateTimeMs} (Strategy). Core modules whose
  * results depend on calendar conventions (week start, month lengths, later zoned time or other
  * calendars) receive an adapter instead of importing the arithmetic directly. The built-in
  * implementation is {@link createFloatingAdapter}.
@@ -95,7 +95,7 @@ export interface FloatingAdapterOptions {
  * shared between adapters.
  *
  * Month-based units, `startOf` / `endOf` of weeks, months, quarters and years, weekdays and
- * formatting run on `@internationalized/date` (ADR-018); fixed-length units and day keys are
+ * formatting run on `@internationalized/date`; fixed-length units and day keys are
  * plain arithmetic on the numbers.
  *
  * @param options - `weekStartsOn`: `0` = Sunday … `6` = Saturday, default `1`.

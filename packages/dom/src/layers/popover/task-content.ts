@@ -5,12 +5,12 @@ const DATE: Intl.DateTimeFormatOptions = { dateStyle: 'medium' };
 const DATE_TIME: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' };
 
 /**
- * The tooltip a task gets when `tooltip.render` is not set (FR-TIP-1): its name, its dates
+ * The tooltip a task gets when `tooltip.render` is not set: its name, its dates
  * formatted for the chart's locale (`Intl`; with the time of day for a task with `precision:
  * 'time'`), and its progress and working days. While the task is dragged the dates, progress and
- * working days are the previewed ones (FR-EDIT-8). A row without dates shows its name only, and
- * a milestone one date and no length. The words around the numbers come from `strings`
- * (FR-I18N-2); the numbers and the dates, from the locale (FR-I18N-1).
+ * working days are the previewed ones. A row without dates shows its name only, and
+ * a milestone one date and no length. The words around the numbers come from `strings`;
+ * the numbers and the dates, from the locale.
  *
  * @param context - The tooltip context.
  * @param strings - The chart's strings.

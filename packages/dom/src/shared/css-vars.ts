@@ -22,7 +22,7 @@ export function px(value: number): string {
 
 /**
  * Sets (or removes) one custom property through the CSSOM: no `style` attribute text, so it is
- * allowed under a strict `style-src` CSP (FR-THEME-6). Writes only when the value changed.
+ * allowed under a strict `style-src` CSP. Writes only when the value changed.
  *
  * @param element - HTML or SVG element.
  * @param name - Property name, `--gantt-*`.

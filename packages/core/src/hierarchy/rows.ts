@@ -1,5 +1,5 @@
 /**
- * Visible rows of a {@link Hierarchy} for an expanded state (FR-ROW-1, FR-ROW-2, FR-ROW-4), and
+ * Visible rows of a {@link Hierarchy} for an expanded state, and
  * pure helpers that compute the next expanded state.
  */
 
@@ -7,13 +7,13 @@ import type { TaskId } from '../model';
 import type { Hierarchy } from './build';
 
 /**
- * Which parents are expanded (`hierarchy.expandedKeys`, legacy `display_children`): `'all'`, or
+ * Which parents are expanded (`hierarchy.expandedKeys`): `'all'`, or
  * the ids of the expanded parents. Ids of tasks without children are allowed and have no
  * effect until the task gets children; unknown ids are ignored.
  */
 export type ExpandedKeys = 'all' | readonly TaskId[] | ReadonlySet<TaskId>;
 
-/** One visible row (FR-ROW-1). Deeply frozen. */
+/** One visible row. Deeply frozen. */
 export interface Row {
   /** The task id. */
   readonly id: TaskId;
@@ -27,25 +27,24 @@ export interface Row {
   readonly isExpanded: boolean;
   /** The root of its top-level group. */
   readonly rootId: TaskId;
-  /** Alternates per visible row: zebra `display.rowStripes: 'row'` (FR-ROW-4). */
+  /** Alternates per visible row: zebra `display.rowStripes: 'row'`. */
   readonly rowStripe: 0 | 1;
   /**
    * Alternates per top-level group, a root with its subtree: `display.rowStripes: 'group'`
-   * (legacy `children_row_color_inherit`, FR-ROW-4). Roots are always visible, so it does not
-   * depend on what is collapsed.
+   * Roots are always visible, so it does not depend on what is collapsed.
    */
   readonly groupStripe: 0 | 1;
 }
 
 /**
- * The rows to show for an expanded state, in row order (FR-ROW-1, FR-ROW-2): a collapsed parent
+ * The rows to show for an expanded state, in row order: a collapsed parent
  * hides its whole subtree, whatever the keys say about its descendants. Pure and O(visible
  * rows): it walks {@link Hierarchy.nodes} and skips collapsed subtrees, without rebuilding the
  * tree.
  *
  * @param hierarchy - The tree from `buildHierarchy`.
  * @param expandedKeys - `'all'` or the ids of the expanded parents.
- * @returns Frozen rows with stripes for both zebra modes (FR-ROW-4).
+ * @returns Frozen rows with stripes for both zebra modes.
  *
  * @example
  * ```ts
@@ -83,7 +82,7 @@ export function visibleRows(hierarchy: Hierarchy, expandedKeys: ExpandedKeys): r
 }
 
 /**
- * Keys that expand every current parent (FR-ROW-2, `expandAll()`): {@link Hierarchy.parentIds}.
+ * Keys that expand every current parent (`expandAll()`): {@link Hierarchy.parentIds}.
  * Unlike `'all'`, parents that appear later start collapsed.
  *
  * @param hierarchy - The tree from `buildHierarchy`.
@@ -94,7 +93,7 @@ export function expandAll(hierarchy: Hierarchy): readonly TaskId[] {
 }
 
 /**
- * Keys that collapse every parent (FR-ROW-2, `collapseAll()`).
+ * Keys that collapse every parent (`collapseAll()`).
  *
  * @returns A frozen empty list.
  */
@@ -103,13 +102,15 @@ export function collapseAll(): readonly TaskId[] {
 }
 
 /**
- * The expanded state with one task expanded or collapsed (FR-ROW-2, `expand(id)` /
+ * The expanded state with one task expanded or collapsed (`expand(id)` /
  * `collapse(id)`). Never mutates `keys`; other ids keep their order.
  *
  * - expanding: `'all'` stays `'all'`, otherwise `id` is appended when missing;
- * - collapsing: `id` is removed; `'all'` becomes every parent of `hierarchy` except `id`.
+ * - collapsing: `id` is removed; `'all'` becomes every parent of `hierarchy` except `id`;
+ * - a task without children, or an id that is no task, has nothing to expand or collapse: the
+ *   state is returned as it is (as a list, when it was a set).
  *
- * @param hierarchy - The tree; read only to collapse from `'all'`.
+ * @param hierarchy - The tree; read to tell parents from the rest and to collapse from `'all'`.
  * @param keys - The current expanded state.
  * @param id - The task to expand or collapse.
  * @param expanded - The new state of `id`.
@@ -121,10 +122,14 @@ export function setExpanded(
   id: TaskId,
   expanded: boolean,
 ): 'all' | readonly TaskId[] {
+  const isParent = hierarchy.nodeById.get(id)?.hasChildren === true;
   if (keys === 'all') {
-    return expanded ? 'all' : Object.freeze(hierarchy.parentIds.filter((key) => key !== id));
+    return expanded || !isParent
+      ? 'all'
+      : Object.freeze(hierarchy.parentIds.filter((key) => key !== id));
   }
   const list = [...toKeySet(keys)];
+  if (!isParent) return Object.freeze(list);
   if (expanded) {
     if (!list.includes(id)) list.push(id);
     return Object.freeze(list);
@@ -133,7 +138,7 @@ export function setExpanded(
 }
 
 /**
- * Flips whether `id` is in the expanded state (FR-ROW-2, the row's expand toggle): with
+ * Flips whether `id` is in the expanded state (the row's expand toggle): with
  * `'all'` every id counts as expanded, so the toggle collapses it. See {@link setExpanded}.
  *
  * @param hierarchy - The tree; read only to collapse from `'all'`.

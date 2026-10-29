@@ -1,6 +1,6 @@
 /**
- * Autoscroll while dragging near a viewport edge (FR-EDIT-6, `scroll.autoScroll`). Combined with
- * `planExtension` on every frame, it carries a dragged bar past the range (FR-TL-5).
+ * Autoscroll while dragging near a viewport edge (`scroll.autoScroll`). Combined with
+ * `planExtension` on every frame, it carries a dragged bar past the range.
  */
 
 import { VIEWPORT_DEFAULTS } from './defaults';
@@ -15,7 +15,7 @@ export interface AutoScrollOptions {
 }
 
 /**
- * The horizontal autoscroll speed for a dragging pointer (FR-EDIT-6), in px per frame: negative
+ * The horizontal autoscroll speed for a dragging pointer, in px per frame: negative
  * towards the start, positive towards the end, `0` outside the edge zones.
  *
  * Inside a zone the speed is proportional to how deep the pointer is in it: `0` at its inner
