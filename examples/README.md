@@ -133,6 +133,29 @@ only").
 | `height`      | Optional: the height in px of the live demo on the site (default 480)                                                                 |
 | `showsIssues` | Optional: `true` when the example reports issues on purpose (the test then does not expect none)                                      |
 
+**The front matter is real YAML.** The site reads it with a YAML parser (Astro's content
+collections), while `meta.ts` reads it with a reader of its own, because the site's config cannot
+wait for a collection. So `meta.ts` accepts only the subset every YAML parser reads the same way,
+and the examples test fails, naming the README and the line, for the rest:
+
+- A value that contains `: ` (a colon and a space), or ends with `:`, or contains ` #`, **must be
+  quoted**. Unquoted, `title: Scroll: today` is a YAML error that breaks `pnpm site:build` (` #`
+  silently starts a comment).
+- A value that starts with a YAML indicator (`` - ? : , [ ] { } # & * ! | > % @ ` ``) must be
+  quoted, and so must one that YAML would read as another type (`null`, `~`, `1e3`, `0x10`, `.5`).
+- Quote with `'…'` (write a `'` inside as `''`) or `"…"` (write a `"` inside as `\"` and a `\` as
+  `\\`; there is no other escape). Nothing may follow the closing quote.
+- A key is written once, as `key: value` with the space. No lists, maps, comments or values that
+  continue on the next line.
+
+```yaml
+# Wrong: a plain value with ": " in it
+title: Scrolling: today and the first task
+
+# Right
+title: 'Scrolling: today and the first task'
+```
+
 **`vanilla.ts`.** User-style code: `import '@ganttlane/dom/styles.css'`, `createGantt(…)` from
 `data` and `options`, and the buttons the example needs, built from DOM it creates itself (no
 `innerHTML`). The chart needs a container with a height, so the function makes its own `div` with
@@ -141,10 +164,16 @@ example added: the container must be empty afterwards. Listeners go through an `
 that the clean-up aborts.
 
 **`react.tsx`.** The same chart: `import '@ganttlane/react/styles.css'`, `<Gantt>` with the same data
-and options. `options` is spread as props; where a prop differs in React (`viewMode`, `tasks`,
-`links` and `hierarchy.expandedKeys` are controlled props, `defaultViewMode`, `defaultTasks`, … are
-their uncontrolled twins, and `dataMode` does not exist), the component says so in a comment and
-passes it itself.
+and options. `options` is spread as props; where a prop differs in React, the component says so in
+a comment and passes it itself:
+
+- `viewMode`, `tasks`, `links`, `selectedKeys` and `expandedKeys` are **controlled props**: the
+  chart shows the value your state holds. Their uncontrolled twins are `defaultViewMode`,
+  `defaultTasks`, `defaultLinks`, `defaultSelectedKeys` and `defaultExpandedKeys`.
+- The prop is `expandedKeys`, **not** `hierarchy.expandedKeys` (the `hierarchy` prop holds the other
+  hierarchy options, `childAnchor` and `moveChildren`).
+- There is **no `dataMode` prop**: `tasks` makes the chart controlled, `defaultTasks` leaves it
+  uncontrolled, so a `dataMode` in `options.ts` is not spread into `<Gantt>`.
 
 **Rules.**
 
@@ -158,5 +187,27 @@ passes it itself.
   `pnpm test --project examples` runs it alone.
 - Links in a README are relative to the file (`../basic/README.md`, `../../packages/dom/README.md`,
   `data.ts`): they work on GitHub, and the site turns them into site pages or GitHub links.
+- The front matter is YAML: quote a value with `: ` in it (see above).
+
+**What trips an example up.**
+
+- **happy-dom has no `new Option()`.** The test runs `vanilla.ts` in happy-dom, where `Option` is
+  not defined: build a select's items with `document.createElement('option')` and set `value` and
+  `textContent`.
+- **Tokens go on `.gantt`, not on the container.** The stylesheet declares every `--gantt-*`
+  property on `.gantt`, so a token set on a class of your container is never inherited. Write
+  `.my-example .gantt { --gantt-bar-color: … }` in the example's `styles.css`.
+- **The demo column is about 600 px wide.** On the site the chart gets roughly that much room, so a
+  plan that should be seen whole spans about 26 days at most in the week view (20 px a day), and
+  about 13 in the day view (40 px a day). A longer plan scrolls: open it on its first task
+  (`scroll.initial: 'first-task'`).
+- **`scroll.align` gives a margin.** `scroll: { initial: 'first-task' }` puts the first bar flush
+  against the chart's left edge, where a first milestone is cut in half. `align: 0.05` (a fraction
+  of the viewport, `0` to `1`) leaves a margin in front of it.
+- **A stylesheet is imported by `vanilla.ts` and `react.tsx` themselves** (or by a file of the
+  folder they import), as an application would. The site does not link it into the page: it adds
+  the stylesheets of the mode that is shown while its demo is, and removes them after
+  (`apps/site/integrations/example-styles.ts`). An example that imports no default stylesheet
+  (`unstyled`) therefore has none on its page.
 
 Run `pnpm typecheck` and `pnpm lint` after writing one; `pnpm format` formats the README.

@@ -458,6 +458,30 @@ The presets are exported as
 [`VIEW_MODE_PRESETS`](../../api/ganttlane/core/variables/view_mode_presets/). Weeks start on Monday.
 The labels are English; override `label` to translate them.
 
+The hour row of the three hourly presets (`hour`, `quarter-day`, `half-day`) shows the hour of the
+24-hour clock in two digits, in every locale (`00`, `06`, `12`, `17`). Their columns are 40 px wide,
+which has room for about two digits: `5 PM` or `17 Uhr` would be cut to `5 …`, and noon and
+midnight would read the same in `half-day`. To show the clock of the locale instead, replace the
+row (`headers` is replaced as a whole) and give the columns the room it needs, with a larger
+`pxPerDay`:
+
+```ts
+createGantt(container, {
+  tasks,
+  viewMode: 'quarter-day',
+  viewModes: {
+    // 70 px per 6-hour column.
+    'quarter-day': {
+      pxPerDay: 280,
+      headers: [
+        { unit: 'day', format: { day: 'numeric', month: 'long' } },
+        { unit: 'hour', step: 6, format: { hour: 'numeric' } },
+      ],
+    },
+  },
+});
+```
+
 ### The shape of a view mode
 
 ```ts
@@ -691,7 +715,8 @@ What the user may do with the pointer. See
 - Every flag defaults to `true`: `editing: { resize: false }` forbids resizing only.
 - It is the **global** switch for the UI. A task's own `editable` overrides it for that task, and
   `locked`, `fixedDuration`, milestones and `linkable: false` restrict a task further.
-- It does not stop your own calls: `updateTask`, `addLink`, `removeLink` and `setTasks` still commit.
+- It does not stop your own calls: `updateTask`, `addLink` and `removeLink` still commit. (`setTasks`
+  is not a change of the chart's but a new copy of your data, which `editing` does not concern either.)
 - The object form is taken whole by `setOptions`.
 - A value of another type is an `invalid-option` issue at `editing`; a flag that is not a boolean is
   one at `editing.move` and so on, suggested `true`.

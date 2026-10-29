@@ -53,7 +53,7 @@ export default function ReactDemo({ slug }: { slug: string }): ReactElement | nu
     if (!active || !load) return undefined;
     let cancelled = false;
     let removeCss: (() => void) | undefined;
-    void Promise.all([load(), addExampleCss(slug)]).then(([module, remove]) => {
+    void Promise.all([load(), addExampleCss(slug, 'react')]).then(([module, remove]) => {
       if (cancelled) {
         remove();
         return;

@@ -55,7 +55,7 @@ function setUp(demo: HTMLElement): void {
     const mine = ++generation;
     const load = vanilla[`../../../../examples/${slug}/vanilla.ts`];
     if (!pane || !load) return;
-    const [{ mount }, remove] = await Promise.all([load(), addExampleCss(slug)]);
+    const [{ mount }, remove] = await Promise.all([load(), addExampleCss(slug, 'vanilla')]);
     // The mode may have changed while the module was loading.
     if (mine !== generation) {
       remove();

@@ -111,10 +111,14 @@ Changes options without recreating the chart. `patch` takes any option of `creat
 
 - A key left out keeps its value. A key set to `undefined` goes back to its default.
 - The groups `calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`,
-  `interaction`, `display` and `strings` merge field by field with what was set before.
-  `tooltip`, `linkMenu`, `highlightTooltip`, `editing`, `history` and `viewModes` as objects, and
-  every list (`tasks`, `links`, `highlights`, `calendar.holidays`, ...) are replaced whole: a field
-  you leave out is back to its default.
+  `interaction`, `display` and `strings` merge field by field with what was set before, **one level
+  deep**: a field that is itself an object or a list (`scheduling.skipNonWorkingDays`,
+  `scheduling.snap`, `timeline.range`, `timeline.infinite`, `scroll.autoScroll`,
+  `interaction.handles`, `calendar.holidays`) is replaced whole, so the keys it leaves out are back
+  to their defaults. `tooltip`, `linkMenu`, `highlightTooltip`, `editing`, `history` and `viewModes`
+  as objects, and every list (`tasks`, `links`, `highlights`, ...) are replaced whole too: a field
+  you leave out is back to its default. `setOptions({ tasks: undefined })` is an `invalid-option`
+  issue, not a reset (`tasks` has no default); pass `[]` to empty the chart.
 - Each key goes only to what depends on it. Swapping an `on<Event>` handler is O(1) and redraws
   nothing.
 - **Returns** the issues of the options now in use, the core's and the renderer's in one list. It is

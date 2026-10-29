@@ -1,35 +1,38 @@
-/**
- * The stylesheets of an example (`examples/<slug>/*.css`: the release plan's status colours), put
- * on the page while its demo is shown.
- *
- * An example imports its stylesheet the way an application does (`import './styles.css'`), and
- * that is what the examples' tests and `pnpm dev` run. In the site's production build Astro keeps
- * track of the stylesheets of the pages it renders, and drops this one, which only the browser-side
- * module of a demo imports. So the site adds the text of the file itself (`?inline`), and takes it
- * away again when the demo is unmounted: one example's rules never reach another's chart.
- */
-const stylesheets = import.meta.glob<string>('../../../../examples/*/*.css', {
-  query: '?inline',
-  import: 'default',
-});
+import sheets from 'virtual:example-css';
+
+import type { Mode } from './demo-mode';
 
 /**
- * Adds the stylesheets of an example to the document.
+ * The stylesheets of an example (`import '@ganttlane/dom/styles.css'`, `import './styles.css'`),
+ * put on the page while its demo is shown.
+ *
+ * An example imports its stylesheets the way an application does, and that is what the examples'
+ * tests and the code tabs show. On the site the same imports would be linked into the head of
+ * every page that can reach a demo (the build follows dynamic imports), so the default stylesheet
+ * would be on every example's page, `unstyled` included. `integrations/example-styles.ts` therefore
+ * turns those imports into nothing and lists them instead (`virtual:example-css`: per example and
+ * mode, the texts of the stylesheets in import order). This adds their text as `<style>` elements
+ * and takes them away again when the demo is unmounted: the rules of one example, and the library's
+ * own, never reach a chart that does not import them.
+ */
+
+/**
+ * Adds the stylesheets the code of one mode of an example imports to the document, in import order.
  *
  * @param slug - The folder of the example.
+ * @param mode - Which of its two codes the demo runs: `vanilla.ts` or `react.tsx`.
  * @returns A function that removes them.
  */
-export async function addExampleCss(slug: string): Promise<() => void> {
-  const prefix = `../../../../examples/${slug}/`;
-  const added: HTMLStyleElement[] = [];
-  for (const [path, load] of Object.entries(stylesheets)) {
-    if (!path.startsWith(prefix)) continue;
+export async function addExampleCss(slug: string, mode: Mode): Promise<() => void> {
+  const loaders = sheets[slug]?.[mode] ?? [];
+  const texts = await Promise.all(loaders.map(async (load) => (await load()).default));
+  const added = texts.map((text) => {
     const style = document.createElement('style');
     style.dataset.exampleCss = slug;
-    style.textContent = await load();
+    style.textContent = text;
     document.head.append(style);
-    added.push(style);
-  }
+    return style;
+  });
   return () => {
     for (const style of added) style.remove();
   };

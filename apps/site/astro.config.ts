@@ -9,6 +9,7 @@ import { defaultClientConditions, defaultServerConditions, searchForWorkspaceRoo
 import { readExamples } from '../../examples/discover.ts';
 import { groupByCategory } from '../../examples/meta.ts';
 import { exampleAliases } from '../../examples/resolve.ts';
+import { exampleStyles } from './integrations/example-styles.ts';
 import { migrationPage } from './integrations/migration-page.ts';
 import { typeDocOptions } from './typedoc/options.ts';
 import { apiSidebar } from './typedoc/sidebar.ts';
@@ -78,6 +79,8 @@ export default defineConfig({
   integrations: [
     // Writes the Migration page from `MIGRATION.md` (before Starlight reads the content).
     migrationPage(),
+    // Keeps each example's stylesheets (the library's included) off the pages that do not show it.
+    exampleStyles(),
     starlight({
       title: 'ganttlane',
       description:
@@ -85,6 +88,9 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ganttlane/ganttlane' }],
       editLink: { baseUrl: 'https://github.com/ganttlane/ganttlane/edit/main/apps/site/' },
       customCss: ['./src/styles/site.css'],
+      // The 404 page is `src/pages/404.astro`. Starlight's own route reads an entry `404` of the
+      // docs collection, which `[...slug]` then renders a second time (a build warning).
+      disable404Route: true,
       // The API sidebar is finished by `apiSidebar`, so it must come after TypeDoc's plugin.
       plugins: [starlightTypeDoc(typeDocOptions), apiSidebar()],
       sidebar: [

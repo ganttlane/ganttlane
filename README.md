@@ -5,6 +5,10 @@ renderer with a themable stylesheet, and React bindings. Plans with thousands of
 (only what is on screen is drawn), the schedule follows your work calendar, and a drag is one
 `ChangeSet` you can veto, confirm, save or cancel.
 
+> **Documentation: [ganttlane.github.io/ganttlane](https://ganttlane.github.io/ganttlane/).**
+> Getting started, guides, live examples that run next to their code (vanilla and React), and the
+> generated [API reference](https://ganttlane.github.io/ganttlane/api/).
+
 > **Status:** pre-release (`0.0.0`), not published to npm yet. The API may still change before
 > `0.1.0`. Packages will be published under the `@ganttlane` npm scope; until then, clone this
 > repository and run `pnpm dev` for the playground.
@@ -102,8 +106,9 @@ right-to-left) is listed in each package's "Limits and roadmap".
 
 ## Documentation
 
-- The [documentation site](https://ganttlane.github.io/ganttlane/): getting started, guides and live
-  examples (the API reference is coming). `pnpm site:dev` serves it from this repository.
+- The [documentation site](https://ganttlane.github.io/ganttlane/): getting started, guides, live
+  examples and the [API reference](https://ganttlane.github.io/ganttlane/api/), generated from the
+  TSDoc of the sources. `pnpm site:dev` serves it from this repository.
 - [`packages/core`](packages/core/README.md), [`packages/dom`](packages/dom/README.md) and
   [`packages/react`](packages/react/README.md): the references.
 - [`examples/`](examples/README.md): copy-pasteable examples, one folder each (data, options, vanilla
