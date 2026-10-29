@@ -2,7 +2,7 @@
 title: Custom tooltip
 description: The tooltip of a task as text sections, as a DOM node, and as a React component, none of it parsed as HTML by accident.
 category: Customization
-order: 520
+order: 540
 ---
 
 # Custom tooltip

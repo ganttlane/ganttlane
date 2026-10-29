@@ -1,0 +1,57 @@
+/*
+ * "Violet, bold": the grid, the today line, and the hover and selection styles, as tokens. It is
+ * switched by the `data-look` attribute of the chart's container (`[data-look] .gantt`: the
+ * library declares its tokens on `.gantt` itself, so a token set on the container would never reach
+ * it). These rules are not in a cascade layer and the library's are, so they win without
+ * `!important`.
+ *
+ * The palette is three variables, given new values for the dark theme (`data-theme='dark'`, and
+ * `'auto'` while the system prefers dark), and every token is derived from them.
+ */
+
+[data-look='violet'] .gantt {
+  --look-accent: #7c3aed;
+  --look-today: #db2777;
+  --look-major: #b9a5f2;
+  --look-grid: #e9e4f7;
+
+  /* The grid: lines, and the heavier lines at the start of a sprint, week or month */
+  --gantt-grid-line-color: var(--look-grid);
+  --gantt-grid-major-line-color: var(--look-major);
+  --gantt-grid-major-line-width: 2px;
+  --gantt-nonworking-color: color-mix(in srgb, var(--look-accent) 9%, transparent);
+
+  /* Today: the line, and the marker and the cell in the header */
+  --gantt-today-color: var(--look-today);
+  --gantt-today-width: 3px;
+  --gantt-header-current-color: color-mix(in srgb, var(--look-today) 18%, transparent);
+
+  /* Hover and selection: the range of a hovered bar in the header, a selected bar, a selected link */
+  --gantt-header-range-color: color-mix(in srgb, var(--look-accent) 22%, transparent);
+  --gantt-bar-selected-color: var(--look-accent);
+  --gantt-bar-selected-width: 3px;
+  --gantt-link-selected-color: var(--look-accent);
+  --gantt-link-selected-width: 3.5px;
+  --gantt-focus-ring-color: var(--look-accent);
+}
+
+[data-look='violet'] .gantt[data-theme='dark'] {
+  --look-accent: #a78bfa;
+  --look-today: #f472b6;
+  --look-major: #4f4488;
+  --look-grid: #2a2540;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-look='violet'] .gantt[data-theme='auto'] {
+    --look-accent: #a78bfa;
+    --look-today: #f472b6;
+    --look-major: #4f4488;
+    --look-grid: #2a2540;
+  }
+}
+
+/* Not everything is a token: the dashes of the today line are a rule on its class. */
+[data-look='violet'] .gantt__today {
+  stroke-dasharray: 8 5;
+}

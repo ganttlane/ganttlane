@@ -1,0 +1,515 @@
+/*
+ * A chart styled from scratch: "paper and ink". This example does not import
+ * `@ganttlane/dom/styles.css`, so nothing is drawn but what these rules say. They use only the
+ * unstyled contract: the class names (`.gantt__bar`, …), the `data-*` attributes (`[data-selected]`,
+ * `[data-locked]`, …) and the custom properties the renderer writes (`--gantt-content-width`,
+ * `--gantt-header-height`, `--gantt-body-height`, `--gantt-height`, `--gantt-popover-x` and
+ * `--gantt-popover-y`).
+ * The palette is this sheet's own (`--paper`, `--ink`, …): nothing here needs a `--gantt-*` token.
+ *
+ * Every rule starts with `.paper`, a class on the chart's container, so that the sheet reaches
+ * this chart only. It is also what lets a rule win over the page's own styles for buttons.
+ *
+ * The parts marked REQUIRED are the ones a chart cannot work without; the rest is the look.
+ * (A chart with `layout.height: 'auto'` needs a few rules more: this one has a fixed height.)
+ */
+
+/* ---- Palette: a theme is the `data-theme` attribute of the root (`light`, `dark`, `auto`) ---- */
+
+.paper .gantt {
+  --paper: #fbf8f1;
+  --ink: #2b2a28;
+  --ink-soft: #6f6a5f;
+  --rule: #d9d2c0;
+  --bar-fill: #efe6cf;
+  --accent: #d9480f;
+  --wash: rgb(43 42 40 / 6%);
+  color-scheme: light;
+}
+
+.paper .gantt[data-theme='dark'] {
+  --paper: #1c241f;
+  --ink: #ece8da;
+  --ink-soft: #9ca596;
+  --rule: #34413a;
+  --bar-fill: #2b3b31;
+  --accent: #ff8a5c;
+  --wash: rgb(255 255 255 / 6%);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .paper .gantt[data-theme='auto'] {
+    --paper: #1c241f;
+    --ink: #ece8da;
+    --ink-soft: #9ca596;
+    --rule: #34413a;
+    --bar-fill: #2b3b31;
+    --accent: #ff8a5c;
+    --wash: rgb(255 255 255 / 6%);
+    color-scheme: dark;
+  }
+}
+
+/* ---- REQUIRED: the skeleton. The chart fills its container and scrolls inside one scroller ---- */
+
+.paper .gantt {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: var(--gantt-height, 100%);
+  direction: ltr;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    12px/1.3 Georgia,
+    'Times New Roman',
+    serif;
+}
+
+.paper .gantt [hidden] {
+  display: none;
+}
+
+/* The one scroll container. The renderer owns its position: no scroll anchoring, no smoothing. */
+.paper .gantt__scroller {
+  position: relative;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  overflow-anchor: none;
+  scroll-behavior: auto;
+  user-select: none;
+}
+
+.paper .gantt__scroller:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The header sticks to the top; the renderer sizes the content from custom properties. */
+.paper .gantt__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: var(--gantt-content-width, 0);
+  height: var(--gantt-header-height, 0);
+  /* `clip`, never `hidden`: a sticky label must not find a scroll container above it. */
+  overflow: clip;
+  background: var(--paper);
+  border-block-end: 2px solid var(--ink);
+}
+
+.paper .gantt__header-row {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.paper .gantt__header-row + .gantt__header-row {
+  border-block-start: 1px solid var(--rule);
+}
+
+/* The renderer places a cell with `left` and `width`, so it is absolutely positioned. */
+.paper .gantt__header-cell {
+  position: absolute;
+  inset-block: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding-inline: 6px;
+  overflow: clip;
+  white-space: nowrap;
+  border-inline-start: 1px solid var(--rule);
+}
+
+.paper .gantt__body {
+  display: block;
+  width: var(--gantt-content-width, 0);
+  height: var(--gantt-body-height, 0);
+}
+
+/* Popovers sit above the scroller; only one with buttons takes the pointer. */
+.paper .gantt__layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ---- The header ---- */
+
+.paper .gantt__header-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.paper .gantt__header-label[data-sticky] {
+  position: sticky;
+  inset-inline-start: 6px;
+}
+
+.paper .gantt__header-cell[data-major] {
+  border-inline-start-color: var(--ink);
+}
+
+/* The cell that holds today (in every header row): bold, with a bar under it. */
+.paper .gantt__header-cell[data-current] {
+  background: var(--wash);
+  box-shadow: inset 0 -3px 0 var(--accent);
+  font-weight: 700;
+}
+
+/* The range of the hovered bar. */
+.paper .gantt__header-range {
+  position: absolute;
+  inset-block: 0;
+  background: var(--wash);
+  border-inline: 1px dashed var(--ink-soft);
+  pointer-events: none;
+}
+
+/* A pointer on the header's lower edge. Its position is the renderer's (`left` or `transform`). */
+.paper .gantt__today-marker {
+  position: absolute;
+  inset-block-end: 2px;
+  width: 10px;
+  height: 8px;
+  margin-inline-start: -5px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  pointer-events: none;
+}
+
+/* ---- The grid (SVG): rows, days off, highlights, lines ---- */
+
+.paper .gantt__row {
+  fill: transparent;
+}
+
+.paper .gantt__row[data-stripe] {
+  fill: var(--wash);
+}
+
+.paper .gantt__row[data-invalid] {
+  fill: var(--wash);
+  stroke: var(--accent);
+  stroke-dasharray: 2 4;
+}
+
+.paper .gantt__nonworking {
+  pointer-events: none;
+}
+
+/* 'stripes' mode: the renderer fills each day with a pattern, and this colours its lines. */
+.paper .gantt__stripes-line {
+  stroke: var(--rule);
+}
+
+/* 'fill' mode (the default of the option): the renderer leaves the fill to the stylesheet. */
+.paper .gantt__nonworking[data-mode='fill'] > .gantt__nonworking-day {
+  fill: var(--wash);
+}
+
+.paper .gantt__highlight {
+  fill: var(--accent);
+  fill-opacity: 0.12;
+}
+
+.paper .gantt__gridline {
+  stroke: var(--rule);
+  stroke-dasharray: 1 4;
+  shape-rendering: crispedges;
+  pointer-events: none;
+}
+
+.paper .gantt__gridline[data-major] {
+  stroke: var(--ink-soft);
+  stroke-dasharray: none;
+}
+
+.paper .gantt__today {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  pointer-events: none;
+}
+
+/* ---- Bars (SVG). State is on the group as `stroke`, which the track inherits ---- */
+
+.paper .gantt__bar {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.paper .gantt__bar:is([data-readonly], [data-locked]) {
+  cursor: pointer;
+}
+
+/*
+ * The look of a bar is this sheet's own: it does not read `--gantt-bar-color`, which a task's
+ * `color` writes on its bar. (A sheet that wants per-task colours reads it, with a fallback:
+ * `fill: var(--gantt-bar-color, var(--bar-fill))`. It must then not be loaded next to the default
+ * sheet, which defines that property on every chart.)
+ */
+.paper .gantt__bar-track {
+  fill: var(--bar-fill);
+}
+
+.paper .gantt__bar-milestone {
+  fill: var(--accent);
+}
+
+/* Progress is a wash of the accent over the track, so the label stays readable on both. */
+.paper .gantt__bar-progress {
+  fill: var(--accent);
+  fill-opacity: 0.4;
+  stroke: none;
+}
+
+/* A label is SVG text (or HTML in a foreignObject): set both `fill` and `color`. */
+.paper .gantt__bar-label {
+  fill: var(--ink);
+  color: var(--ink);
+  stroke: none;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.paper .gantt__bar:is([data-hovered], :hover) {
+  stroke-width: 2.5;
+}
+
+.paper .gantt__bar[data-locked] {
+  stroke-dasharray: 5 3;
+}
+
+.paper .gantt__bar[data-invalid] {
+  stroke: var(--ink-soft);
+  stroke-dasharray: 2 3;
+  opacity: 0.6;
+}
+
+.paper .gantt__bar[data-conflict] {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-dasharray: none;
+}
+
+/* After invalid and conflict, which it must beat. */
+.paper .gantt__bar[data-selected] {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.paper .gantt__bar:is([data-dragging], [data-resizing]) {
+  opacity: 0.8;
+}
+
+.paper .gantt__bar[data-dragging] {
+  cursor: grabbing;
+}
+
+.paper .gantt__bar[data-resizing] {
+  cursor: ew-resize;
+}
+
+/* A bar that may be moved takes the whole touch (the renderer cancels it where CSS cannot). */
+.paper .gantt__bar[data-movable] {
+  touch-action: none;
+}
+
+/* Handles are always in the DOM; they show while their bar is hovered, selected or dragged. */
+.paper .gantt__handle,
+.paper .gantt__link-handle {
+  opacity: 0;
+  touch-action: none;
+  transition: opacity 120ms ease;
+}
+
+.paper .gantt__handle {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.paper .gantt__handle[data-handle^='resize'] {
+  cursor: ew-resize;
+}
+
+.paper .gantt__handle[data-handle='progress'] {
+  cursor: col-resize;
+}
+
+/* No `r` and no `width` here: the renderer draws the sizes (SVG attributes). */
+.paper .gantt__link-handle {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 2;
+  cursor: crosshair;
+}
+
+.paper
+  .gantt__bar:is([data-hovered], [data-selected], [data-dragging], [data-resizing], :hover)
+  :is(.gantt__handle, .gantt__link-handle) {
+  opacity: 1;
+}
+
+/* ---- Links (SVG): the group carries the colour and the width, the paths inherit them ---- */
+
+.paper .gantt__link {
+  color: var(--ink-soft);
+  stroke-width: 1.5;
+}
+
+.paper .gantt__link:hover {
+  color: var(--accent);
+}
+
+.paper .gantt__link[data-selected] {
+  color: var(--accent);
+  stroke-width: 2.5;
+}
+
+.paper .gantt__link:is([data-conflict], [data-cycle]) {
+  color: var(--accent);
+}
+
+.paper .gantt__link-path {
+  fill: none;
+  stroke: currentcolor;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.paper .gantt__link[data-cycle] .gantt__link-path {
+  stroke-dasharray: 1 3;
+}
+
+.paper .gantt__link-arrow {
+  fill: currentcolor;
+  stroke: currentcolor;
+  pointer-events: none;
+}
+
+/* REQUIRED: the wide, invisible path that catches clicks on a thin link. */
+.paper .gantt__link-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12px;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* ---- Overlay: the link being drawn never takes the pointer ---- */
+
+.paper .gantt__overlay {
+  pointer-events: none;
+}
+
+.paper .gantt__link-preview {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.paper .gantt__link-preview[data-valid]:not([data-valid='false']) {
+  stroke: var(--ink);
+}
+
+/* ---- The cursor of a gesture: the renderer sets `data-cursor` on the root while one lasts ---- */
+
+.paper .gantt[data-cursor] * {
+  cursor: inherit;
+}
+
+.paper .gantt[data-cursor='grabbing'] {
+  cursor: grabbing;
+}
+
+.paper .gantt[data-cursor='ew-resize'] {
+  cursor: ew-resize;
+}
+
+.paper .gantt[data-cursor='crosshair'] {
+  cursor: crosshair;
+}
+
+.paper .gantt[data-cursor='not-allowed'] {
+  cursor: not-allowed;
+}
+
+.paper .gantt[data-cursor='pointer'] {
+  cursor: pointer;
+}
+
+/* ---- Popovers: the tooltip and the link menu ---- */
+
+/* REQUIRED: the renderer moves a popover with two custom properties, in px from the layer's corner. */
+.paper .gantt__popover {
+  position: absolute;
+  inset: 0 auto auto 0;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(300px, 100%);
+  padding: 6px 10px;
+  overflow-wrap: anywhere;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  transform: translate(var(--gantt-popover-x, 0), var(--gantt-popover-y, 0));
+}
+
+.paper .gantt__popover[data-interactive] {
+  pointer-events: auto;
+}
+
+.paper .gantt__popover-title {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.paper .gantt__popover-subtitle,
+.paper .gantt__popover-details {
+  color: var(--ink-soft);
+}
+
+.paper .gantt__popover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 6px;
+}
+
+.paper .gantt__popover[data-kind='link'] .gantt__popover-actions {
+  flex-direction: column;
+}
+
+.paper .gantt__popover-action {
+  padding: 0;
+  font: inherit;
+  text-align: start;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  border-block-end: 1px dashed currentcolor;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.paper .gantt__popover-action:is(:hover, :focus-visible) {
+  background: var(--accent);
+  color: var(--paper);
+  outline: none;
+}
