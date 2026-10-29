@@ -34,7 +34,15 @@ each one shows).
 
 | Example                                                                   | Package | Shows                                                                                    |
 | ------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------- |
+| [Link types and lags](link-types/README.md)                               | both    | FS, SS, FF and SF links with lags and leads; `defaultLinkType`, `linkCurveRadius`        |
+| [Propagation and conflicts](propagation/README.md)                        | both    | `propagation` `'preserve-lag'` or `'none'`; a successor too early (`link-violated`)      |
+| [Groups and children](hierarchy/README.md)                                | both    | Expand and collapse; `moveChildren`, `followParent`, `parentAnchor`, `outside-parent`    |
+| [Working calendar](working-calendar/README.md)                            | both    | Weekends, holidays, exceptions, `isWorkingDay`; `durationMode`, `skipNonWorkingDays`     |
 | [Working days at one-hour granularity](working-calendar-hourly/README.md) | both    | A Monday-to-Friday calendar with holidays, tasks timed to the hour, a lag, a before-hook |
+| [Granularity and snapping](granularity-and-snapping/README.md)            | both    | `granularity`, the snap of each view mode and `snap`, `alignInput`, a `misaligned` issue |
+| [Milestones and placeholders](milestones-and-placeholders/README.md)      | both    | `type: 'milestone'` (a diamond, linked like a task) and `type: 'placeholder'` (no bar)   |
+| [Progress](progress/README.md)                                            | both    | The progress handle, `progressAnchor`, `progressColor`, `skipNonWorkingDays.progress`    |
+| [Issues](issues/README.md)                                                | both    | Bad data and options on purpose; `getIssues()` and `onIssues` drawn as a list            |
 
 ### Data
 
