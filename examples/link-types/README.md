@@ -67,8 +67,10 @@ pnpm add @ganttlane/react react react-dom   # React
   it, in both directions. A link with no `lag` keeps the gap it has when the data is loaded.
 - **A link to an edge that does not move moves nothing.** Resizing the start of the source leaves
   the targets of its `FS` and `FF` links alone.
-- **Two links to the same target**, an `FS` and an `FF`, pin both of its edges: the target stretches
-  with the source. A child pinned to both edges of its phase works the same way, see
+- **Two links to the same target pin both of its edges.** An `SS` and an `FF` link make the target
+  stretch when the source is resized. An `FS` and an `FF` link both hang from the source's end, so
+  with no lags (each keeps the gap it has) the target moves with it and keeps its length. A child
+  pinned to both edges of its phase (`['SS', 'FF']`, with `followParent`) stretches the same way, see
   [Groups and children](../hierarchy/README.md).
 - **React.** `scheduling` and `display` are passed to `<Gantt>` after the spread of `options`, from
   state: in React the props are the truth, so an option changed with `setOptions` on the ref would be

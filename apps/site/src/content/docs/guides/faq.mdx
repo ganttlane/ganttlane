@@ -213,6 +213,56 @@ your data says they are. A rejected or slow save behaves the same way. See
 [Who owns the data](../concepts/data-ownership/) and the
 [controlled data example](../../examples/controlled-data/).
 
+### My handler fails because `gantt` is undefined
+
+**Symptom.** `ReferenceError: Cannot access 'gantt' before initialization`, or
+`Cannot read properties of undefined`, from an `onRangeChange`, `onScroll` or `onIssues` handler
+that uses the chart, at the moment the page creates it.
+
+**Cause.** A handler given as an option can run **before `createGantt` returns**: the chart reports
+its first range and scroll position while it mounts, so `onRangeChange` and `onScroll` always do
+(when the container has a width), and `onIssues` does when the first options or data have issues.
+The variable the chart is assigned to is not set yet. In React the same events are held until the
+first commit, so a handler there can use the `ref`.
+
+**Fix.** Declare the variable first and guard the handler, or add the listener after the chart
+exists:
+
+```ts
+let gantt: Gantt | undefined;
+gantt = createGantt(container, {
+  tasks,
+  onRangeChange: ({ start }) => gantt?.scrollToDate(start), // guarded: it can run early
+});
+
+// Or, for a listener that only needs the events from now on:
+gantt.on('rangeChange', ({ reason }) => console.log(reason));
+```
+
+A listener added afterwards does not hear the events of creation. See
+[Handlers that run during creation](../events/#handlers-that-run-during-creation).
+
+### A `--gantt-*` token does nothing
+
+A token set on the container is not inherited by the chart: the stylesheet declares every token on
+`.gantt`, the element the chart adds inside the container, and a declaration on the element itself
+beats an inherited value. Put it in a rule for `.gantt` (every chart) or a descendant of your own
+class (`.roadmap .gantt`, one chart):
+
+```css
+/* Does nothing: .roadmap is the container. */
+.roadmap {
+  --gantt-bar-color: #0f766e;
+}
+
+/* Works. */
+.roadmap .gantt {
+  --gantt-bar-color: #0f766e;
+}
+```
+
+See [Theming](../theming/#where-to-put-an-override).
+
 ### A before-hook throws and nothing happens
 
 If an `onBeforeTaskChange` or `onBeforeLinkCreate` hook throws or rejects during a drag, the change

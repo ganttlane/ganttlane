@@ -17,6 +17,11 @@ Use it directly when you:
 For a chart in a page, install [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md) or
 [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md) instead; both re-export the types you need.
 
+> **Documentation:** the [documentation site](https://ganttlane.github.io/ganttlane/) has the guides,
+> live examples next to their code, and the generated
+> [API reference](https://ganttlane.github.io/ganttlane/api/) of every export. This README is the
+> reference of the package.
+
 > **Status:** pre-release (`0.0.0`), not published to npm yet. The API may still change before
 > `0.1.0`.
 
@@ -142,9 +147,12 @@ canonical form is a separate `links` array; `task.dependencies` (a list of ids, 
 | `id`         | Defaults to `` `${source}:${type}:${target}` ``                                                                                    |
 | `editable`   | `false` keeps the link out of reach of the UI                                                                                      |
 
-Two links `FS` and `FF` between the same pair make the successor stretch with the predecessor. A
-link that would close a cycle is always refused; a cycle that arrives in the data is reported as a
-`cycle` issue, and its links are flagged and take no part in propagation.
+Two links of different types between the same pair tie both edges of the successor. An `SS` and an
+`FF` link make it stretch when the predecessor is resized. An `FS` and an `FF` link both hang from
+the predecessor's end, so with no lags (each keeps the gap it has) the successor moves as a whole
+and keeps its length; it takes another length only when explicit lags ask for it. A link that would
+close a cycle is always refused; a cycle that arrives in the data is reported as a `cycle` issue,
+and its links are flagged and take no part in propagation.
 
 A task with no dates is a row without a bar (a warning, `no-dates`). A task with only a `start`, only an
 `end` or only a `duration` is invalid (`incomplete-dates`): ends are never projected backwards. An
@@ -220,17 +228,22 @@ is `'all'` (default) or the ids of the expanded parents. An unknown parent makes
 
 A child can be **pinned** to its parent's edges with `parentAnchor` (default `hierarchy.childAnchor`,
 `'SS'`): `'SS'` and `'FS'` pin its start to the parent's start and end, `'FF'` and `'SF'` pin its
-end to the parent's end and start. Pin both edges (`['SS', 'FF']`) and the child stretches with its parent. `hierarchy.moveChildren`
-chooses which children move with a parent that moves: `'all'` (default), `'following'` (only tasks
-with `followParent: true`) or `'none'`.
+end to the parent's end and start. Pin both edges (`['SS', 'FF']`) and the child stretches with its
+parent. **`parentAnchor` is read only for a child with `followParent: true`.** Any other child just
+shifts with its parent's start (keeping its offset and its length), whatever its `parentAnchor` says.
+`hierarchy.moveChildren` chooses which children move with a parent that moves: `'all'` (default:
+the pinned ones follow their anchor, the others shift), `'following'` (only tasks with
+`followParent: true`) or `'none'`.
 
 ### Scheduling and propagation
 
 An edit of one task (a drag, `updateTask`) is turned into a `ChangeSet` by `propagate`. With
 `scheduling.propagation: 'preserve-lag'` (default) every task linked to the edited one, and every
-pinned child, is moved so that its links keep their lag; with `'none'` only the edited task moves
-and the links show their conflicts. `'push-forward'` is planned and reported as
-`unsupported-option`; it behaves as `'preserve-lag'` meanwhile. A `locked` task, and a task without a
+pinned child, is moved so that its links keep their lag; with `'none'` no link moves anything, and
+they show their conflicts instead. `'none'` is about **links** only: children still follow their
+parent under the default `hierarchy.moveChildren: 'all'`, so a chart where only the edited task
+should move also needs `hierarchy: { moveChildren: 'none' }`. `'push-forward'` is planned and
+reported as `unsupported-option`; it behaves as `'preserve-lag'` meanwhile. A `locked` task, and a task without a
 bar, stop propagation.
 
 The result is deterministic: each task changes at most once, in topological order. After the
@@ -366,9 +379,17 @@ Keys the core does not know are ignored, not reported.
 `createGanttCore(options)` takes these; `core.setOptions(patch)` changes any of them later without
 recreating the chart. A key left out of a patch keeps its value. **Groups** (`calendar`, `dates`,
 `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`, `interaction`) are merged field by field,
-and a field set to `undefined` goes back to its default; every other option (lists, `viewModes`,
-`editing`, `history`) is replaced whole. `setOptions` recomputes only what a key invalidates, and
-swapping an `on<Event>` handler is O(1).
+and a field set to `undefined` goes back to its default. **The merge is one level deep.** A field
+that is itself an object or a list is replaced whole: `scheduling.skipNonWorkingDays`,
+`scheduling.snap`, `timeline.range`, `timeline.infinite`, `scroll.autoScroll`,
+`interaction.handles` and `calendar.holidays` are, so
+`setOptions({ interaction: { handles: { resize: 12 } } })` sets the other handle sizes back to their
+defaults, and `setOptions({ scheduling: { skipNonWorkingDays: { move: false } } })` does the same for
+the other two flags: write the whole object. Every other option (`viewModes`, `editing`, `history`,
+the lists) is replaced whole too. A key set to `undefined` that has no default is an
+[issue](#issues), not a reset: `setOptions({ tasks: undefined })` is an `invalid-option` issue
+(`tasks` is required) and the chart shows no tasks, so pass `tasks: []` to empty it on purpose.
+`setOptions` recomputes only what a key invalidates, and swapping an `on<Event>` handler is O(1).
 
 Keys the core does not know are ignored, so a renderer can pass its own options object whole. Every
 value is validated; an unusable one is an [issue](#issues) and its default is used.
@@ -383,13 +404,13 @@ value is validated; an unusable one is an [issue](#issues) and its default is us
 
 ### View
 
-| Option      | Type                                                                                                       | Default          | Meaning                                                                                     |
-| ----------- | ---------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------- |
-| `viewMode`  | `'hour'` \| `'quarter-day'` \| `'half-day'` \| `'day'` \| `'week'` \| `'month'` \| `'year'` or your own id | `'day'`          | The scale preset in use; an unknown id falls back to the default with an issue              |
-| `viewModes` | `ViewMode[]` or `{ [id]: Partial<ViewMode> }`                                                              | presets          | A complete list (replaces the presets), or overrides merged over them; a new id adds a mode |
-| `locale`    | BCP 47 tag                                                                                                 | `'en'`           | Formats header labels. Not the runtime's locale, so a server and a browser agree            |
-| `direction` | `'ltr'` \| `'rtl'`                                                                                         | `'ltr'`          | Stored only: mirroring is planned (P1)                                                      |
-| `now`       | `() => DateInput`                                                                                          | the system clock | The source of "today" (tests, a server clock)                                               |
+| Option      | Type                                                                                                       | Default          | Meaning                                                                                                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `viewMode`  | `'hour'` \| `'quarter-day'` \| `'half-day'` \| `'day'` \| `'week'` \| `'month'` \| `'year'` or your own id | `'day'`          | The scale preset in use. An unknown id falls back to `'day'` (to the first mode when a custom `viewModes` list has no `'day'`) with an `unknown-view-mode` warning |
+| `viewModes` | `ViewMode[]` or `{ [id]: Partial<ViewMode> }`                                                              | presets          | A complete list (replaces the presets), or overrides merged over them; a new id adds a mode                                                                        |
+| `locale`    | BCP 47 tag                                                                                                 | `'en'`           | Formats header labels. Not the runtime's locale, so a server and a browser agree                                                                                   |
+| `direction` | `'ltr'` \| `'rtl'`                                                                                         | `'ltr'`          | Stored only: mirroring is planned                                                                                                                                  |
+| `now`       | `() => DateInput`                                                                                          | the system clock | The source of "today" (tests, a server clock)                                                                                                                      |
 
 A **view mode** is `{ id, label?, unit, step?, pxPerDay, headers, majorLine?, minorLine?, snap?, padding? }`:
 one column is `step` of `unit` (`'hour'`, `'day'`, `'week'`, `'month'`, `'quarter'`, `'year'`),
@@ -461,7 +482,7 @@ createGanttCore({
 | `calendar.workingDays`          | `DateInput[]`                                                       | none                                            | Days that work whatever the other rules say                                                                                                   |
 | `calendar.isWorkingDay`         | `(day: CalendarDay) => boolean \| undefined`                        | none                                            | A pure custom rule; `undefined` defers to `weekends`                                                                                          |
 | `scheduling.durationMode`       | `'calendar'` \| `'working'`                                         | `'calendar'`                                    | Default for tasks and lags                                                                                                                    |
-| `scheduling.propagation`        | `'preserve-lag'` \| `'none'`                                        | `'preserve-lag'`                                | How an edit spreads along links and to children (`'push-forward'` is P1)                                                                      |
+| `scheduling.propagation`        | `'preserve-lag'` \| `'none'`                                        | `'preserve-lag'`                                | How an edit spreads along links (`'push-forward'` is planned). Children are `hierarchy.moveChildren`'s, not this option's                     |
 | `scheduling.defaultLinkType`    | `'FS'` \| `'SS'` \| `'FF'` \| `'SF'`                                | `'FS'`                                          | Type of a link that names none                                                                                                                |
 | `scheduling.granularity`        | duration that divides 24 h, or `'1d'`                               | `'1d'`                                          | The data step, see [above](#granularity-and-alignment)                                                                                        |
 | `scheduling.alignInput`         | `'expand'` \| `'nearest'` \| `'reject'`                             | `'expand'`                                      | What to do with misaligned input                                                                                                              |
@@ -505,31 +526,45 @@ Handlers are options too: see [Events](#events).
 
 Every event has an `on<Event>` option and a listener through `core.on(name, handler)`, which returns
 a function that removes it. Both take the same arguments. A listener that throws never breaks the
-others: the error goes to `error` (and `onError`), and with no one listening it is reported to the
-host's unhandled-rejection channel.
+others: the error goes to `error` (and `onError`). With no one listening to `error`, what happens
+depends on what caused the event:
 
-| Event                | Arguments                                         | When                                                                                                                                                                                                            |
-| -------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tasksChange`        | `(changeSet)`                                     | A change committed: one per action, with every task it touched. Also for undo and redo                                                                                                                          |
-| `taskDatesChange`    | `(record, { start, end, endExclusive })`          | A convenience after `tasksChange`, per task whose dates changed (`Date`s)                                                                                                                                       |
-| `taskProgressChange` | `(record, progress)`                              | The same for progress                                                                                                                                                                                           |
-| `linkCreate`         | `(link, id)`                                      | A link was created; a controlled owner adds exactly this `link` (the id may be `…#2`)                                                                                                                           |
-| `linkDelete`         | `(linkRecord)`                                    | A link was deleted                                                                                                                                                                                              |
-| `linkClick`          | `(linkRecord, event)`                             | A link was clicked; it is now the selected link                                                                                                                                                                 |
-| `taskClick`          | `(record, event)`                                 | A bar was clicked (never after a drag)                                                                                                                                                                          |
-| `taskDoubleClick`    | `(record, event)`                                 | A bar was double-clicked                                                                                                                                                                                        |
-| `taskHoverChange`    | `(record \| null, event)`                         | The task under the pointer changed                                                                                                                                                                              |
-| `selectionChange`    | `(selectedKeys, selectedLink)`                    | The selected tasks or link changed                                                                                                                                                                              |
-| `viewModeChange`     | `(viewMode)`                                      | The view mode in use changed                                                                                                                                                                                    |
-| `rangeChange`        | `({ start, end, reason })`                        | The timeline range changed (`Date`s): for lazy loading by date. `reason` is `'initial'`, `'data'`, `'options'`, `'view-mode'`, `'zoom'`, `'resize'`, `'drag'` or a viewport reason (extension, trim, scroll-to) |
-| `expandedChange`     | `(expandedKeys)`                                  | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                                                                                                                                 |
-| `scroll`             | `({ x, y, date })`                                | The renderer reported a scroll position; `date` is at the left edge of the viewport                                                                                                                             |
-| `editRollback`       | `(sessionChanges)`                                | A session was cancelled: the inverse for controlled data to apply                                                                                                                                               |
-| `dirtyChange`        | `({ isDirty })`                                   | `edit.isDirty` flipped                                                                                                                                                                                          |
-| `historyChange`      | `({ canUndo, canRedo })`                          | What undo and redo can do changed                                                                                                                                                                               |
-| `editRefused`        | `({ gesture, id, target?, reason, at })`          | A gesture was refused (`'busy'`, `'permission'`, `'unknown-task'`, `'self'`, `'cycle'`, `'duplicate'`), `at` is `'start'` or `'commit'`                                                                         |
-| `issues`             | `({ source, issues })`                            | The issues of the data or the options changed, or a change set needed correcting                                                                                                                                |
-| `error`              | `({ error, source: 'listener' \| 'hook', name })` | A listener or a before-hook threw                                                                                                                                                                               |
+- **An API call** (`updateTask`, `addLink`, `select`, `setTasks`, `setOptions`, `setViewMode`,
+  `scrollTo*`, `edit.*`, `undo`, …) rethrows what its listeners threw, once it is done: one error
+  as it is, several as an `AggregateError`. A plain method throws synchronously; an async one
+  (`updateTask`, `addLink`, `removeLink`) rejects its promise. The change itself has happened.
+- **Renderer input** (`setViewport`, `scroll`, `send`, `refreshNow`) never throws after it changed
+  something, because the renderer needs its result: the error goes to the host's
+  unhandled-rejection channel (an `unhandledrejection` event in a browser) instead.
+
+**A handler given as an option can run before `createGanttCore` returns.** `onIssues` does when the
+first options or data have issues, so a handler that reads the variable the core is assigned to must
+not assume it is set yet (declare `let core: GanttCore | undefined`, or add the listener with
+`core.on('issues', …)` afterwards). `onRangeChange` and `onScroll` first run when the renderer
+reports its size with `setViewport`.
+
+| Event                | Arguments                                         | When                                                                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tasksChange`        | `(changeSet)`                                     | A change committed: one per action, with every task it touched. Also for undo and redo                                                                                                                                                  |
+| `taskDatesChange`    | `(record, { start, end, endExclusive })`          | A convenience after `tasksChange`, per task whose dates changed (`Date`s)                                                                                                                                                               |
+| `taskProgressChange` | `(record, progress)`                              | The same for progress                                                                                                                                                                                                                   |
+| `linkCreate`         | `(link, id)`                                      | A link was created; a controlled owner adds exactly this `link` (the id may be `…#2`)                                                                                                                                                   |
+| `linkDelete`         | `(linkRecord)`                                    | A link was deleted                                                                                                                                                                                                                      |
+| `linkClick`          | `(linkRecord, event)`                             | A link was clicked; it is now the selected link                                                                                                                                                                                         |
+| `taskClick`          | `(record, event)`                                 | A bar was clicked (never after a drag)                                                                                                                                                                                                  |
+| `taskDoubleClick`    | `(record, event)`                                 | A bar was double-clicked                                                                                                                                                                                                                |
+| `taskHoverChange`    | `(record \| null, event)`                         | The task under the pointer changed                                                                                                                                                                                                      |
+| `selectionChange`    | `(selectedKeys, selectedLink)`                    | The selected tasks or link changed                                                                                                                                                                                                      |
+| `viewModeChange`     | `(viewMode)`                                      | The view mode in use changed                                                                                                                                                                                                            |
+| `rangeChange`        | `({ start, end, reason })`                        | The timeline range changed (`Date`s): for lazy loading by date. `reason` is `'initial'`, `'data'`, `'options'`, `'view-mode'`, `'zoom'`, `'resize'`, `'drag'` or a viewport reason (extension, trim, scroll-to)                         |
+| `expandedChange`     | `(expandedKeys)`                                  | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                                                                                                                                                         |
+| `scroll`             | `({ x, y, date })`                                | The scroll position changed: the renderer reported one, or a request of the core's own moved it (the initial scroll, an instant `scrollTo*`), at once, before the renderer has performed it. `date` is at the left edge of the viewport |
+| `editRollback`       | `(sessionChanges)`                                | A session was cancelled: the inverse for controlled data to apply                                                                                                                                                                       |
+| `dirtyChange`        | `({ isDirty })`                                   | `edit.isDirty` flipped                                                                                                                                                                                                                  |
+| `historyChange`      | `({ canUndo, canRedo })`                          | What undo and redo can do changed                                                                                                                                                                                                       |
+| `editRefused`        | `({ gesture, id, target?, reason, at })`          | A gesture was refused (`'busy'`, `'permission'`, `'unknown-task'`, `'self'`, `'cycle'`, `'duplicate'`), `at` is `'start'` or `'commit'`                                                                                                 |
+| `issues`             | `({ source, issues })`                            | The issues of the data or the options changed, or a change set needed correcting                                                                                                                                                        |
+| `error`              | `({ error, source: 'listener' \| 'hook', name })` | A listener or a before-hook threw                                                                                                                                                                                                       |
 
 The handler option names are `onTasksChange`, `onTaskDatesChange`, `onTaskProgressChange`,
 `onLinkCreate`, `onLinkDelete`, `onLinkClick`, `onTaskClick`, `onTaskDoubleClick`,
@@ -756,7 +791,7 @@ The core draws nothing. It does carry what an accessible renderer needs: stable 
 row order and depth (`state.derived.rows`), expanded state, the selection, per-task permissions
 (`editing`), the names and dates of every `TaskRecord`, and the strings-free `Issue`s. Roles,
 labels, focus order and keyboard editing belong to the renderer; keyboard editing and focusable bars
-are P1 in `@ganttlane/dom` (see its [accessibility status](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#accessibility)).
+are planned for `@ganttlane/dom` (see its [accessibility status](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#accessibility)).
 
 ## Browser and runtime support
 
@@ -782,20 +817,24 @@ Single utilities tree-shake: `parseDuration` on its own is about 1.2 kB and `cre
 Limits you should know about today:
 
 - **Time is floating.** No time zones, no daylight saving, no offsets in strings (`unsupported-offset`).
-  Zoned dates are P2.
+  Zoned dates are planned for later.
 - **Minute precision**; the granularity is a divisor of 24 hours, or one day (no weekly or monthly steps).
-- **A working day is 24 hours.** Working hours and shifts, and calendars per task or resource, are P2.
+- **A working day is 24 hours.** Working hours and shifts, and calendars per task or resource, are
+  planned for later.
 - **A task may span at most 10 years** (`too-long`).
 - **Rows have one height**, and a row holds one task.
 - `scheduling.propagation: 'push-forward'` is reported as `unsupported-option` and behaves as
   `'preserve-lag'`; `direction: 'rtl'` is stored but not mirrored.
 - Unknown option keys are ignored without a hint (hints for old option names, an exported schema
-  entry, `@ganttlane/core/schema`, and a `fromFrappeGanttOptions` adapter are P1).
+  entry, `@ganttlane/core/schema`, and a `fromFrappeGanttOptions` adapter are planned).
 
-Planned for 1.0 (P1): zoom gestures and `zoomToFit`, selection and keyboard navigation, undo and
-redo hotkeys, `push-forward` propagation, week-start and weekend defaults from the locale, RTL,
-exported validation schemas, a task list, compound React components, a generated API reference. Beyond
-that (P2): zoned dates, working hours, baselines, critical path, rollup of parent dates.
+The [API reference](https://ganttlane.github.io/ganttlane/api/) is generated from the TSDoc of the
+sources and is on the documentation site.
+
+Planned for 1.0: zoom gestures and `zoomToFit`, selection and keyboard navigation, undo and redo
+hotkeys, `push-forward` propagation, week-start and weekend defaults from the locale, RTL, exported
+validation schemas, a task list and compound React components. Later: zoned dates, working hours,
+baselines, critical path, rollup of parent dates.
 
 ## License
 

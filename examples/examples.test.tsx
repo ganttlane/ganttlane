@@ -7,25 +7,41 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readExamples } from './discover';
+import { groupByCategory } from './meta';
 
 /**
  * Every folder of `examples/` is an example (`README.md`, `data.ts`, `options.ts`, `vanilla.ts`,
  * `react.tsx`: see `examples/README.md`), and this file tests all of them, so that a new example
- * is covered by being added. The folders are found on disk; their modules by `import.meta.glob`.
+ * is covered by being added. Both the folders and their modules are found at run time: the folders
+ * on disk (`readExamples`), the modules by an `import()` of their path. (`import.meta.glob` would
+ * expand the list of files while the test file is transformed, and Vitest caches that result: a
+ * folder added afterwards would be reported as missing until the cache is deleted.)
  */
 const EXAMPLES_DIR = import.meta.dirname;
 
 type Mount = (container: HTMLElement) => () => void;
-const vanillaModules = import.meta.glob<{ mount: Mount }>('./*/vanilla.ts');
-const reactModules = import.meta.glob<{ default: ComponentType }>('./*/react.tsx');
-const dataModules = import.meta.glob<{ tasks: Task[]; links: Link[] }>('./*/data.ts');
-const optionModules = import.meta.glob<{ options: Partial<GanttOptions> }>('./*/options.ts');
+interface ExampleModules {
+  'vanilla.ts': { mount: Mount };
+  'react.tsx': { default: ComponentType };
+  'data.ts': { tasks: Task[]; links: Link[] };
+  'options.ts': { options: Partial<GanttOptions> };
+}
 
-/** The module an example's file is, loaded on demand: a broken one fails its own test only. */
-async function load<T>(modules: Record<string, () => Promise<T>>, path: string): Promise<T> {
-  const loader = modules[path];
-  if (!loader) throw new Error(`${path} is missing`);
-  return loader();
+/**
+ * A module of an example folder, imported when a test needs it: a broken one fails its own test
+ * only.
+ *
+ * @param slug - The folder.
+ * @param file - The file in it.
+ * @returns The module.
+ */
+async function load<File extends keyof ExampleModules>(
+  slug: string,
+  file: File,
+): Promise<ExampleModules[File]> {
+  return (await import(
+    /* @vite-ignore */ `${EXAMPLES_DIR}/${slug}/${file}`
+  )) as ExampleModules[File];
 }
 
 /** happy-dom does no layout, so the chart's scroller would be 0 by 0 and draw no bar. */
@@ -81,6 +97,26 @@ describe('NFR-DX-1: the examples', () => {
       );
     }
   });
+
+  it('NFR-DX-1: examples/README.md groups and orders the examples as the gallery of the site does', () => {
+    // The gallery and the sidebar group by `category` and sort by `order`; the README is read by
+    // people, with a table per group (`### Group`, then a row per example linking `slug/README.md`).
+    const listed: { category: string; slugs: string[] }[] = [];
+    for (const line of index.split('\n')) {
+      if (line.startsWith('## ')) break;
+      const heading = /^### (.+)$/.exec(line)?.[1];
+      if (heading !== undefined) listed.push({ category: heading, slugs: [] });
+      const slug = /^\| \[[^\]]+\]\(([^/)]+)\/README\.md\)/.exec(line)?.[1];
+      if (slug !== undefined) listed.at(-1)?.slugs.push(slug);
+    }
+
+    expect(listed).toEqual(
+      groupByCategory(examples).map(({ category, examples: group }) => ({
+        category,
+        slugs: group.map(({ slug }) => slug),
+      })),
+    );
+  });
 });
 
 describe.each(examples)('NFR-DX-1: example $slug', (example) => {
@@ -112,8 +148,8 @@ describe.each(examples)('NFR-DX-1: example $slug', (example) => {
   });
 
   it.skipIf(example.showsIssues)('NFR-DX-1: its data and options give no issues', async () => {
-    const { tasks, links } = await load(dataModules, `./${slug}/data.ts`);
-    const { options } = await load(optionModules, `./${slug}/options.ts`);
+    const { tasks, links } = await load(slug, 'data.ts');
+    const { options } = await load(slug, 'options.ts');
 
     const gantt = createGantt(container, { tasks, links, ...options });
     const issues = gantt.getIssues();
@@ -125,7 +161,7 @@ describe.each(examples)('NFR-DX-1: example $slug', (example) => {
 
   if (hasVanilla) {
     it('NFR-DX-1: mounting vanilla.ts draws bars, and its clean-up leaves the container empty', async () => {
-      const { mount } = await load(vanillaModules, `./${slug}/vanilla.ts`);
+      const { mount } = await load(slug, 'vanilla.ts');
 
       const cleanUp = mount(container);
 
@@ -139,7 +175,7 @@ describe.each(examples)('NFR-DX-1: example $slug', (example) => {
 
   if (hasReact) {
     it('NFR-DX-1: rendering react.tsx draws bars, and unmounting leaves the container empty', async () => {
-      const { default: Example } = await load(reactModules, `./${slug}/react.tsx`);
+      const { default: Example } = await load(slug, 'react.tsx');
 
       const root = createRoot(container);
       await act(async () => {

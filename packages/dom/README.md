@@ -7,6 +7,11 @@ no framework (it is what [`@ganttlane/react`](https://github.com/ganttlane/gantt
 use as it is, re-theme with CSS custom properties, or replace entirely, and draws only what is on
 screen, so plans of thousands of tasks stay smooth.
 
+> **Documentation:** the [documentation site](https://ganttlane.github.io/ganttlane/) has the guides,
+> live examples next to their code (vanilla and React), and the generated
+> [API reference](https://ganttlane.github.io/ganttlane/api/) of every export. This README is the
+> reference of the package.
+
 > **Status:** pre-release (`0.0.0`), not published to npm yet. The API may still change before
 > `0.1.0`. Until then, clone the repository and run `pnpm dev` for the playground.
 
@@ -20,6 +25,7 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 - [Options](#options)
   - [Renderer options](#renderer-options)
 - [Events](#events)
+  - [Handlers that run during creation](#handlers-that-run-during-creation)
 - [Methods](#methods)
 - [Issues](#issues)
 - [Tooltips, the link menu and day labels](#tooltips-the-link-menu-and-day-labels)
@@ -139,6 +145,10 @@ gantt.destroy();
   element (a selector string, `null`, `undefined`); nothing else throws. A bad option or bad data is
   an [issue](#issues) and its default is used. (An error that one of your own handlers throws is
   reported as [Events](#events) describes.)
+- **Some handlers run before `createGantt` returns.** The chart reports its first range and scroll
+  position while it mounts, so `onRangeChange` and `onScroll` are called inside `createGantt`, and
+  `onIssues` is when the first options or data have issues. A handler that reads the `gantt`
+  variable finds it unset: see [Handlers that run during creation](#handlers-that-run-during-creation).
 - **It needs a DOM.** `createGantt` measures and draws into the element, so it is for the browser.
   On a server import types only (`import type { Task } from '@ganttlane/dom'`), or use
   [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md), which has no DOM. `@ganttlane/react` renders its container
@@ -210,7 +220,7 @@ the details are in [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/bl
 | `strings`                                                                    | the renderer | The words of the chart (see [Locale and strings](#locale-and-strings))                              |
 | `layout.height`                                                              | the renderer | `'auto'`, a number of px, or the container's (see [Height](#height))                                |
 | `display`, `highlights`, `tooltip`, `linkMenu`, `highlightTooltip`           | the renderer | Grid lines, today line, non-working days, bar labels, … and popovers (see below)                    |
-| `toolbar`, `direction: 'rtl'`                                                | nobody yet   | Planned for P1: accepted and reported as `unsupported-option`                                       |
+| `toolbar`, `direction: 'rtl'`                                                | nobody yet   | Planned: accepted and reported as `unsupported-option`                                              |
 | `renderer: { idPrefix, layers, frames }`                                     | the renderer | How the renderer is mounted (stable ids, replacement layers, a frame source); at creation only      |
 
 The **core's options** (the first four rows) are listed with their types and defaults in
@@ -222,8 +232,9 @@ bar and header sizes), `editing`, `history` and `interaction.*`.
 
 `editing` switches editing **from the UI** on and off, in whole (`false` is a view-only chart: no
 drag, resize, progress change or link drawing) or by kind (`{ move, resize, progress, links }`), and
-`task.editable` overrides it per task. It does not stop your own calls: `updateTask`, `addLink`,
-`removeLink` and `setTasks` still commit. `history` is off until you set `history: true` (or
+`task.editable` overrides it per task. It does not stop your own calls: `updateTask`, `addLink` and
+`removeLink` still commit (`setTasks` is no change of the chart's, see [Methods](#methods)).
+`history` is off until you set `history: true` (or
 `{ limit }`, default 100): it records one entry per action for `undo()` and `redo()`.
 
 Defaults: `locale` is `'en'`, not the browser's, so that a server and a browser draw the same text;
@@ -237,30 +248,30 @@ type argument it is inferred from `tasks`.
 
 ### Renderer options
 
-| Option                         | Type / values                                                            | Default                                                                            | Meaning                                                                                                                |
-| ------------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `theme`                        | `'auto'` \| `'light'` \| `'dark'`                                        | `'auto'`                                                                           | The `data-theme` of the chart; changes at runtime without a redraw                                                     |
-| `strings`                      | partial `GanttStrings`                                                   | English                                                                            | Every text the chart writes itself: [Locale and strings](#locale-and-strings)                                          |
-| `layout.height`                | `number` \| `'auto'`                                                     | the container's                                                                    | [Height](#height): a number of px, or as tall as the rows with the page scrolling                                      |
-| `display.gridLines`            | `'both'` \| `'vertical'` \| `'horizontal'` \| `'none'`                   | `'both'`                                                                           | Which grid lines the body draws                                                                                        |
-| `display.today`                | `boolean`                                                                | `true`                                                                             | The today line, and its marker and highlighted cell in the header                                                      |
-| `display.nonWorkingDays`       | `'fill'` \| `'stripes'` \| `false`                                       | `'fill'`                                                                           | How days off (weekends, holidays) are shown                                                                            |
-| `display.highlights`           | `boolean`                                                                | `true`                                                                             | Whether the `highlights` below are drawn                                                                               |
-| `display.rowStripes`           | `'row'` \| `'group'` \| `false`                                          | `false`                                                                            | Zebra rows, per row or per group (a parent with its children)                                                          |
-| `display.barLabel`             | `'auto'` \| `'inside'` \| `'outside'` \| `'none'`                        | `'auto'`                                                                           | Where the label goes; `'auto'` puts it inside when it fits, else outside                                               |
-| `display.renderBarLabel`       | `(context) => Node \| DisposableNode \| string \| null`                  | the name                                                                           | Custom label content: [Tooltips](#tooltips-the-link-menu-and-day-labels) has the node rules                            |
-| `display.headerRangeHighlight` | `boolean`                                                                | `true`                                                                             | Highlights the hovered bar's range in the header                                                                       |
-| `display.linkCurveRadius`      | `number` (px)                                                            | `5`                                                                                | The largest corner radius of an arrow                                                                                  |
-| `display.stickyBarLabels`      | `boolean`                                                                | `false`                                                                            | Reserved (P1): `true` is an `unsupported-option` and draws as off                                                      |
-| `display.expectedProgress`     | `boolean`                                                                | `false`                                                                            | Reserved (P1): the same                                                                                                |
-| `highlights`                   | `{ id, dates?, range?, match?, label?, className?, color? }[]`           | none                                                                               | Highlighted days, visual only: they change no schedule (details below)                                                 |
-| `tooltip`                      | `{ trigger, followCursor, showWhileDragging, render, delay, placement }` | `'hover'`, `false`, `true`, built in, `150`, `'top'` (field by field; named below) | The task tooltip: [Tooltips](#tooltips-the-link-menu-and-day-labels)                                                   |
-| `linkMenu`                     | `{ render, onRemove }`                                                   | a remove action; `onRemove` is `removeLink`                                        | The menu a click on an arrow opens                                                                                     |
-| `highlightTooltip`             | `{ followCursor }`                                                       | `{ followCursor: false }`                                                          | The label of a highlighted day or a holiday                                                                            |
-| `toolbar`                      | `false` \| `{ todayButton, viewModeSelect, zoom }`                       | `false`                                                                            | Reserved (P1): enabling it is an `unsupported-option`; draws nothing                                                   |
-| `renderer.idPrefix`            | `string`                                                                 | `gantt-1`, `gantt-2`, …                                                            | Prefix of every element id and the id of the root; give your own for ids that repeat across renders (server rendering) |
-| `renderer.layers`              | `{ [name]: factory }`                                                    | built in                                                                           | Replaces built-in layers by name (advanced: custom renderers and tests)                                                |
-| `renderer.frames`              | `{ request, cancel }`                                                    | `requestAnimationFrame`                                                            | Where frames come from; mainly for tests                                                                               |
+| Option                         | Type / values                                                            | Default                                                                                                                       | Meaning                                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `theme`                        | `'auto'` \| `'light'` \| `'dark'`                                        | `'auto'`                                                                                                                      | The `data-theme` of the chart; changes at runtime without a redraw                                                     |
+| `strings`                      | partial `GanttStrings`                                                   | English                                                                                                                       | Every text the chart writes itself: [Locale and strings](#locale-and-strings)                                          |
+| `layout.height`                | `number` \| `'auto'`                                                     | the container's                                                                                                               | [Height](#height): a number of px, or as tall as the rows with the page scrolling                                      |
+| `display.gridLines`            | `'both'` \| `'vertical'` \| `'horizontal'` \| `'none'`                   | `'both'`                                                                                                                      | Which grid lines the body draws                                                                                        |
+| `display.today`                | `boolean`                                                                | `true`                                                                                                                        | The today line, and its marker and highlighted cell in the header                                                      |
+| `display.nonWorkingDays`       | `'fill'` \| `'stripes'` \| `false`                                       | `'fill'`                                                                                                                      | How days off (weekends, holidays) are shown                                                                            |
+| `display.highlights`           | `boolean`                                                                | `true`                                                                                                                        | Whether the `highlights` below are drawn                                                                               |
+| `display.rowStripes`           | `'row'` \| `'group'` \| `false`                                          | `false`                                                                                                                       | Zebra rows, per row or per group (a parent with its children)                                                          |
+| `display.barLabel`             | `'auto'` \| `'inside'` \| `'outside'` \| `'none'`                        | `'auto'`                                                                                                                      | Where the label goes; `'auto'` puts it inside when it fits, else outside                                               |
+| `display.renderBarLabel`       | `(context) => Node \| DisposableNode \| string \| null`                  | the name                                                                                                                      | Custom label content: [Tooltips](#tooltips-the-link-menu-and-day-labels) has the node rules                            |
+| `display.headerRangeHighlight` | `boolean`                                                                | `true`                                                                                                                        | Highlights the hovered bar's range in the header                                                                       |
+| `display.linkCurveRadius`      | `number` (px)                                                            | `5`                                                                                                                           | The largest corner radius of an arrow                                                                                  |
+| `display.stickyBarLabels`      | `boolean`                                                                | `false`                                                                                                                       | Reserved: `true` is an `unsupported-option` and draws as off                                                           |
+| `display.expectedProgress`     | `boolean`                                                                | `false`                                                                                                                       | Reserved: the same                                                                                                     |
+| `highlights`                   | `{ id, dates?, range?, match?, label?, className?, color? }[]`           | none                                                                                                                          | Highlighted days, visual only: they change no schedule (details below)                                                 |
+| `tooltip`                      | `{ trigger, followCursor, showWhileDragging, render, delay, placement }` | `'hover'`, `false`, `true`, built in, `150`, `'top'` (a field left out takes its default; `setOptions` takes the group whole) | The task tooltip: [Tooltips](#tooltips-the-link-menu-and-day-labels)                                                   |
+| `linkMenu`                     | `{ render, onRemove }`                                                   | a remove action; `onRemove` is `removeLink`                                                                                   | The menu a click on an arrow opens                                                                                     |
+| `highlightTooltip`             | `{ followCursor }`                                                       | `{ followCursor: false }`                                                                                                     | The label of a highlighted day or a holiday                                                                            |
+| `toolbar`                      | `false` \| `{ todayButton, viewModeSelect, zoom }`                       | `false`                                                                                                                       | Reserved: enabling it is an `unsupported-option`; draws nothing                                                        |
+| `renderer.idPrefix`            | `string`                                                                 | `gantt-1`, `gantt-2`, …                                                                                                       | Prefix of every element id and the id of the root; give your own for ids that repeat across renders (server rendering) |
+| `renderer.layers`              | `{ [name]: factory }`                                                    | built in                                                                                                                      | Replaces built-in layers by name (advanced: custom renderers and tests)                                                |
+| `renderer.frames`              | `{ request, cancel }`                                                    | `requestAnimationFrame`                                                                                                       | Where frames come from; mainly for tests                                                                               |
 
 A **highlight** marks days without touching any schedule: `dates` are single days, `range` is
 `{ start, end }` with both ends inclusive, `match` is a predicate of a calendar day (`{ dayKey, date, weekday, year, month, day }`),
@@ -279,28 +290,28 @@ returns a function that removes it; both take the same arguments. Payloads that 
 `TaskRecord` (with `Date`s); a `ChangeSet` carries the core's floating numbers so it can be handed
 back to the core and to `patchTasks`.
 
-| Event                | Arguments                                         | When                                                                                                         |
-| -------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `tasksChange`        | `(changeSet)`                                     | A change committed: one per action, with every task it touched. Also undo and redo                           |
-| `taskDatesChange`    | `(record, { start, end, endExclusive })`          | A convenience after `tasksChange`, per task whose dates changed                                              |
-| `taskProgressChange` | `(record, progress)`                              | The same for progress                                                                                        |
-| `linkCreate`         | `(link, id)`                                      | A link was created (the id may be `…#2` if the default one was taken)                                        |
-| `linkDelete`         | `(linkRecord)`                                    | A link was deleted                                                                                           |
-| `linkClick`          | `(linkRecord, event)`                             | An arrow was clicked; it is now the selected link and its menu opens                                         |
-| `taskClick`          | `(record, event)`                                 | A bar was clicked (never after a drag)                                                                       |
-| `taskDoubleClick`    | `(record, event)`                                 | A bar was double-clicked                                                                                     |
-| `taskHoverChange`    | `(record \| null, event)`                         | The task under the pointer changed                                                                           |
-| `selectionChange`    | `(selectedKeys, selectedLink)`                    | The selected tasks (by `select()`) or link (by a click) changed                                              |
-| `viewModeChange`     | `(viewMode)`                                      | The view mode changed                                                                                        |
-| `rangeChange`        | `({ start, end, reason })`                        | The timeline range changed: for lazy loading by date. Also once at start (`'initial'`)                       |
-| `expandedChange`     | `(expandedKeys)`                                  | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                              |
-| `scroll`             | `({ x, y, date })`                                | The chart scrolled (and once at start); `date` is at the left edge of the viewport                           |
-| `editRollback`       | `(sessionChanges)`                                | A session was cancelled: the inverse for controlled data to apply                                            |
-| `dirtyChange`        | `({ isDirty })`                                   | `edit.isDirty` flipped                                                                                       |
-| `historyChange`      | `({ canUndo, canRedo })`                          | What undo and redo can do changed                                                                            |
-| `editRefused`        | `({ gesture, id, target?, reason, at })`          | A drag or a link was refused: `'busy'`, `'permission'`, `'unknown-task'`, `'self'`, `'cycle'`, `'duplicate'` |
-| `issues`             | `({ source, issues })`                            | The issues of the data or the options changed (see [Issues](#issues))                                        |
-| `error`              | `({ error, source: 'listener' \| 'hook', name })` | A listener or a before-hook threw                                                                            |
+| Event                | Arguments                                         | When                                                                                                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tasksChange`        | `(changeSet)`                                     | A change committed: one per action, with every task it touched. Also undo and redo                                                                                                                                                                       |
+| `taskDatesChange`    | `(record, { start, end, endExclusive })`          | A convenience after `tasksChange`, per task whose dates changed                                                                                                                                                                                          |
+| `taskProgressChange` | `(record, progress)`                              | The same for progress                                                                                                                                                                                                                                    |
+| `linkCreate`         | `(link, id)`                                      | A link was created (the id may be `…#2` if the default one was taken)                                                                                                                                                                                    |
+| `linkDelete`         | `(linkRecord)`                                    | A link was deleted                                                                                                                                                                                                                                       |
+| `linkClick`          | `(linkRecord, event)`                             | An arrow was clicked; it is now the selected link and its menu opens                                                                                                                                                                                     |
+| `taskClick`          | `(record, event)`                                 | A bar was clicked (never after a drag)                                                                                                                                                                                                                   |
+| `taskDoubleClick`    | `(record, event)`                                 | A bar was double-clicked                                                                                                                                                                                                                                 |
+| `taskHoverChange`    | `(record \| null, event)`                         | The task under the pointer changed                                                                                                                                                                                                                       |
+| `selectionChange`    | `(selectedKeys, selectedLink)`                    | The selected tasks (by `select()`) or link (by a click) changed                                                                                                                                                                                          |
+| `viewModeChange`     | `(viewMode)`                                      | The view mode changed                                                                                                                                                                                                                                    |
+| `rangeChange`        | `({ start, end, reason })`                        | The timeline range changed: for lazy loading by date. Also once at start (`'initial'`)                                                                                                                                                                   |
+| `expandedChange`     | `(expandedKeys)`                                  | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                                                                                                                                                                          |
+| `scroll`             | `({ x, y, date })`                                | The scroll position changed (and once at start); `date` is at the left edge of the viewport. Also for a scroll the core requests itself (the initial scroll, an instant `scrollTo*`): that one is reported at once, before the renderer has performed it |
+| `editRollback`       | `(sessionChanges)`                                | A session was cancelled: the inverse for controlled data to apply                                                                                                                                                                                        |
+| `dirtyChange`        | `({ isDirty })`                                   | `edit.isDirty` flipped                                                                                                                                                                                                                                   |
+| `historyChange`      | `({ canUndo, canRedo })`                          | What undo and redo can do changed                                                                                                                                                                                                                        |
+| `editRefused`        | `({ gesture, id, target?, reason, at })`          | A drag or a link was refused: `'busy'`, `'permission'`, `'unknown-task'`, `'self'`, `'cycle'`, `'duplicate'`                                                                                                                                             |
+| `issues`             | `({ source, issues })`                            | The issues of the data or the options changed (see [Issues](#issues))                                                                                                                                                                                    |
+| `error`              | `({ error, source: 'listener' \| 'hook', name })` | A listener or a before-hook threw                                                                                                                                                                                                                        |
 
 The option names are `onTasksChange`, `onTaskDatesChange`, `onTaskProgressChange`, `onLinkCreate`,
 `onLinkDelete`, `onLinkClick`, `onTaskClick`, `onTaskDoubleClick`, `onTaskHoverChange`,
@@ -317,8 +328,49 @@ rejects cancels the change and reports to `error`. Rolling back an edit session 
 the history never ask the hooks.
 
 A handler that throws does not break the others or the chart: the error goes to `onError` when you
-have one, and otherwise to the host's unhandled-rejection channel (the console, your error
-tracker).
+have one. With no `error` listener it depends on what caused the event:
+
+- **A call of yours** (`updateTask`, `addLink`, `removeLink`, `select`, `setTasks`, `setOptions`,
+  `setViewMode`, `scrollTo*`, `edit.*`, `undo`, …, and `createGantt` itself for `onIssues`)
+  **rethrows** what the handlers threw, once the call is done and the change has happened: one
+  error as it is, several as an `AggregateError`. A plain method throws synchronously; the async
+  ones (`updateTask`, `addLink`, `removeLink`) reject their promise, so
+  `await gantt.updateTask(…)` inside a `try` sees the error of your `onTasksChange`.
+- **The chart's own input** (the pointer, a scroll, a resize, the clock: what the renderer reports
+  to the core) cannot throw into the browser's event loop, so the error goes to the host's
+  unhandled-rejection channel instead (the console, your error tracker, an `unhandledrejection`
+  listener).
+
+### Handlers that run during creation
+
+A handler given as an option can run **before `createGantt` returns**: the chart reports its first
+range and scroll position while it mounts, so `onRangeChange` (reason `'initial'`) and `onScroll`
+always are (a container with no width yet, such as a hidden one, waits for its first resize), and
+`onIssues` is when the first options or data have issues. A handler that reads the `gantt` variable
+would find it unset (a `const` is in its temporal dead zone, a `let` is `undefined`). Declare it
+first and guard, or register the handler once the chart exists:
+
+```ts
+import { createGantt, type Gantt } from '@ganttlane/dom';
+
+// `container` and `tasks` as in the quick start.
+let gantt: Gantt | undefined;
+gantt = createGantt(container, {
+  tasks,
+  // Runs inside `createGantt`: `gantt` is not assigned yet.
+  onRangeChange: ({ start, end }) => {
+    gantt?.scrollToDate(start); // guarded
+  },
+});
+
+// Or add the listener afterwards: it hears everything from then on.
+const off = gantt.on('rangeChange', ({ reason }) => console.log(reason));
+```
+
+The events of creation are not replayed to a listener added later (the first issues are always
+there to read with `gantt.getIssues()`). `@ganttlane/react` holds them back instead: they are
+delivered once the component is committed, so a handler there can use the `ref` (see
+[How props reach the chart](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#how-props-reach-the-chart)).
 
 ## Methods
 
@@ -372,21 +424,34 @@ behind.
   `setTasks`.
 - **`editing` does not apply to calls from code.** `editing: false` turns off editing from the UI
   (drags, link drawing, the menu's remove action), so a read-only chart cannot be edited by its
-  user; `updateTask`, `addLink`, `removeLink` and `setTasks` still commit. A `locked` task is the
-  one `updateTask` leaves alone.
+  user; `updateTask`, `addLink` and `removeLink` still commit. A `locked` task is the one
+  `updateTask` leaves alone.
+- **`setTasks(tasks)` and `setLinks(links)` are not changes of the chart's.** They hand it new
+  data, as if you had created it with them: diffed by id, with no before-hook, no `tasksChange`
+  and no history entry. With uncontrolled data they clear the undo history (its entries describe
+  data that is gone); with controlled data `setTasks` is your answer to a change, which ends its
+  draft (see [`dataMode`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#controlled-and-uncontrolled-data)).
+  Like `updateTask`, they ignore `editing`.
 - **`setOptions(patch)`** changes the chart without recreating it. A key left out keeps its value,
   one set to `undefined` goes back to its default, and each key is routed to what depends on it
   and nothing else: core options to the core (which recomputes only what they invalidate),
   `theme`, `strings`, `layout.height` and the display options to the renderer's own setters.
   Swapping an `on<Event>` handler is O(1) and redraws nothing. The groups the core and the
   renderer know (`calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`,
-  `interaction`, `display`, `strings`) are merged field by field with what was set before; the
-  popover groups `tooltip`, `linkMenu` and `highlightTooltip`, `editing` and `history` as objects,
-  `viewModes` and every list (`tasks`, `links`, `highlights`, `calendar.holidays`, …) are taken
-  whole: what they leave out is back to its default. It returns the issues of the options now in
-  use.
+  `interaction`, `display`, `strings`) are merged **one level deep** with what was set before: a
+  field of the group is replaced, and a field that is itself an object or a list
+  (`scheduling.skipNonWorkingDays`, `scheduling.snap`, `timeline.range`, `timeline.infinite`,
+  `scroll.autoScroll`, `interaction.handles`, `calendar.holidays`, …) is replaced **whole**, so the
+  keys it leaves out are back at their defaults. The popover groups `tooltip`, `linkMenu` and
+  `highlightTooltip`, `editing` and `history` as objects, `viewModes` and every list (`tasks`,
+  `links`, `highlights`, …) are taken whole too: what they leave out is back to its default.
+  `setOptions({ tasks: undefined })` is not a reset but an `invalid-option` issue, since `tasks`
+  has no default (the chart then shows no tasks; pass `tasks: []` to empty it on purpose). It
+  returns the issues of the options now in use.
 - **`select(ids)`** selects tasks (ids that are not in the data are left out) and `selectLink(id)` an
-  arrow; clicking an arrow selects it too. Clicking a bar only emits `taskClick`.
+  arrow; clicking an arrow selects it too. Clicking a bar only emits `taskClick`: it selects no
+  task, and, like a click on an empty place of the chart, it **clears the selected link** (the
+  selected tasks stay).
 - **Events** are the same whether you give an `on<Event>` option or call `gantt.on`: the payloads
   of [Events](#events), which the facade does not change.
 
@@ -430,7 +495,7 @@ const gantt = createGantt(container, {
   tasks,
   links,
   tooltip: {
-    trigger: 'hover', // 'hover' (default) | 'click' | 'none' ('focus' is reserved for P1)
+    trigger: 'hover', // 'hover' (default) | 'click' | 'none' ('focus' is reserved)
     followCursor: false, // sit above the cursor and follow it, instead of on the bar
     showWhileDragging: true, // keep it during a drag, showing the previewed dates
     delay: 150, // ms before a hovered bar's tooltip opens
@@ -581,7 +646,7 @@ runtime's own language (the dates and numbers of the chart and of the default to
 tag and then for `'en'`); `context.locale` still names the tag you gave, so a function of yours
 that formats with it should do the same (`toLocaleString([locale, 'en'])`). A locale with another calendar
 (`'th-TH-u-ca-buddhist'`) writes its years; the cells themselves stay Gregorian (week starts and
-weekends from the locale are P1).
+weekends from the locale are planned).
 
 **The strings** are every piece of text the renderer writes on its own. They are English, and
 the `strings` option overrides any of them; `gantt.setOptions({ strings })` changes them later
@@ -619,8 +684,8 @@ createGantt(container, { tasks, locale: 'uk', strings: uk });
 | `dateRange(from, to, locale)`                                              | `Mar 2, 2026 – Mar 6, 2026`                 | The dates line of a task of more than one moment          |
 | `linkTitle(source, target, locale)`                                        | `Design → Build`                            | The title of the link menu                                |
 | `removeLink`                                                               | `Remove dependency`                         | The action of the link menu                               |
-| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `Today`, `Zoom in`, `Zoom out`, `View mode` | The toolbar (P1: reserved, nothing draws them yet)        |
-| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `Hour`, `Quarter day`, … `Year`             | The view mode switcher's items (P1: reserved)             |
+| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `Today`, `Zoom in`, `Zoom out`, `View mode` | The toolbar (reserved: nothing draws them yet)            |
+| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `Hour`, `Quarter day`, … `Year`             | The view mode switcher's items (reserved)                 |
 
 - A string that puts a number or a name into a sentence is a **function** of the value and the
   chart's locale; the others are plain strings. Strings are inserted as text, never as markup.
@@ -696,6 +761,13 @@ All of the library's CSS is in `@layer gantt`, and no selector is more specific 
   fill: tomato;
 }
 ```
+
+**Set a token on the `.gantt` element, not on its container.** The stylesheet declares every
+`--gantt-*` property on `.gantt` itself, so a value set on the container, as in
+`.roadmap { --gantt-bar-color: red }`, is never inherited by the chart: its own declaration is
+closer and wins. Use `.gantt` (every chart) or a descendant selector such as `.roadmap .gantt` (one
+chart, as above); a class you add to the container is the hook for that selector, not the place for
+the tokens.
 
 If your own styles live in cascade layers, declare the order once, `@layer gantt, app;`, so that
 yours come later.
@@ -1060,7 +1132,7 @@ thing that writes its position.
   Compensation and extension go on working, handler or no handler.
 - **Left to right.** `.gantt` sets `direction: ltr` whatever the host page's `dir` is: an RTL
   scroller counts `scrollLeft` from its right edge, down to negative numbers, which neither the
-  renderer nor the core expects. A mirrored scale is the P1 `direction` option.
+  renderer nor the core expects. A mirrored scale is the planned `direction: 'rtl'`.
 - **Moving the scroller yourself** (your own autoscroll, a keyboard shortcut): use
   `scrollByInstant(scroller, { left, top })` from `@ganttlane/dom/dom-utils`. It is relative to
   where the scroller is now and instant; a write from a position you remembered would undo a
@@ -1070,7 +1142,7 @@ thing that writes its position.
   WebKit does not, and a labelled region is what a screen reader should announce. The arrow keys
   scroll it by the browser's step, PageUp, PageDown, Home and End scroll the rows. The focus ring
   is `:focus-visible` with `--gantt-focus-ring-*`. Bars, links and handles get their own focus
-  stops in P1 (roving tabindex), which will replace the role of the scroller.
+  stops later (roving tabindex), which will replace the role of the scroller.
 - Browsers that scroll on the compositor thread (touch fling, smooth wheel) may stop that
   animation when the compensation writes the position: it happens once per extension, which is
   once per `extendBy` of scrolling.
@@ -1201,12 +1273,24 @@ of `core.send` for a drag. An end-to-end test runs it in Chromium, Firefox and W
   ```
 
 - **`@ganttlane/dom/dom-utils`** holds the helpers the renderer and other renderers share, none of
-  which knows the layers or the core: `createDisposables`, `listen` (the signal is required),
-  `observeSize` / `measureSize`, `allocateIdPrefix` / `prefixedId`, the Pointer Events adapter
-  (`pointerInput`, `keyInput`, `measureFrame`, `hitTargetOf`, `pointerOnScrollbar`), the drag
-  autoscroll loop (`createAutoScroller`), popover placement (`placePopover`), scrolling helpers
-  (`scrollByInstant`, `scrollHostOf`, `forwardScroll`) and the rule for markup that shows nothing
-  (`showsNothing`).
+  which knows the layers or the core:
+  - lifetime and ids: `createDisposables`, `listen` (the signal is required), `allocateIdPrefix` /
+    `prefixedId` and `DEFAULT_ID_BASE` (`'gantt'`, the first part of the generated prefixes
+    `gantt-1`, `gantt-2`, …), and `ROOT_CLASS` (`'gantt'`, the class of the chart's root element,
+    which the default stylesheet is written against);
+  - size: `observeSize` / `measureSize` for an element, and `measureHost` / `observeHostSize` for
+    the host that scrolls a chart with `layout.height: 'auto'` (where its header sticks, the height
+    below it, where a row is scrolled to; `measureHost` forces layout, so call it in a frame task,
+    never in a scroll handler);
+  - input: the Pointer Events adapter (`pointerInput`, `keyInput`, `measureFrame`, `hitTargetOf`,
+    `pointerOnScrollbar`, `pointerOutsideBody` for a pointer that is over the header, left of the
+    chart or past its scrollbars, where there is no target to hit-test) and the drag autoscroll
+    loop (`createAutoScroller`);
+  - popovers: `placePopover` with the geometry it is built from (`pointRect` for "above the
+    cursor", `CURSOR_SIZE`, the height of the cursor image that a popover below a point clears,
+    `intersectRects` and `viewportRect`, the visible area of the page, which reads layout), and the
+    rule for markup that shows nothing (`showsNothing`);
+  - scrolling: `scrollByInstant`, `scrollHostOf` and `forwardScroll`.
 - **The rest of the main entry:** `DISPLAY_DEFAULTS` and `resolveDisplay`, `DEFAULT_STRINGS` and
   `resolveStrings`, `LAYER_ORDER`, `VERSION`, and the types of every option and context.
 
@@ -1225,7 +1309,7 @@ What the chart does today:
 - Colours come from tokens, in a light and a dark theme (`prefers-color-scheme` when `theme` is
   `'auto'`).
 
-What it does not do yet (P1, planned for 1.0): bars, links and handles are not focusable and have no
+What it does not do yet (planned for 1.0): bars, links and handles are not focusable and have no
 roles, so a screen reader reads the chart as an unlabelled graphic apart from its region and its
 tooltips; dragging has no keyboard equivalent (move and resize with arrow keys); changes are not
 announced; the contrast of the default themes has not been audited against WCAG AA. If your users
@@ -1252,7 +1336,7 @@ package down by layer, and `pnpm bench` measures the performance numbers.
 
 ## Limits and roadmap
 
-Limits you should know about today (**P1** means planned for 1.0):
+Limits you should know about today (what is planned for 1.0 is listed at the end):
 
 - The container is an **element**, not a selector (`createGantt` throws a `TypeError` for anything
   else), and it should be empty. A chart in an open shadow root works (adopt the stylesheet into the
@@ -1275,12 +1359,15 @@ Limits you should know about today (**P1** means planned for 1.0):
   divides a day, a task spans at most 10 years (see
   [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#limits-and-roadmap)).
 
-Planned for 1.0 (P1): zoom gestures and a toolbar, selection and keyboard navigation with ARIA roles
+Planned for 1.0: zoom gestures and a toolbar, selection and keyboard navigation with ARIA roles
 and keyboard editing, undo and redo hotkeys, a task list, markers, sticky labels and the
 expected-progress marker, right-to-left charts, week-start and weekend defaults from the locale,
-the `push-forward` propagation policy, a context menu, dev-time hints for old option names with a
-frappe-gantt option adapter, and a generated API reference (the
-[documentation site](https://ganttlane.github.io/ganttlane/) has the guides and live examples).
+the `push-forward` propagation policy, a context menu, and dev-time hints for old option names with
+a frappe-gantt option adapter.
+
+The generated [API reference](https://ganttlane.github.io/ganttlane/api/) is not on that list: it
+exists, on the [documentation site](https://ganttlane.github.io/ganttlane/), next to the guides and
+the live examples.
 
 ## Examples
 

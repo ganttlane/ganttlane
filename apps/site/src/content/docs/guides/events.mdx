@@ -129,10 +129,50 @@ How listeners behave:
   operation ends, so inside a handler it can still be the previous one, and the geometry queries
   (`getBarRect`, `getVisibleRange`) can lag a step behind. Prefer the payload.
 - **Some events fire before `createGantt` returns.** The first `issues` event (when the data or the
-  options have problems), and, when the container already has a width, the first `rangeChange`
-  (reason `'initial'`) and the first `scroll`, are emitted inside `createGantt`. An `on<Event>` option cannot use the variable that is about to
-  hold the chart; read the payload instead, or add a listener with `gantt.on` afterwards. In React,
-  events from the creation are held until the first commit (see [Events in React](#events-in-react)).
+  options have problems), and, when the container has a width, the first `rangeChange` (reason
+  `'initial'`) and the first `scroll`, are emitted inside `createGantt`. A handler that reads the
+  variable the chart is assigned to would find it unset: see
+  [Handlers that run during creation](#handlers-that-run-during-creation). In React, events from
+  the creation are held until the first commit (see [Events in React](#events-in-react)).
+
+### Handlers that run during creation
+
+`createGantt` creates the core, mounts the renderer and measures the container before it returns,
+and the events of that work are delivered to the handlers you gave as options, inside the call:
+
+| Handler         | Runs inside `createGantt`?                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `onRangeChange` | Yes, with reason `'initial'`, when the container has a width (a hidden one waits for a resize) |
+| `onScroll`      | Yes, with the first scroll position, under the same condition                                  |
+| `onIssues`      | Yes, when the first options or data have issues                                                |
+| Every other one | No: they react to a user, to a call of yours or to a change                                    |
+
+So a handler that reads the `gantt` variable breaks: the `createGantt(...)` call has not returned,
+so the variable is not assigned yet (a `const` is in its temporal dead zone and throws a
+`ReferenceError`; a `let` is `undefined`). Two ways around it:
+
+```ts
+import { createGantt, type Gantt } from '@ganttlane/dom';
+
+// 1. Declare the variable first, and guard it in handlers that can run early.
+let gantt: Gantt | undefined;
+gantt = createGantt(container, {
+  tasks,
+  onRangeChange: ({ start }) => {
+    gantt?.scrollToDate(start); // `gantt` is still undefined on the first call
+  },
+});
+
+// 2. Or register the listener once the chart exists: it hears everything from then on.
+const chart = createGantt(container, { tasks });
+const off = chart.on('rangeChange', ({ reason }) => {
+  console.log(reason); // not 'initial': that one was delivered inside `createGantt`
+});
+```
+
+A listener added afterwards does not hear the events of creation, and they are not replayed. Read the
+payload of the handler that runs early, or, for the issues, `gantt.getIssues()` once the chart
+exists. Handlers that need nothing from the chart (a log, an analytics call) are fine as options.
 
 ## User actions, API calls and events
 

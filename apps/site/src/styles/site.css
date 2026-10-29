@@ -2,7 +2,8 @@
  * The look of the live demos (`src/components/Demo.astro`). The examples are plain user code and
  * bring no styles of their own: their toolbars, buttons and status lines are styled here, from
  * the colours of Starlight, so they follow its light and dark themes. The charts themselves are
- * styled by `@ganttlane/dom/styles.css`, which each example imports.
+ * styled by `@ganttlane/dom/styles.css` where an example imports it, and the site puts it on the
+ * page only while that demo is shown (`src/lib/example-css.ts`).
  */
 
 .demo {

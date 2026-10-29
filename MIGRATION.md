@@ -15,6 +15,11 @@ maps what you have today to what exists now, and says where the behaviour is dif
 > ones that will be published. There is no automatic converter yet: see
 > [What is not available yet](#what-is-not-available-yet).
 
+> **Documentation:** the [documentation site](https://ganttlane.github.io/ganttlane/) has the guides,
+> live examples that run next to their code, and the generated
+> [API reference](https://ganttlane.github.io/ganttlane/api/). The package READMEs are the
+> references this guide links to.
+
 ## Contents
 
 - [The changes that matter most](#the-changes-that-matter-most)
@@ -357,13 +362,13 @@ Durations still count calendar days unless a task, or `scheduling.durationMode`,
 
 ### Editing and scheduling
 
-| Upstream            | Default | Now                                                   | Notes                                                                                                                                                                      |
-| ------------------- | ------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `readonly`          | `false` | `editing: false`                                      | Turns off editing from the UI: no drag, resize, progress change or link drawing. It blocks only the UI: `updateTask`, `addLink`, `removeLink` and `setTasks` still commit. |
-| `readonly_dates`    | `false` | `editing: { move: false, resize: false }`             | `editing` takes `move`, `resize`, `progress` and `links`, each `true` by default. `task.editable` overrides it for one task.                                               |
-| `readonly_progress` | `false` | `editing: { progress: false }`                        |                                                                                                                                                                            |
-| `fixed_duration`    | `false` | `editing: { resize: false }`, or `task.fixedDuration` | The chart-wide switch hides the resize handles; `fixedDuration` on a task keeps its length.                                                                                |
-| `move_dependencies` | `true`  | `scheduling.propagation`                              | `'preserve-lag'` (default) or `'none'`. See [Behaviour that will surprise you](#behaviour-that-will-surprise-you).                                                         |
+| Upstream            | Default | Now                                                   | Notes                                                                                                                                                                                                                        |
+| ------------------- | ------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readonly`          | `false` | `editing: false`                                      | Turns off editing from the UI: no drag, resize, progress change or link drawing. It blocks only the UI: `updateTask`, `addLink` and `removeLink` from code still commit.                                                     |
+| `readonly_dates`    | `false` | `editing: { move: false, resize: false }`             | `editing` takes `move`, `resize`, `progress` and `links`, each `true` by default. `task.editable` overrides it for one task.                                                                                                 |
+| `readonly_progress` | `false` | `editing: { progress: false }`                        |                                                                                                                                                                                                                              |
+| `fixed_duration`    | `false` | `editing: { resize: false }`, or `task.fixedDuration` | The chart-wide switch hides the resize handles; `fixedDuration` on a task keeps its length.                                                                                                                                  |
+| `move_dependencies` | `true`  | `scheduling.propagation`                              | `'preserve-lag'` (default) or `'none'`, which concerns links only: children follow their parent per `hierarchy.moveChildren`, whatever this says. See [Behaviour that will surprise you](#behaviour-that-will-surprise-you). |
 
 **New and on by default:** `editing.links` lets users draw links (drag from the circle beside a bar,
 or click it and then the other bar) and delete them (click the arrow). Upstream could not. Set
@@ -476,7 +481,16 @@ listed in [`@ganttlane/core`](packages/core/README.md#view).
 Upstream had one handler per event, in `options['on_' + name]`. Here every event is an `on<Event>`
 option, `gantt.on(name, handler)` adds a listener and returns a function that removes it, and
 `setOptions({ onTaskClick })` swaps a handler without recreating the chart. A handler that throws
-reaches `onError`, never the chart.
+never breaks the chart: its error reaches `onError`. With no `onError`, a call of yours (`select`,
+`updateTask`, …) rethrows it, and the chart's own input (a click, a scroll) reports it to the
+host's unhandled-rejection channel; see [Events](packages/dom/README.md#events).
+
+**Some handlers run before `createGantt` returns.** The chart reports its first range and scroll
+position while it mounts, so `onRangeChange` and `onScroll` are called inside `createGantt` (and
+`onIssues` when the first options or data have issues). A handler that reads the `gantt` variable
+finds it unset there: declare `let gantt: Gantt | undefined` first and guard it, or add the
+listener with `gantt.on(…)` after `createGantt` returns. See
+[Handlers that run during creation](packages/dom/README.md#handlers-that-run-during-creation).
 
 | Upstream             | Arguments and timing                                                        | Now                                                       | Arguments                                                                                                                           |
 | -------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -630,7 +644,9 @@ createGantt(container, {
 ## CSS
 
 The stylesheet is a separate import, all of it is in `@layer gantt`, and a style of yours that is not
-in a layer wins without `!important`. Theme with custom properties on `.gantt`:
+in a layer wins without `!important`. Theme with custom properties on `.gantt` itself (or on
+`.my-wrapper .gantt` for one chart; a token set on the container is not inherited, because the
+stylesheet declares every token on `.gantt`):
 
 ```css
 .gantt {
@@ -972,30 +988,36 @@ fork did not.
 
 ### Scheduling, links and hierarchy
 
-| Fork option                            | Fork default         | Now                                                                             | Notes                                                                                                                                                                                 |
-| -------------------------------------- | -------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `on_move_skip_ignored_days`            | `true`               | `scheduling.skipNonWorkingDays.move`                                            | Same default.                                                                                                                                                                         |
-| `on_resize_skip_ignored_days`          | `false`              | `scheduling.skipNonWorkingDays.resize`                                          | Same default. `.progress` (default `true`) is the progress handle.                                                                                                                    |
-| `move_dependencies`                    | `true`               | `scheduling.propagation`                                                        | `true` is `'preserve-lag'` (default), `false` is `'none'`.                                                                                                                            |
-| `dependencies_default_pinned_to`       | `{ start: 'start' }` | `scheduling.defaultLinkType`                                                    | **The default changed from start-to-start to `'FS'`.** A link written without a type was `SS` in the fork, and is finish-to-start now: give the type, or set `defaultLinkType: 'SS'`. |
-| `move_children`, `task.follows_parent` | `true`               | `hierarchy.moveChildren`                                                        | `'all'` is `move_children: true`. `'following'` is `move_children: false` (children with `followParent` still move). `'none'` is new: not even those.                                 |
-| `children_default_pinned_to`           | `{ start: 'start' }` | `hierarchy.childAnchor`                                                         | A link type, not an object: the default is `'SS'`. See `pinned_to` below.                                                                                                             |
-| `display_children`                     | `true`               | `hierarchy.expandedKeys` (and `expand`, `collapse`, `expandAll`, `collapseAll`) | `true` is `'all'` (default), `false` is `[]`, a list of ids is the same list.                                                                                                         |
+| Fork option                            | Fork default         | Now                                                                             | Notes                                                                                                                                                                                                                                          |
+| -------------------------------------- | -------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `on_move_skip_ignored_days`            | `true`               | `scheduling.skipNonWorkingDays.move`                                            | Same default.                                                                                                                                                                                                                                  |
+| `on_resize_skip_ignored_days`          | `false`              | `scheduling.skipNonWorkingDays.resize`                                          | Same default. `.progress` (default `true`) is the progress handle.                                                                                                                                                                             |
+| `move_dependencies`                    | `true`               | `scheduling.propagation`                                                        | `true` is `'preserve-lag'` (default), `false` is `'none'`. It concerns links only: whether children follow their parent is `hierarchy.moveChildren` (default `'all'`), so a chart where only the edited task should move needs both `'none'`s. |
+| `dependencies_default_pinned_to`       | `{ start: 'start' }` | `scheduling.defaultLinkType`                                                    | **The default changed from start-to-start to `'FS'`.** A link written without a type was `SS` in the fork, and is finish-to-start now: give the type, or set `defaultLinkType: 'SS'`.                                                          |
+| `move_children`, `task.follows_parent` | `true`               | `hierarchy.moveChildren`                                                        | `'all'` is `move_children: true`. `'following'` is `move_children: false` (children with `followParent` still move). `'none'` is new: not even those.                                                                                          |
+| `children_default_pinned_to`           | `{ start: 'start' }` | `hierarchy.childAnchor`                                                         | A link type, not an object: the default is `'SS'`. See `pinned_to` below.                                                                                                                                                                      |
+| `display_children`                     | `true`               | `hierarchy.expandedKeys` (and `expand`, `collapse`, `expandAll`, `collapseAll`) | `true` is `'all'` (default), `false` is `[]`, a list of ids is the same list.                                                                                                                                                                  |
 
 `pinned_to` has one reading in the fork, "my edge X is tied to that edge Y", and it maps to a link
 type:
 
-| `pinned_to`                    | Link type                                             |
-| ------------------------------ | ----------------------------------------------------- |
-| `{ start: 'end' }`             | `FS`: finish-to-start                                 |
-| `{ start: 'start' }`           | `SS`: start-to-start                                  |
-| `{ end: 'end' }`               | `FF`: finish-to-finish                                |
-| `{ end: 'start' }`             | `SF`: start-to-finish                                 |
-| `{ start: 'end', end: 'end' }` | **two links**, `FS` and `FF`: the successor stretches |
+| `pinned_to`                    | Link type                                                                                 |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `{ start: 'end' }`             | `FS`: finish-to-start                                                                     |
+| `{ start: 'start' }`           | `SS`: start-to-start                                                                      |
+| `{ end: 'end' }`               | `FF`: finish-to-finish                                                                    |
+| `{ end: 'start' }`             | `SF`: start-to-finish                                                                     |
+| `{ start: 'end', end: 'end' }` | **two links**, `FS` and `FF`: both edges of the successor hang from the predecessor's end |
+
+Two links tie both edges of the successor. With no `lag` each keeps the gap it has, and an `FS` and
+an `FF` link both hang from the predecessor's end, so the successor **moves with it and keeps its
+length**; it takes another length only when the two lags ask for one. For a successor that
+**stretches** when the predecessor is resized, use `SS` and `FF`.
 
 This is the same table for a dependency (`links[].type`) and for a parent
 (`task.parentAnchor`, a type or a list with at most one type for the start, `SS` or `FS`, and at
-most one for the end, `FF` or `SF`: `['SS', 'FF']` makes the child stretch with its parent).
+most one for the end, `FF` or `SF`: `['SS', 'FF']` makes the child stretch with its parent, when it
+has `followParent: true`; `parentAnchor` is not read for any other child).
 
 ### Editing flags
 
@@ -1325,8 +1347,8 @@ it your own.
 
 ## What is not available yet
 
-Planned for a later release, so the old feature has no replacement today (**P1** means planned for
-1.0; the complete lists are in "Limits and roadmap" in the READMEs of
+Planned for a later release (most of it for 1.0), so the old feature has no replacement today (the
+complete lists are in "Limits and roadmap" in the READMEs of
 [`@ganttlane/core`](packages/core/README.md#limits-and-roadmap),
 [`@ganttlane/dom`](packages/dom/README.md#limits-and-roadmap) and
 [`@ganttlane/react`](packages/react/README.md#limits-and-roadmap)):
@@ -1334,23 +1356,24 @@ Planned for a later release, so the old feature has no replacement today (**P1**
 - **A migration adapter.** A `fromFrappeGanttOptions` adapter is planned for a later release and is
   **not shipped now**: convert your options by hand with this guide (the converters above help with
   tasks). Dev-time hints for old option names and an exported validation schema
-  (`@ganttlane/core/schema`) are P1 as well, so unknown keys are ignored silently today. No adapter
+  (`@ganttlane/core/schema`) are planned as well, so unknown keys are ignored silently today. No adapter
   for the extended fork's options is planned yet.
 - **The toolbar.** `today_button`, `view_mode_select` and zoom buttons: the `toolbar` options are
   reserved. Use `scrollToToday()`, `setViewMode(id)` and `zoomTo(pxPerDay)` from your own controls.
 - **Sticky bar labels and the expected-progress marker** (`auto_move_label`, `show_expected_progress`):
-  the options are reserved (P1).
+  the options are reserved.
 - **A left-hand task list.** Line your own list up with the rows through `getRowMetrics(id)`. The fork's
   "adjust" button (back to the bars) is not there either: `getVisibleRange()` and `scrollToTask(id)`
   are the pieces to build one.
 - **Selecting bars by clicking, keyboard editing, ARIA roles on bars, a context menu, pinch and
-  `Ctrl` + wheel zoom** (`zoomTo()` zooms from code), undo and redo hotkeys (P1).
+  `Ctrl` + wheel zoom** (`zoomTo()` zooms from code), and undo and redo hotkeys: planned for 1.0.
 - **`on_date_click` and `hover_on_date`.** There is no date-click event.
 - **Right-to-left charts** and week-start and weekend defaults from the locale (`calendar.weekends` is
-  explicit) (P1).
-- **The `'push-forward'` propagation policy** (P1): it is reported as `unsupported-option` and behaves
+  explicit): planned for 1.0.
+- **The `'push-forward'` propagation policy** (planned for 1.0): it is reported as `unsupported-option` and behaves
   as `'preserve-lag'`.
 - **A selector as the container** (it throws a `TypeError`), and a closed shadow root.
-- **Time zones and offsets.** Time is floating wall-clock time (zoned dates are P2). Working hours and
-  shifts, per-task calendars, baselines, a critical path and rollup of parent dates are P2.
-- **React:** compound components, headless hooks as a public API and a `TaskList` component (P1).
+- **Time zones and offsets.** Time is floating wall-clock time (zoned dates are planned for later). Working hours and
+  shifts, per-task calendars, baselines, a critical path and rollup of parent dates are planned for
+  later.
+- **React:** compound components, headless hooks as a public API and a `TaskList` component (planned for 1.0).

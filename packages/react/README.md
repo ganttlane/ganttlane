@@ -7,6 +7,12 @@ pointer input and scrolling, and this package adds the React side: props for opt
 uncontrolled state, handlers that are never stale, `ReactNode` slots for the tooltip, the link menu
 and the bar label, a `ref` handle, StrictMode and server rendering.
 
+> **Documentation:** the [documentation site](https://ganttlane.github.io/ganttlane/) has the guides
+> (including a [React guide](https://ganttlane.github.io/ganttlane/guides/react/)), live examples
+> next to their code (each in vanilla and in React) and the generated
+> [API reference](https://ganttlane.github.io/ganttlane/api/) of every export. This README is the
+> reference of the package.
+
 > **Status:** pre-release (`0.0.0`), not published to npm yet. The API may still change before
 > `0.1.0`. Compound components and a task list come later (see
 > [Limits and roadmap](#limits-and-roadmap)).
@@ -169,8 +175,10 @@ changes costs what the same `setOptions` costs on the vanilla chart.
   `{ scheduling: { propagation: undefined } }`: `setOptions` alone would keep the old field,
   props do not. A group you drop altogether is reset the same way, field by field (not as one
   `undefined`, which would also reset what is the chart's own, such as the expanded parents an
-  uncontrolled chart holds in `hierarchy`). `tooltip`, `linkMenu`, `highlightTooltip`, `editing`,
-  `history`, `viewModes` and every list are taken whole.
+  uncontrolled chart holds in `hierarchy`). The merge is one level deep: a field that is an object
+  or a list itself (`scheduling.skipNonWorkingDays`, `timeline.range`, `scroll.autoScroll`,
+  `interaction.handles`, …) is sent whole when it changes. `tooltip`, `linkMenu`,
+  `highlightTooltip`, `editing`, `history`, `viewModes` and every list are taken whole.
 - **A prop that goes away goes back to its default.** Remove `locale` and the chart is `'en'`
   again.
 - **`tasks` and `links` are compared by identity.** The same array again is nothing; a new array
@@ -394,6 +402,12 @@ Every event of the chart is an `on<Event>` prop, with the arguments listed under
   stable function per event that calls the latest one (see [How props reach the
   chart](#how-props-reach-the-chart)).
 - What a handler throws goes to `onError` (`{ error, source: 'listener', name }`), never into React.
+  With no `onError`, a call of yours on the handle or the instance (`select`, `updateTask`, …)
+  rethrows what its handlers threw, as on the vanilla chart (a sync throw, or a rejected promise for
+  `updateTask`, `addLink` and `removeLink`), and the chart's own input (a click, a scroll) goes to
+  the host's unhandled-rejection channel; see
+  [Events](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#events) of
+  `@ganttlane/dom`.
 - Listeners that are not tied to a render (a log, an analytics call) can be added to the instance
   or the handle with `on(name, handler)`, which returns a function that removes them.
 
@@ -734,8 +748,11 @@ attributes) in the `@ganttlane/dom` README. In short:
 
 - `theme="auto" | "light" | "dark"` is a prop (`'auto'` follows `prefers-color-scheme`), and changing
   it costs no redraw.
-- Re-theme with custom properties on `.gantt`, or on a class of the container, which is the parent of
-  `div.gantt`. All of the library's CSS is in `@layer gantt`, so styles of your own win without
+- Re-theme with custom properties set **on the `.gantt` element**: in a rule for `.gantt` (every
+  chart), or for a descendant of your own class (`.roadmap .gantt`, one chart: `className` goes to
+  the container, the parent of `div.gantt`). **Not on the container itself**: the stylesheet
+  declares every token on `.gantt`, so a token set on `.roadmap` is not inherited by the chart, and
+  does nothing. All of the library's CSS is in `@layer gantt`, so styles of your own win without
   `!important`:
 
   ```tsx
@@ -765,7 +782,7 @@ The chart is the vanilla chart, so its accessibility is that of
 [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#accessibility): a named, focusable scroller region (its label is
 the `strings.chartLabel` prop), tooltips with `role="tooltip"` and `aria-describedby`, link menus with
 `role="menu"`, focus rings and `prefers-reduced-motion`. Bars, links and handles are not focusable
-yet, and dragging has no keyboard equivalent (P1, together with ARIA roles and announcements).
+yet, and dragging has no keyboard equivalent (planned, together with ARIA roles and announcements).
 
 What React adds: `id`, `aria-*` and `data-*` props go to the container `div`, and the content you
 draw through the [slots](#slots-tooltip-link-menu-and-bar-label-as-reactnode) is your React, so its
@@ -809,7 +826,7 @@ browser hydrates (`/react-ssr/`). What differs on 18.3:
 Limits you should know about today:
 
 - **Compound components, headless hooks as a public API, React Aria integration and a `TaskList`
-  component are not here yet** (planned, P1). What exists is `<Gantt>`, `useGantt`,
+  component are not here yet** (planned for 1.0). What exists is `<Gantt>`, `useGantt`,
   `useGanttState`, the `ref` handle and the three slots.
 - A hidden `<Activity>` takes the chart away and brings a new one back: uncontrolled data, view mode,
   expanded parents, selection and zoom are carried over, but an open edit session ends as a Cancel

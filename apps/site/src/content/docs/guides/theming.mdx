@@ -128,7 +128,9 @@ Tokens for sizes and widths are the same in both themes. The [token reference](#
 the light and dark value of each token.
 
 There is no registry of named themes. A theme of your own (a brand theme, a high-contrast theme) is
-a class on the container, or on any ancestor, and the tokens it sets, as the next section shows.
+a class on the container, or on any ancestor, and a rule for the `.gantt` inside it that sets the
+tokens (`.brand .gantt { ... }`), as the next section shows. The tokens themselves go on `.gantt`,
+not on the class.
 
 ## Re-theming with tokens
 
@@ -154,6 +156,13 @@ all of it without `!important`:
 In React, `className` on `<Gantt>` goes to the container `div`, which is the parent of `div.gantt`,
 so `.roadmap .gantt` is the selector for that component too. If your own styles live in cascade
 layers, declare the order once, `@layer gantt, app;`, so that yours come later.
+
+<Aside type="caution" title="Set tokens on .gantt, not on the container">
+  The stylesheet declares every `--gantt-*` property on `.gantt` itself, so a token set on the
+  container, as in `.roadmap { --gantt-bar-color: red }`, is never inherited by the chart: the
+  chart's own declaration is closer and wins. Put the token in a rule for `.gantt` (every chart) or
+  for a descendant of your class (`.roadmap .gantt`, one chart).
+</Aside>
 
 <Aside type="caution" title="An override on .gantt applies to every theme">
   Unlayered styles beat layered ones whatever the specificity, so `.gantt { --gantt-bar-color: red }`
