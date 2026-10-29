@@ -1,0 +1,9 @@
+/*
+ * Your own stylesheet: any stylesheet of the page, loaded after the library's. A highlight's
+ * `className` is added to the class of each of its days (`rect.gantt__highlight`), and the theme
+ * draws a day with `--gantt-highlight-color` at `--gantt-highlight-opacity`, so a custom property
+ * on the class is all it takes.
+ */
+.gantt__highlight.is-retro {
+  --gantt-highlight-opacity: 0.1;
+}

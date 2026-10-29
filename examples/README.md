@@ -20,8 +20,15 @@ each one shows).
 
 ### Time scale
 
-| Example | Package | Shows |
-| ------- | ------- | ----- |
+| Example                                              | Package | Shows                                                                                                                                         |
+| ---------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| [View modes](view-modes/README.md)                   | both    | The seven presets with a select: `setViewMode`, `zoomTo`, `onViewModeChange`; the `pxPerDay` and snap of each                                 |
+| [Custom view modes](custom-view-mode/README.md)      | both    | `viewModes`: a fortnight sprint view and a quarter view of your own, and overrides of the day and week presets                                |
+| [Scrolling and today](scrolling-and-today/README.md) | both    | `scroll.initial`, `align` and `behavior`; `scrollToToday`, `scrollToDate`, `scrollToTask`; the today marker; `onScroll` and the visible range |
+| [Infinite timeline](infinite-timeline/README.md)     | both    | `timeline.infinite` with `threshold`, `extendBy`, `maxSpan` and `bounds`; the range growing, reported by `onRangeChange`                      |
+| [Highlighted days](highlights/README.md)             | both    | `highlights` as dates, ranges and rules, with labels and colours; `display.highlights`, `display.nonWorkingDays`, `highlightTooltip`          |
+| [Layout and sizes](layout-and-sizes/README.md)       | both    | `layout.rowHeight`, `barHeight`, `barRadius`, `headerRowHeight`, and `layout.height` fixed or `'auto'`, with live sliders                     |
+| [A large plan](large-dataset/README.md)              | both    | One to ten thousand generated tasks with links, a count selector, and the time to the first bars on the screen                                |
 
 ### Scheduling
 
