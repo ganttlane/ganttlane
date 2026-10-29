@@ -1,0 +1,382 @@
+---
+title: Who owns the data
+description: Uncontrolled and controlled data, how a change reaches your state, patchTasks, and what happens when a save is refused.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A chart shows tasks, and the user changes them. The question is where the truth lives afterwards:
+in the chart, or in your application. This page explains the two answers, **uncontrolled** and
+**controlled** data, what each means for `onTasksChange` and the `ChangeSet` it gives you, how to
+write a change into your own tasks with `patchTasks`, and how to refuse or delay a change.
+
+## Two modes
+
+|                                | Uncontrolled (the default)       | Controlled                                                             |
+| ------------------------------ | -------------------------------- | ---------------------------------------------------------------------- |
+| Option                         | `dataMode: 'uncontrolled'`       | `dataMode: 'controlled'`                                               |
+| React                          | `defaultTasks`, `defaultLinks`   | `tasks`, `links` (there is no `dataMode` prop)                         |
+| Who holds the tasks            | The chart, in a copy it patches  | You, in the array you pass in                                          |
+| What a drag does               | Changes the chart's copy at once | Is reported and shown as a **draft**; nothing changes until you answer |
+| `onTasksChange` is             | A notification: save it, log it  | A request: you must answer with `setTasks`                             |
+| `getTask(id)` after the change | The new values                   | The old values, until you hand back new tasks                          |
+| Your arrays and objects        | Never mutated                    | Never mutated; you replace them                                        |
+
+The chart never mutates the tasks, links or options you give it, in either mode.
+
+## Uncontrolled data
+
+This is the default, and the right start. The chart keeps its own copy of the tasks and patches it
+when a change is committed. You hear about each change in `onTasksChange`, once per action, with
+every task the action touched. When it fires, the copy already has the change.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import { createGantt, type Gantt } from '@ganttlane/dom';
+
+// The handler reads `gantt`, which it is passed to: give it a type.
+const gantt: Gantt = createGantt(container, {
+  tasks, // where the chart starts; your array is never touched
+  links,
+  onTasksChange: (changeSet) => {
+    // The chart has already applied the change to its own copy. `record.task` is that copy of a
+    // task, in the shape you gave it.
+    const changed = changeSet.changes.flatMap(({ id }) => gantt.getTask(id)?.task ?? []);
+    void saveTasks(changed); // your API
+  },
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { useRef } from 'react';
+import { Gantt, type GanttHandle, type Link, type Task } from '@ganttlane/react';
+
+export function Plan({
+  initialTasks,
+  initialLinks,
+}: {
+  initialTasks: Task[];
+  initialLinks: Link[];
+}) {
+  const chart = useRef<GanttHandle>(null);
+
+  return (
+    <Gantt
+      ref={chart}
+      style={{ height: 420 }}
+      defaultTasks={initialTasks} // where the chart starts; a different value later is ignored
+      defaultLinks={initialLinks}
+      onTasksChange={(changeSet) => {
+        // The chart has already applied the change to its own copy. `record.task` is that copy
+        // of a task, in the shape you gave it.
+        const changed = changeSet.changes.flatMap(
+          ({ id }) => chart.current?.getTask(id)?.task ?? [],
+        );
+        void saveTasks(changed); // your API
+      }}
+    />
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+Each task in the chart's copy keeps the shape you gave it: a task with ISO strings still has ISO
+strings after a drag, and a task with a `duration` still has a `duration`. To read the current
+tasks back in that shape, use `getTask(id).task`, or `gantt.core.getSnapshot().state.tasks` for
+all of them (the links are `state.links`). The snapshot is published after the handlers of an
+event have run, so inside `onTasksChange` it still holds the previous tasks: use `getTask` there.
+
+To replace the data from outside, call `setTasks` or `setLinks`, see
+[Setting data from your code](#setting-data-from-your-code).
+
+## Controlled data
+
+Use controlled data when your application keeps the tasks in a store, a query cache or a database,
+and the chart must show exactly that state. The chart never changes your tasks. It reports each
+change and waits for your answer.
+
+<Steps>
+
+1. **The user drags a bar.** The chart computes the `ChangeSet`, runs `onBeforeTaskChange` and
+   commits.
+2. **The chart reports it.** `onTasksChange(changeSet)` is called once. The chart now shows the
+   change as a **draft** over your tasks, so the bars stay where the user dropped them.
+3. **You apply it.** `patchTasks(tasks, changeSet, model)` writes the change into your tasks and
+   returns new ones. Save them, store them, do what you do.
+4. **You answer.** Hand the result back: `setTasks(next)` to accept, or the old tasks to refuse.
+   Either way the draft ends and the chart shows your data.
+
+</Steps>
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import { patchTasks } from '@ganttlane/core';
+import { createGantt, type Gantt, type Task } from '@ganttlane/dom';
+
+let tasks: Task[] = await loadTasks(); // your state: a store, a cache, a variable
+
+// The handler reads `gantt`, which it is passed to: give it a type.
+const gantt: Gantt = createGantt(container, {
+  tasks,
+  links,
+  dataMode: 'controlled',
+  onTasksChange: async (changeSet) => {
+    // The model the change set was computed on is the chart's current one.
+    const { model } = gantt.core.getSnapshot().state.derived;
+    const next = patchTasks(tasks, changeSet, model);
+    try {
+      await saveTasks(next); // your API
+      tasks = next; // accepted
+    } catch {
+      // refused: keep the old tasks
+    }
+    gantt.setTasks(tasks); // the answer, in both cases: the draft ends
+  },
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { useRef, useState } from 'react';
+import { Gantt, type GanttHandle, patchTasks, type Task } from '@ganttlane/react';
+
+export function Plan({ initialTasks }: { initialTasks: Task[] }) {
+  const chart = useRef<GanttHandle>(null);
+  const [tasks, setTasks] = useState(initialTasks);
+
+  return (
+    <Gantt
+      ref={chart}
+      style={{ height: 420 }}
+      tasks={tasks} // passing `tasks` makes the chart controlled
+      onTasksChange={async (changeSet) => {
+        const model = chart.current?.core.getSnapshot().state.derived.model;
+        if (!model) return;
+        const next = patchTasks(tasks, changeSet, model);
+        try {
+          await saveTasks(next); // your API
+          setTasks(next); // accepted: the draft becomes your data
+        } catch {
+          setTasks([...tasks]); // refused: a NEW array ends the draft
+        }
+      }}
+    />
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+The same loop, with a server that can say no, is the
+[controlled data example](../../../examples/controlled-data/).
+
+### While a change waits for you
+
+Between steps 2 and 4 the chart is **busy**:
+
+- The bars are drawn at the draft positions. `getBarRect(id)` and the snapshot's layout say so.
+  `getTask(id)` and the records still hold your old values, because your data has not changed.
+- `getSnapshot().busy` is `true`. A new drag is refused (`onEditRefused` with `reason: 'busy'`).
+  `updateTask`, `addLink` and `removeLink` resolve `{ status: 'busy' }`, and `undo()` and `redo()`
+  return it.
+- Only `setTasks` ends the wait. `setLinks` and `setOptions` (without `tasks`) leave the draft in
+  place.
+
+So a save request is a natural place to answer from: the user sees the result of the drag, and
+cannot start another one until you have decided.
+
+### A refused or failed save
+
+Hand back your old tasks. The draft ends and the bars go back to where your data has them. In
+vanilla the same array will do, because `setTasks` always ends the draft. In React a new array is
+needed, because props are compared by identity: `setTasks([...tasks])`, as above.
+
+If a save is slow and the user should keep working meanwhile, apply the change at once and undo it
+if the request fails:
+
+```ts
+onTasksChange: async (changeSet) => {
+  const { model } = gantt.core.getSnapshot().state.derived;
+  const previous = tasks;
+  tasks = patchTasks(tasks, changeSet, model);
+  gantt.setTasks(tasks); // optimistic: the draft ends now
+  try {
+    await saveTasks(tasks);
+  } catch {
+    tasks = previous;
+    gantt.setTasks(tasks); // roll back
+  }
+},
+```
+
+### Links, undo and rollback
+
+Everything else the chart changes comes to you the same way.
+
+| What happened                        | What you get                                            | What you do                                                                                       |
+| ------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| A link was drawn (or `addLink`)      | `onLinkCreate(link, id)`; React: `onLinksChange(links)` | Add `link` to your list exactly as given (its `id` may differ from the default), then `setLinks`. |
+| A link was removed (or `removeLink`) | `onLinkDelete(record)`; React: `onLinksChange(links)`   | Remove the link `record.id` from your list, then `setLinks`.                                      |
+| `undo()` or `redo()`                 | `onTasksChange` with `reason: 'undo'` or `'redo'`       | Apply it like any change.                                                                         |
+| `edit.rollback()`                    | `onEditRollback(sessionChanges)`                        | Apply the inverse to your tasks with `patchTasks`, and restore or drop the links it lists.        |
+
+A link that comes from the `task.dependencies` shorthand is in no list of yours. Deleting it
+reports `onLinkDelete` and leaves `links` as it was.
+
+## `patchTasks`
+
+`patchTasks` writes a `ChangeSet` (or the `SessionChanges` of a rollback) into your own tasks,
+**in the shape each task already has**.
+
+```ts
+function patchTasks<TData>(
+  tasks: readonly Task<TData>[],
+  changes: ChangeSet | SessionChanges,
+  model: NormalizedModel,
+): readonly Task<TData>[];
+```
+
+It is overloaded: a mutable array in gives a mutable array out. `model` is the chart's normalised
+model, the one the change set was computed on: `core.getSnapshot().state.derived.model`. In vanilla
+the core is `gantt.core`; in React it is `ref.current.core` or `instance.core`. Read the model when
+the event arrives, not after an `await`.
+
+| Guarantee                                | Detail                                                                                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **It never mutates.**                    | It returns a new array, and a new object for each task it changes.                                                                            |
+| **Untouched tasks keep their identity.** | With nothing to change it returns the array you passed in. Pass the same array to `setTasks` and React will see no change.                    |
+| **Dates keep their type.**               | A `Date` stays a `Date`, an epoch number stays a number, an ISO string stays an ISO string with the same fields.                              |
+| **Ends keep their meaning.**             | A date-only `end` is written as the inclusive last day, as you wrote it.                                                                      |
+| **A `duration` stays a duration**        | While it still gives the new end from the new start. Otherwise it is rewritten in the same form (a number of days, an ISO string, an object). |
+| **Progress**                             | Written only when it differs from the task's.                                                                                                 |
+| **Unknown ids are skipped.**             | So are tasks without a bar. If two tasks share an id, only the first is patched.                                                              |
+
+For example, after `a` was moved one day later:
+
+```ts
+const tasks = [
+  { id: 'a', name: 'A', start: '2026-03-02', end: '2026-03-06' },
+  { id: 'b', name: 'B', start: '2026-03-09', duration: 5 },
+];
+// links: a -> b; the user (or updateTask) moves 'a' to 2026-03-03.
+patchTasks(tasks, changeSet, model);
+// [
+//   { id: 'a', name: 'A', start: '2026-03-03', end: '2026-03-07' },
+//   { id: 'b', name: 'B', start: '2026-03-10', duration: 5 },
+// ]
+```
+
+**Where to import it.** `patchTasks` is a runtime function, so it comes from a package that has the
+code:
+
+| Package                 | `patchTasks`                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ganttlane/core`       | Exported.                                                                                                                               |
+| `@ganttlane/react`      | Exported, and the types you need next to it.                                                                                            |
+| `@ganttlane/react/core` | Exported without the `'use client'` directive, for server components, actions and route handlers.                                       |
+| `@ganttlane/dom`        | **Not** exported. It re-exports the _types_ of the core only, so add `@ganttlane/core` (same version) to use `patchTasks` with vanilla. |
+
+`patchTask(task, patch, model)` does the same for one task and a `TaskPatch`.
+
+## Setting data from your code
+
+`setTasks(tasks)` and `setLinks(links)` replace the data. The chart diffs the new arrays by id and
+recomputes only what changed. They are available in both modes:
+
+- **Uncontrolled:** the new tasks replace the chart's copy. This clears the undo history, because
+  its entries describe data that is gone. An open edit session keeps its base and diffs the new
+  data against it.
+- **Controlled:** `setTasks` is your answer to a change, as above. It also ends a draft that nobody
+  answered.
+- Neither runs the before-hooks or emits `tasksChange`: replacing data is not an edit. Problems in
+  the new data arrive as [issues](../issues/).
+
+`setOptions({ tasks, links })` does the same together with other options in one step. In React,
+changing the `tasks` prop is the call; `defaultTasks` is only the start value.
+
+## Reading data back
+
+| Call                       | Gives you                                                                                                                                                                                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getTask(id)`              | The `TaskRecord` (computed, frozen), or `undefined`. The same object while nothing it shows changed. `record.task` is your own task object.                                                                                                             |
+| `getLink(id)`              | The `LinkRecord`, or `undefined`.                                                                                                                                                                                                                       |
+| `getBarRect(id)`           | Where the bar is **drawn**, in body pixels, a draft or a drag in progress included.                                                                                                                                                                     |
+| `core.getSnapshot()`       | The memoized view-model. `state.tasks` and `state.links` are the committed data, `state.derived.model` the normalised model, `state.draft` the draft, `busy` the busy flag. Inside an event handler it is still the snapshot from before the operation. |
+| `core.subscribe(listener)` | A call after every change of the snapshot. In React use `useGanttState(instance, selector)`.                                                                                                                                                            |
+
+After `destroy()` the queries keep answering from the state the chart had, so a clean-up can read
+what the user left behind.
+
+## Choosing a mode
+
+Choose **controlled** when:
+
+- the tasks already live in a store, a query cache or a database, and the chart must show exactly
+  that state;
+- a save can be refused (server validation, permissions) and the chart must go back;
+- other parts of the page edit the same tasks, a table or a form, and everything must agree;
+- you want optimistic updates, or your own undo, in your own store.
+
+Choose **uncontrolled** when:
+
+- the chart is the editor, and your code only needs to know what changed (to log it, or to save the
+  tasks the change touched);
+- you read the result at the end, from an [edit session](../edit-sessions-and-history/)'s
+  `SessionChanges`;
+- you are prototyping.
+
+A common middle path is uncontrolled data with `onTasksChange` to persist, and `setTasks` when the
+server sends new data.
+
+## Traps
+
+- **No answer means no more edits.** If you forget `setTasks`, the chart stays busy for good. In
+  React a controlled chart with editing on and no `onTasksChange` is reported once in development.
+- **React: a new array is an answer.** The same `tasks` array again is nothing. A new array, even
+  with equal contents, ends the draft. Memoize tasks you derive (`useMemo`), or any re-render, a
+  `saving` flag for instance, would discard the change being saved.
+- **The model must match.** Call `patchTasks` with the model from the moment the event arrived.
+  A model from after another change gives wrong dates.
+- **`defaultTasks` is read once.** A different value later is not a change. Use `setTasks` on the
+  instance, or a new `key` on the component.
+- **The mode is chosen at the start.** In React, `tasks` going from `undefined` to an array makes
+  the chart controlled from then on (with a development warning); going back keeps the last tasks.
+  Pass `tasks={data?.tasks ?? []}` to avoid it.
+- **Records lag in controlled mode.** For the position that is drawn, use `getBarRect`; for the new
+  values, use the `ChangeSet`.
+
+<Aside type="tip" title="React in full">
+  The React props, the five controlled groups (`tasks`, `links`, `viewMode`, `expandedKeys`,
+  `selectedKeys`), `onLinksChange` and the `ref` handle are covered in the [React
+  guide](../../react/).
+</Aside>
+
+## Related
+
+- Examples: [controlled data](../../../examples/controlled-data/),
+  [edit session](../../../examples/edit-session/),
+  [React controlled state](../../../examples/react-controlled-state/) and
+  [programmatic updates](../../../examples/programmatic-updates/).
+- Concepts: [Change sets and before-hooks](../change-sets-and-hooks/) and
+  [Edit sessions and history](../edit-sessions-and-history/).
+- API: [`patchTasks`](../../../api/ganttlane/core/functions/patchtasks/),
+  [`ChangeSet`](../../../api/ganttlane/core/interfaces/changeset/) and
+  [`DataMode`](../../../api/ganttlane/core/type-aliases/datamode/).

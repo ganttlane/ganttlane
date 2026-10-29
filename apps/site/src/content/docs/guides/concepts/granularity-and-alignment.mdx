@@ -1,0 +1,258 @@
+---
+title: Granularity and alignment
+description: The data step of a chart, what happens to input that is off the step, and how the data step differs from drag snapping.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+**Granularity** is the smallest step of your data: the unit that every date, duration and lag in
+the chart is a whole number of. It is a day by default. Plan inside a day and you set it to `'1h'`,
+`'30min'` or `'15min'`. This page explains the rule, what the chart does with input that breaks it
+(**alignment**), and how the data step differs from the step a drag **snaps** to, which is a
+separate setting that people often mix up with it.
+
+## The data step
+
+`scheduling.granularity` takes a [`DurationInput`](../../../api/ganttlane/core/type-aliases/durationinput/)
+(a string or an object, not a bare number).
+
+| Allowed                                                                                                                                            | Not allowed                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| A step that divides 24 hours exactly, from `'1min'` to `'12h'`: `'5min'`, `'15min'`, `'30min'`, `'90min'`, `'1h'`, `'6h'`, `'12h'`, `{ hours: 1 }` | A step that does not divide a day: `'7min'`, `'5h'` |
+| Exactly one day: `'1d'` (the default) or `'24h'`                                                                                                   | More than a day: `'2d'`, `'1w'`, `'1mo'`            |
+|                                                                                                                                                    | A bare number (`1`), or a malformed string (`'5m'`) |
+
+An unusable value is reported as an `invalid-granularity` issue (or `invalid-duration` for a
+malformed one) in `getIssues().data`, at the path `scheduling.granularity`, and `'1d'` is used.
+
+**The invariant.** Every date, duration and lag in a `TaskRecord`, a `LinkRecord` and a `ChangeSet`
+is a multiple of the granularity, counted from midnight. That keeps the chart's arithmetic exact
+and makes every bar edge land on a boundary you chose. Three notes:
+
+- **A day is always a multiple.** Midnight is a boundary for every step that divides 24 hours, so a
+  date-only value is never misaligned.
+- **A day task is aligned to whole days** whatever the granularity. Only a time task is aligned to
+  the granularity itself ([Dates and time](../dates-and-time/#day-precision-and-time-precision)).
+- **Percentages are not dates.** A `progress` of `33` is kept as given; only the `progressDate`,
+  the drawn boundary, is rounded down to the granularity.
+
+## Input that is off the step
+
+A value is **misaligned** when it is not a multiple of the granularity: `'2026-03-02T10:30'` at
+`'1h'`, a `duration` of `'90min'` at `'1h'`, a lag of `'30min'` at `'1h'`. The chart never throws
+on it. It reports a `misaligned` issue and aligns the value according to `scheduling.alignInput`:
+
+```ts
+{
+  code: 'misaligned',
+  severity: 'warning',            // 'error' with alignInput: 'reject'
+  path: 'tasks[0].start',         // where the value is
+  taskId: 'notes',
+  value: '2026-03-02T10:30',      // what you gave
+  suggested: '2026-03-02T10:00',  // what the chart used (or would have used)
+}
+```
+
+`suggested` has the form of your input: an ISO string (date-only for a day task) for a date, the
+canonical string (`'2h'`) for a duration given as a string, and a number of days for a duration
+given as a number. The issue is on the task's record (`record.issues`), in `getIssues().data` and in
+`onIssues`.
+
+<Aside type="caution" title="The default granularity is a day">
+  At the default `'1d'`, `start: '2026-03-02T09:30'` is misaligned: the task expands to the whole
+  day, with warnings. If your data has times, set a granularity that fits them.
+</Aside>
+
+### alignInput
+
+`scheduling.alignInput` chooses what to do. The default is `'expand'`.
+
+| Value                | What it does                                                                               | `10:30` to `11:30` at `'1h'` | `10:50` to `13:10` at `'1h'` |
+| -------------------- | ------------------------------------------------------------------------------------------ | ---------------------------- | ---------------------------- |
+| `'expand'` (default) | `start` goes down, `end` and `duration` go up, so the task loses no time                   | 10:00 to 12:00               | 10:00 to 14:00               |
+| `'nearest'`          | Each value goes to the nearest boundary. A tie widens the task (start down, end up)        | 10:00 to 12:00               | 11:00 to 13:00               |
+| `'reject'`           | The task becomes invalid: a row without a bar, with `misaligned` errors. A link is dropped | invalid                      | invalid                      |
+
+Details:
+
+- **`'nearest'` never collapses a task.** If both edges round to the same boundary
+  (`10:40` to `11:20` at `'1h'`), the task keeps one step: 11:00 to 12:00. A duration that rounds
+  to zero becomes one step. A task that was zero-length stays zero-length, and so does a milestone.
+- **`'reject'` still suggests a value**: `suggested` is what `'expand'` would have used, so you can
+  show the user a fix. The severity is `'error'`.
+- **A lag always goes to the nearest multiple**, a tie up, with a warning. With `'reject'` the link
+  is dropped instead.
+- **Durations are aligned as a length**: `'90min'` at `'1h'` becomes `'2h'` with `'expand'` and with
+  `'nearest'` (a tie goes up), and `'80min'` becomes `'1h'` with `'nearest'`.
+- **It applies everywhere values enter the chart**: task fields, link lags, `setTasks` and
+  `setOptions`, `updateTask`, and a change set returned by a before-hook. For the last two, see
+  [below](#what-a-changeset-holds-after-a-drag-between-steps).
+
+## The data step and the drag step are different
+
+Granularity is a property of **data**. **Snapping** is a property of **dragging**: the step the
+edge of a bar jumps by while the pointer moves. They are set separately, and the snap step is always
+a multiple of the granularity: the chart raises it if it is not.
+
+|              | Granularity                              | Snap                                                                                                                                 |
+| ------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Option       | `scheduling.granularity`                 | The view mode's `snap`, overridden by `scheduling.snap`                                                                              |
+| Default      | `'1d'`                                   | The view mode's: `'15min'` in `hour`, `'1h'` in `quarter-day` and `half-day`, `'1d'` in `day`, `week` and `month`, `'1mo'` in `year` |
+| Applies to   | Every date, duration and lag in the data | The edge that is being dragged                                                                                                       |
+| Off the step | `misaligned` issue, then aligned         | Not possible: the edge goes to a boundary                                                                                            |
+
+How the two combine:
+
+| `granularity` | View mode     | `scheduling.snap` | A drag snaps to                                                          |
+| ------------- | ------------- | ----------------- | ------------------------------------------------------------------------ |
+| `'1d'`        | `day`         | none              | 1 day                                                                    |
+| `'1d'`        | `hour`        | none              | 1 day: the mode's `'15min'` is finer than the data step, so it is raised |
+| `'1h'`        | `day`         | none              | **1 day**: the mode's snap is a day                                      |
+| `'1h'`        | `hour`        | none              | 1 hour                                                                   |
+| `'15min'`     | `hour`        | none              | 15 minutes                                                               |
+| `'15min'`     | `quarter-day` | none              | 1 hour                                                                   |
+| `'1h'`        | `day`         | `'1h'`            | 1 hour                                                                   |
+| `'1h'`        | `day`         | `false`           | 1 hour: no snap step means the data step                                 |
+| `'15min'`     | `quarter-day` | `'unit'`          | 6 hours: the column of the view mode                                     |
+
+- **A preset's default that is finer than the data step is raised silently.** An **explicit**
+  `scheduling.snap` that is finer is raised with a `snap-below-granularity` warning
+  (`'15min'` at `'1h'`), and one that is not a multiple with `snap-not-multiple` (`'90min'` at
+  `'1h'` becomes 2 hours). A malformed one is an `invalid-snap` error and is ignored.
+- **The step does not follow the granularity down.** At `granularity: '1h'` the `day` view mode
+  still snaps to days. Pick a view mode whose snap is an hour, set `scheduling.snap: '1h'`, or let
+  people hold the key below.
+- **`Alt` snaps to the data step.** Holding `Alt` (Option) during a drag ignores the snap step and
+  uses the granularity; pressing or releasing it mid-drag re-snaps the preview.
+- **A day task keeps whole days.** With `scheduling.keepDayPrecision` (on by default) a task that
+  has only dates snaps to whole days at least. To move a task by the hour, give it a time or
+  `precision: 'time'`. With `keepDayPrecision: false` a drag may turn a day task into a time task.
+- **Snap has a mode.** `'grid'` (default) snaps the edge to the nearest boundary of the step;
+  `'relative'` moves it by whole steps from where the drag started. The step can be set per kind of
+  drag: `snap: { move: '2h', resize: '1h', progress: '1d' }`.
+
+[Options: Scheduling](../../options/#scheduling) lists the forms of `scheduling.snap`.
+
+## What a ChangeSet holds after a drag between steps
+
+A drag position is snapped **before** it becomes an edit. The pointer can be anywhere between two
+steps, but the edge the chart previews and commits is on a boundary (a position exactly halfway
+goes in the direction of the drag). So a `ChangeSet` from a drag never contains a misaligned
+value, and neither do the tasks moved along links and to children: their new dates are aligned
+to the nearest step, and day tasks stay on day boundaries.
+
+Values that do not come from a drag go through alignment as if they were input:
+
+- **`updateTask(id, { start, end })`** takes exact values, aligned by `alignInput`. A misaligned one
+  is reported as `misaligned` in an `issues` event with `source: 'change-set'`. With `'reject'`
+  nothing is changed and the result is `{ status: 'rejected', reason: 'invalid-value', issues }`.
+- **A before-hook that returns a replacement `ChangeSet`** has it re-validated: its values are
+  aligned and reported the same way, a change to a locked or unknown task is dropped, and the
+  conflicts are computed again.
+
+```ts
+// granularity '15min', alignInput 'expand' (the default): 12:07 is not a multiple, an end rounds up
+const result = await gantt.updateTask('retro', { end: '2026-03-02T12:07' });
+// result.status === 'committed'; the task ends at 12:15
+// onIssues({ source: 'change-set', issues: [{ code: 'misaligned', path: 'end',
+//   value: '2026-03-02T12:07', suggested: '2026-03-02T12:15', ... }] })
+```
+
+[Change sets and hooks](../change-sets-and-hooks/) describes the `ChangeSet` itself.
+
+## An hourly chart
+
+At `'1h'` the data is in whole hours, and a view mode with an hour snap makes the drag agree.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  scheduling: { granularity: '1h' },
+  viewMode: 'quarter-day', // 6-hour columns, snap 1h
+  scroll: { initial: 'first-task' },
+  tasks: [
+    { id: 'deploy', name: 'Deploy', start: '2026-03-02T09:00', duration: '3h' },
+    { id: 'verify', name: 'Verify', start: '2026-03-02T13:00', end: '2026-03-02T15:00' },
+    // Misaligned: expands to 10:00 to 12:00, with a warning on each edge.
+    { id: 'notes', name: 'Notes', start: '2026-03-02T10:30', end: '2026-03-02T11:30' },
+  ],
+  links: [{ source: 'deploy', target: 'verify', lag: '1h' }],
+  onIssues: ({ issues }) => issues.forEach((issue) => console.warn(issue.code, issue.path)),
+});
+
+gantt.getTask('notes')?.start; // 10:00, not 10:30
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { Gantt } from '@ganttlane/react';
+
+export function Hourly() {
+  return (
+    <Gantt
+      style={{ height: 320 }}
+      scheduling={{ granularity: '1h' }}
+      defaultViewMode="quarter-day"
+      scroll={{ initial: 'first-task' }}
+      defaultTasks={[
+        { id: 'deploy', name: 'Deploy', start: '2026-03-02T09:00', duration: '3h' },
+        { id: 'verify', name: 'Verify', start: '2026-03-02T13:00', end: '2026-03-02T15:00' },
+        { id: 'notes', name: 'Notes', start: '2026-03-02T10:30', end: '2026-03-02T11:30' },
+      ]}
+      defaultLinks={[{ source: 'deploy', target: 'verify', lag: '1h' }]}
+      onIssues={({ issues }) => issues.forEach((issue) => console.warn(issue.code, issue.path))}
+    />
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+## A 15-minute chart
+
+Meetings need quarter hours. The `hour` view mode snaps to 15 minutes once the data step allows it.
+
+```ts
+createGantt(container, {
+  scheduling: { granularity: '15min', alignInput: 'nearest' },
+  viewMode: 'hour',
+  tasks: [
+    { id: 'standup', name: 'Stand-up', start: '2026-03-02T09:30', duration: '15min' },
+    { id: 'retro', name: 'Retro', start: '2026-03-02T10:00', end: '2026-03-02T11:15' },
+    // Misaligned: 'nearest' rounds 14:07 to 14:00 and 14:50 to 14:45.
+    { id: 'sync', name: 'Sync', start: '2026-03-02T14:07', end: '2026-03-02T14:50' },
+  ],
+});
+```
+
+A drag of Retro now moves it by 15 minutes, and holding `Alt` snaps to the data step, which is the
+same 15 minutes here.
+
+<Aside type="note">
+  Granularity does not change the view mode. The `hour` view mode shows hours even at `'1d'`; the
+  data is then on days, and a drag snaps to days.
+</Aside>
+
+## Related
+
+- [Dates and time](../dates-and-time/): precision, the end of a task and durations.
+- [The work calendar](../work-calendar/): hourly working time.
+- [Propagation and conflicts](../propagation-and-conflicts/): how linked tasks are aligned after
+  an edit.
+- Options: [Scheduling](../../options/#scheduling).
+- Examples: [granularity and snapping](../../../examples/granularity-and-snapping/),
+  [working days at hourly granularity](../../../examples/working-calendar-hourly/),
+  [programmatic updates](../../../examples/programmatic-updates/).
+- API reference: [`Granularity`](../../../api/ganttlane/core/interfaces/granularity/),
+  [`AlignInput`](../../../api/ganttlane/core/type-aliases/aligninput/),
+  [`SnapInput`](../../../api/ganttlane/core/type-aliases/snapinput/).

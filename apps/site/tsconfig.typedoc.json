@@ -1,0 +1,21 @@
+{
+  // The program TypeDoc reads the API reference from (`typedoc/options.ts`): the public entries of
+  // the three packages, from source (the `@ganttlane/source` condition of the base config), in
+  // one program, so that a type exported by two entries is documented once and linked from the
+  // other. The base config's strict options and `isolatedDeclarations` apply as they do to the
+  // packages themselves.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": []
+  },
+  "include": [
+    "../../packages/core/src/index.ts",
+    "../../packages/dom/src/index.ts",
+    "../../packages/dom/src/facade.ts",
+    "../../packages/dom/src/dom-utils/index.ts",
+    "../../packages/react/src/index.ts",
+    "../../packages/react/src/core.ts"
+  ]
+}

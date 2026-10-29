@@ -1,19 +1,644 @@
 ---
 title: Theming
-description: Light and dark themes, custom properties, and the unstyled contract.
+description: Light and dark themes, the --gantt-* custom properties, per-bar colours, sizes, and the unstyled contract for replacing the stylesheet.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-<Aside title="Coming soon">
-  This guide is not written yet. The theme is documented in
-  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#theme)
-  (the `--gantt-*` custom properties) and its [unstyled
-  contract](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#unstyled-contract)
-  (the stable classes and `data-*` attributes).
+The look of the chart is a stylesheet made of custom properties. This guide shows how to switch
+between the light and dark themes, how to re-theme the chart by overriding tokens, how to colour
+single bars, how to change the size of rows and bars, and how to replace the stylesheet altogether
+by following the unstyled contract: the class names and `data-*` attributes the renderer writes.
+
+The same DOM and the same stylesheet draw the chart in vanilla code and in React, so everything
+here applies to both. In React the stylesheet is imported from `@ganttlane/react/styles.css` (a
+byte-for-byte copy of `@ganttlane/dom/styles.css`); import one of the two, never both.
+
+## The short version
+
+```ts
+import '@ganttlane/dom/styles.css';
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, { tasks, theme: 'auto' });
+```
+
+```css
+/* Your own stylesheet, loaded after the library's. No !important needed. */
+.gantt {
+  --gantt-bar-color: #0f766e;
+  --gantt-today-color: #b45309;
+}
+```
+
+`theme` is `'auto'` by default. The stylesheet is in `@layer gantt`, so a style of your own that is
+not in a layer wins whatever its specificity. The [theming example](../../examples/theming/) shows
+the pieces live, and the [release plan](../../examples/release-plan/) colours its bars by status
+with one custom property per class.
+
+## Themes
+
+### Choosing a theme
+
+The `theme` option sets `data-theme` on the root element `div.gantt`. `setOptions` changes it at
+any time, and the change costs no redraw: the stylesheet does the work.
+
+| Value     | Look                                                                     |
+| --------- | ------------------------------------------------------------------------ |
+| `'light'` | The light tokens, which are the default value of every token.            |
+| `'dark'`  | The dark tokens, always.                                                 |
+| `'auto'`  | Light, and the dark tokens while `prefers-color-scheme: dark` is active. |
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+const gantt = createGantt(container, { tasks, theme: 'dark' });
+
+gantt.setOptions({ theme: 'light' });
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+<Gantt style={{ height: 420 }} defaultTasks={tasks} theme={dark ? 'dark' : 'light'} />
+```
+
+</TabItem>
+
+</Tabs>
+
+Any other value is an `invalid-option` [issue](../concepts/issues/) with the path `theme`, and the
+chart uses `'auto'`. Each theme also sets `color-scheme`, so the scrollbars of the chart follow it.
+
+### Following the host page
+
+`'auto'` follows the operating system, not your application. An application with a theme switch of
+its own passes `'light'` or `'dark'` and changes it when its switch changes.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+// The application marks its theme with a class on <html>.
+const html = document.documentElement;
+const follow = (): void => {
+  gantt.setOptions({ theme: html.classList.contains('dark') ? 'dark' : 'light' });
+};
+const observer = new MutationObserver(follow);
+observer.observe(html, { attributes: true, attributeFilter: ['class'] });
+follow();
+
+// When the chart goes: observer.disconnect(); gantt.destroy();
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+function Plan() {
+  const dark = useIsDark(); // your own hook or context
+  return <Gantt style={{ height: 420 }} defaultTasks={tasks} theme={dark ? 'dark' : 'light'} />;
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+The attribute is plain markup, so setting it yourself (`root.dataset.theme = 'dark'` on `div.gantt`)
+also works, and the charts of this documentation site do it for examples that never set `theme`. The
+renderer writes the attribute again the next time `theme` is set through `setOptions` or a prop.
+
+### How a theme is built
+
+A theme is nothing but a set of token values, so the rules never change between themes:
+
+- the light values are declared on `.gantt` and apply to every theme;
+- `dark` overrides the colour tokens under `.gantt[data-theme='dark']`;
+- `auto` repeats those overrides under `@media (prefers-color-scheme: dark)`, on
+  `.gantt[data-theme='auto']`.
+
+Tokens for sizes and widths are the same in both themes. The [token reference](#tokens) below lists
+the light and dark value of each token.
+
+There is no registry of named themes. A theme of your own (a brand theme, a high-contrast theme) is
+a class on the container, or on any ancestor, and the tokens it sets, as the next section shows.
+
+## Re-theming with tokens
+
+### Where to put an override
+
+All of the library's CSS is in `@layer gantt`, and no selector in it is more specific than a class
+plus a `data-*` attribute or a pseudo-class. A style of your own that is not in a layer wins over
+all of it without `!important`:
+
+```css
+/* Every chart on the page */
+.gantt {
+  --gantt-font-family: 'Inter', sans-serif;
+  --gantt-bar-color: #0f766e;
+}
+
+/* One chart: give its container a class and use the descendant */
+.roadmap .gantt {
+  --gantt-link-width: 2px;
+}
+```
+
+In React, `className` on `<Gantt>` goes to the container `div`, which is the parent of `div.gantt`,
+so `.roadmap .gantt` is the selector for that component too. If your own styles live in cascade
+layers, declare the order once, `@layer gantt, app;`, so that yours come later.
+
+<Aside type="caution" title="An override on .gantt applies to every theme">
+  Unlayered styles beat layered ones whatever the specificity, so `.gantt { --gantt-bar-color: red }`
+  replaces the dark value of that token as well. To give a token a different value per theme, use the
+  selectors of the themes, as the library does.
 </Aside>
 
-The `theme` option is `'auto'` (follow `prefers-color-scheme`, the default), `'light'` or `'dark'`.
-The stylesheet is in `@layer gantt`, so any style of your own wins without `!important`: the
-[release plan](../../examples/release-plan/) colours its bars by status with one custom property per
-class. The charts on this site follow the theme of the site.
+### A brand theme
+
+A theme of your own is a class plus one block per theme: the base values for every theme, then the
+dark values under `[data-theme='dark']`, and again under the media query for `'auto'`.
+
+```css
+.brand .gantt {
+  --gantt-font-family: 'Inter', system-ui, sans-serif;
+  --gantt-bar-color: #0f766e;
+  --gantt-link-selected-color: #0f766e;
+  --gantt-focus-ring-color: #0f766e;
+  --gantt-today-color: #b45309;
+}
+
+.brand .gantt[data-theme='dark'] {
+  --gantt-bar-color: #2dd4bf;
+  --gantt-link-selected-color: #5eead4;
+  --gantt-focus-ring-color: #5eead4;
+  --gantt-today-color: #fbbf24;
+}
+
+@media (prefers-color-scheme: dark) {
+  .brand .gantt[data-theme='auto'] {
+    --gantt-bar-color: #2dd4bf;
+    --gantt-link-selected-color: #5eead4;
+    --gantt-focus-ring-color: #5eead4;
+    --gantt-today-color: #fbbf24;
+  }
+}
+```
+
+```tsx
+<Gantt className="brand" style={{ height: 420 }} defaultTasks={tasks} />
+```
+
+The dark blocks have a higher specificity than the base block, so they win in the dark theme. If
+your browsers support `light-dark()` (Chrome 123, Firefox 120, Safari 17.5), one block is enough:
+each theme sets `color-scheme` on `.gantt`, which is what `light-dark()` reads. That is newer than
+the browsers the library itself supports, so the three-block form above is the portable one.
+
+```css
+.brand .gantt {
+  --gantt-bar-color: light-dark(#0f766e, #2dd4bf);
+}
+```
+
+### Tokens
+
+Every custom property below is declared on `.gantt`. A dash in the Dark column means the dark theme
+keeps the light value. The dark values are the `dark` theme's; `'auto'` uses the same ones while the
+system prefers dark.
+
+#### Text and motion
+
+| Token                         | Light                                                      | Dark | Controls                                                  |
+| ----------------------------- | ---------------------------------------------------------- | ---- | --------------------------------------------------------- |
+| `--gantt-font-family`         | `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif` | -    | Every text of the chart: header and bar labels            |
+| `--gantt-font-size`           | `12px`                                                     | -    | Every text of the chart                                   |
+| `--gantt-transition-duration` | `120ms`                                                    | -    | Fade of the handles (none under `prefers-reduced-motion`) |
+
+#### Surface and borders
+
+| Token                      | Light     | Dark      | Controls                                     |
+| -------------------------- | --------- | --------- | -------------------------------------------- |
+| `--gantt-background-color` | `#fff`    | `#15171c` | The chart's background                       |
+| `--gantt-foreground-color` | `#1b2230` | `#e4e8ef` | Default text, the current header cell        |
+| `--gantt-border-color`     | `#d3d9e1` | `#333a46` | Header borders and cell separators           |
+| `--gantt-border-width`     | `1px`     | -         | Header borders, the outline of a hovered bar |
+
+#### Header
+
+| Token                             | Light                  | Dark                     | Controls                              |
+| --------------------------------- | ---------------------- | ------------------------ | ------------------------------------- |
+| `--gantt-header-background-color` | `#f5f6f8`              | `#1c1f26`                | The header                            |
+| `--gantt-header-text-color`       | `#465163`              | `#a9b3c3`                | Header labels                         |
+| `--gantt-header-current-color`    | `rgb(229 72 77 / 10%)` | `rgb(255 99 105 / 16%)`  | The header cell that contains today   |
+| `--gantt-header-range-color`      | `rgb(37 99 235 / 14%)` | `rgb(110 160 255 / 20%)` | The hovered bar's range in the header |
+
+#### Grid and rows
+
+| Token                           | Light                   | Dark                      | Controls                                                  |
+| ------------------------------- | ----------------------- | ------------------------- | --------------------------------------------------------- |
+| `--gantt-grid-line-color`       | `#e7eaef`               | `#242932`                 | Grid lines                                                |
+| `--gantt-grid-line-width`       | `1px`                   | -                         | Grid lines                                                |
+| `--gantt-grid-major-line-color` | `#c8cfd9`               | `#3a4252`                 | Major grid lines (month and year boundaries)              |
+| `--gantt-grid-major-line-width` | `1px`                   | -                         | Major grid lines                                          |
+| `--gantt-grid-minor-line-color` | `#eff1f4`               | `#1e222a`                 | Minor grid lines (the snap steps inside a column, dotted) |
+| `--gantt-row-stripe-color`      | `rgb(15 23 42 / 3.5%)`  | `rgb(255 255 255 / 3.5%)` | Striped rows (`display.rowStripes`)                       |
+| `--gantt-row-invalid-color`     | `rgb(229 72 77 / 8%)`   | `rgb(255 99 105 / 12%)`   | A row whose task is invalid                               |
+| `--gantt-row-placeholder-color` | `rgb(100 116 139 / 8%)` | `rgb(148 163 184 / 8%)`   | A placeholder row (a task of type `placeholder`)          |
+
+#### Days off, highlights and today
+
+| Token                             | Light                    | Dark                     | Controls                                             |
+| --------------------------------- | ------------------------ | ------------------------ | ---------------------------------------------------- |
+| `--gantt-nonworking-color`        | `rgb(100 116 139 / 10%)` | `rgb(148 163 184 / 9%)`  | Non-working days in `'fill'` mode                    |
+| `--gantt-nonworking-stripe-color` | `rgb(100 116 139 / 30%)` | `rgb(148 163 184 / 26%)` | Non-working days in `'stripes'` mode (the lines)     |
+| `--gantt-highlight-color`         | `#f5b301`                | `#f5b301`                | Highlighted days; a highlight's `color` overrides it |
+| `--gantt-highlight-opacity`       | `0.2`                    | `0.16`                   | Opacity of highlights, so any colour stays readable  |
+| `--gantt-today-color`             | `#e5484d`                | `#ff6369`                | The today line and the marker in the header          |
+| `--gantt-today-width`             | `1.5px`                  | -                        | The today line                                       |
+
+#### Bars
+
+| Token                              | Light                    | Dark                     | Controls                                          |
+| ---------------------------------- | ------------------------ | ------------------------ | ------------------------------------------------- |
+| `--gantt-bar-color`                | `#3f6fd1`                | `#4170d3`                | Bars without their own colour                     |
+| `--gantt-bar-progress-shade-color` | `#000`                   | `#000`                   | What the progress colour is mixed towards         |
+| `--gantt-bar-progress-shade`       | `30%`                    | `35%`                    | How much of the shade the progress colour has     |
+| `--gantt-bar-label-color`          | `#fff`                   | `#fff`                   | A bar's label inside the bar                      |
+| `--gantt-bar-label-outside-color`  | `#1b2230`                | `#e4e8ef`                | A bar's label next to the bar                     |
+| `--gantt-bar-selected-color`       | `#111827`                | `#f3f4f6`                | The outline of a selected bar                     |
+| `--gantt-bar-selected-width`       | `2px`                    | -                        | Outline of a selected, conflicting or invalid bar |
+| `--gantt-bar-conflict-color`       | `#e5484d`                | `#ff6369`                | The outline of a bar in conflict                  |
+| `--gantt-bar-invalid-color`        | `#d97706`                | `#f0a43a`                | The (dashed) outline of an invalid bar            |
+| `--gantt-handle-color`             | `rgb(255 255 255 / 55%)` | `rgb(255 255 255 / 50%)` | Resize and progress handles                       |
+
+#### Links
+
+| Token                         | Light     | Dark      | Controls                                                  |
+| ----------------------------- | --------- | --------- | --------------------------------------------------------- |
+| `--gantt-link-color`          | `#7a8699` | `#8794a8` | Link arrows                                               |
+| `--gantt-link-width`          | `1.5px`   | -         | Link arrows                                               |
+| `--gantt-link-selected-color` | `#2563eb` | `#6ea0ff` | A selected or hovered link, a valid link preview          |
+| `--gantt-link-selected-width` | `2.5px`   | -         | A selected link, the link preview                         |
+| `--gantt-link-conflict-color` | `#e5484d` | `#ff6369` | A link in conflict or in a cycle, an invalid preview      |
+| `--gantt-link-hit-width`      | `12px`    | -         | Width of the invisible area that catches clicks on a link |
+
+#### Popovers and focus
+
+| Token                              | Light                 | Dark               | Controls                                           |
+| ---------------------------------- | --------------------- | ------------------ | -------------------------------------------------- |
+| `--gantt-popover-background-color` | `#fff`                | `#222731`          | Tooltips, the link menu and day labels: background |
+| `--gantt-popover-foreground-color` | `#1b2230`             | `#e4e8ef`          | Popover text                                       |
+| `--gantt-popover-border-color`     | `#d3d9e1`             | `#3a4252`          | Popover border, action button border               |
+| `--gantt-popover-shadow-color`     | `rgb(15 23 42 / 18%)` | `rgb(0 0 0 / 55%)` | Popover shadow                                     |
+| `--gantt-popover-radius`           | `6px`                 | -                  | Popover corner radius                              |
+| `--gantt-popover-max-width`        | `320px`               | -                  | Widest a popover grows before its text wraps       |
+| `--gantt-focus-ring-color`         | `#2563eb`             | `#7aa7ff`          | Keyboard focus ring (`:focus-visible`)             |
+| `--gantt-focus-ring-width`         | `2px`                 | -                  | Keyboard focus ring                                |
+
+#### What is not a token
+
+- **Geometry.** The row height, bar height, bar radius, header row heights and every coordinate come
+  from the chart's options (see [Density and sizes](#density-and-sizes)). CSS only decides how they
+  look. The size of the round link handles is `interaction.handles.link`, not a token.
+- **Stacking.** The sticky header has `z-index: 2` and the layer of tooltips and menus `z-index: 3`,
+  both fixed. If something on your page overlaps the chart, or the chart overlaps it, give the
+  wrapper of the chart `isolation: isolate`, which keeps those two values inside it.
+
+## Colours of single bars
+
+Some tokens are also written by the renderer on a single element, through the CSSOM (never as
+`style` text, so a strict `style-src` Content Security Policy is fine). An element without its own
+value inherits the one of the theme.
+
+| Property                     | Set on         | From                                                             |
+| ---------------------------- | -------------- | ---------------------------------------------------------------- |
+| `--gantt-bar-color`          | `.gantt__bar`  | `task.color`. The progress colour is derived from it, see below. |
+| `--gantt-bar-progress-color` | `.gantt__bar`  | `task.progressColor`: replaces the derived progress colour.      |
+| `--gantt-highlight-color`    | highlight node | The `color` of an entry of `highlights`.                         |
+
+The progress colour is `color-mix(in srgb, <bar colour>, <shade> <amount>)`, with the shade and the
+amount taken from `--gantt-bar-progress-shade-color` and `--gantt-bar-progress-shade`. Change those
+two tokens to make the done part lighter or darker for every bar.
+
+`task.className` is added to the bar's own element, `g.gantt__bar`, and `task.rowClassName` to the
+row's `rect.gantt__row`. A custom property set by a class on the bar reaches the bar and its
+progress, so a status colour is one rule per class, as in the [release plan](../../examples/release-plan/):
+
+```ts
+const tasks = [
+  {
+    id: 'api',
+    name: 'API',
+    start: '2026-03-02',
+    end: '2026-03-13',
+    className: 'is-done',
+    rowClassName: 'is-frozen',
+  },
+  { id: 'ui', name: 'UI', start: '2026-03-09', end: '2026-03-20', className: 'is-late' },
+];
+```
+
+```css
+.gantt__bar.is-done {
+  --gantt-bar-color: #2f9e44;
+}
+.gantt__bar.is-late {
+  --gantt-bar-color: #d9480f;
+}
+
+/* task.rowClassName: a row is an SVG rect, so it takes `fill`. */
+.gantt__row.is-frozen {
+  fill: rgb(100 116 139 / 12%);
+}
+```
+
+<Aside type="caution" title="task.color beats a class">
+  `task.color` is written on the same element as an inline value, which wins over any class. Colour
+  a bar with `task.color` or with a class, not both. A class is the better choice for status
+  colours: it can have a different value in each theme.
+</Aside>
+
+A value of `task.color` is any string, so it can be a reference to a custom property of your page,
+`color: 'var(--status-done)'`, which then follows the theme. The [task colours and
+classes example](../../examples/task-colors-and-classes/) shows colours and classes side by side.
+
+Other things that change the look of a bar:
+
+- **States.** A selected, conflicting or invalid bar is outlined with `--gantt-bar-selected-color`,
+  `--gantt-bar-conflict-color` and `--gantt-bar-invalid-color`; when states combine, selection beats
+  invalid and conflict, which beat the hover outline, and the keyboard focus ring beats all.
+- **Labels.** `--gantt-bar-label-color` is the label inside the bar and
+  `--gantt-bar-label-outside-color` the one next to it. Where the label goes is `display.barLabel`
+  (`'auto'`, `'inside'`, `'outside'`, `'none'`); see the [bar labels example](../../examples/bar-labels/).
+- **Milestones** are drawn with `--gantt-bar-color` too (`.gantt__bar-milestone`).
+- **Highlights** take a `className` and a `color` of their own per entry of `highlights`.
+
+## Dark mode
+
+Everything the chart draws follows `theme`, including tooltips, the link menu and the focus ring.
+What does not follow it is what you add:
+
+- **Your own colours** need a dark value. Put status classes in per-theme blocks as in the brand
+  theme above, or use a `var()` reference in `task.color`.
+- **The page around the chart** is yours. A chart on a dark page with `theme: 'light'` is a light
+  card; match `theme` to the page, as in [Following the host page](#following-the-host-page).
+- **Contrast.** The two default themes have not been audited against WCAG AA. If your users need a
+  higher contrast, override the colour tokens, and check the result.
+
+## Density and sizes
+
+The size of rows and bars is not CSS: it decides the geometry the core computes, so it is an
+option, set at creation or later with `setOptions`. CSS tokens only decide how that geometry looks.
+
+| Option                    | Default    | Meaning                                                                              |
+| ------------------------- | ---------- | ------------------------------------------------------------------------------------ |
+| `layout.rowHeight`        | `48`       | Height of a row in px                                                                |
+| `layout.barHeight`        | `30`       | Height of a bar, centred in its row; above `rowHeight` it is clamped, with a warning |
+| `layout.barRadius`        | `3`        | Corner radius; each bar clamps it to half its height and width                       |
+| `layout.headerRowHeight`  | `[45, 30]` | One height for every header row, or one per row, top first                           |
+| `layout.height`           | container  | A number of px, or `'auto'` to grow with the rows and let the page scroll            |
+| `display.linkCurveRadius` | `5`        | The largest corner radius of a link arrow                                            |
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+createGantt(container, {
+  tasks,
+  layout: { rowHeight: 32, barHeight: 20, barRadius: 2, headerRowHeight: [32, 24] },
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+<Gantt
+  style={{ height: 420 }}
+  defaultTasks={tasks}
+  layout={{ rowHeight: 32, barHeight: 20, barRadius: 2, headerRowHeight: [32, 24] }}
+/>
+```
+
+</TabItem>
+
+</Tabs>
+
+A bad value is an `invalid-layout-option` issue and its default is used. The [layout and sizes
+example](../../examples/layout-and-sizes/) lets you change them live.
+
+The handles are sized by `interaction.handles`, whose default is
+`{ resize: 8, progress: 6, link: 6, linkOffset: 10 }`: the width of the resize zones, the half-size of
+the progress handle, the radius of the round link handles and how far they sit outside the bar. The
+hit test and the drawing share these numbers, and the stylesheet sets no radius (there is no
+`--gantt-handle-size` token), so change the handles with the option.
+
+`--gantt-font-size` changes the text but not the geometry. The width of a bar label is estimated,
+never measured, for a 12 px text in an Arial-like face, because measuring would force a layout on
+every frame. With a much larger font or a very different face (a monospace one), the `'auto'`
+placement of `display.barLabel` can put a label inside a bar where it does not fit: choose
+`'inside'` or `'outside'` then.
+
+## Grid, days off and the today line
+
+Some of the look is a display option rather than a token. The tokens above colour these; the options
+switch them. The [grid and today example](../../examples/grid-and-today/) shows them.
+
+| Option                   | Values                                                 | Default  |
+| ------------------------ | ------------------------------------------------------ | -------- |
+| `display.gridLines`      | `'both'` \| `'vertical'` \| `'horizontal'` \| `'none'` | `'both'` |
+| `display.today`          | `boolean`: the line, its marker and the header cell    | `true`   |
+| `display.nonWorkingDays` | `'fill'` \| `'stripes'` \| `false`                     | `'fill'` |
+| `display.rowStripes`     | `'row'` \| `'group'` \| `false`                        | `false`  |
+| `display.barLabel`       | `'auto'` \| `'inside'` \| `'outside'` \| `'none'`      | `'auto'` |
+
+## CSS support
+
+The stylesheet uses cascade layers, `:is()`, `overflow: clip` and `color-mix()`. The newest of them
+is `color-mix()` (Chrome and Edge 111, Firefox 113, Safari and iOS Safari 16.2); every browser the
+library supports has all four. It uses no container queries, no `url()` and no `@import`, and the
+renderer only sets custom properties and attributes, so a strict `style-src` policy works.
+
+The stylesheet should be **in effect before the chart is created**. The chart measures its container
+when it is created, and a stylesheet that is still loading gives it the unstyled layout to measure.
+
+## The unstyled contract
+
+The JavaScript never imports CSS. `@ganttlane/dom/styles.css` is a separate file that you import
+once per page, so bundlers, CSS-in-JS setups and plain `<link>` tags all work. You can use it as it
+is, add to it with your own rules, or leave it out and style the chart yourself. For the last two,
+the DOM structure, the class names and the `data-*` attributes below are part of the public API:
+they change only in a major version. Everything else (the order of siblings inside a group, SVG
+geometry attributes such as `x`, `width` or `d`, ids) is an implementation detail.
+
+```
+div.gantt[data-theme][data-height]
+  div.gantt__pin                                  (only with height 'auto': the header sits here)
+  div.gantt__scroller
+    div.gantt__header                             (inside the scroller unless height is 'auto')
+      div.gantt__header-row[data-unit][data-row]
+        div.gantt__header-cell[data-unit][data-current][data-major]
+          span.gantt__header-label[data-sticky]
+      div.gantt__header-range
+      div.gantt__today-marker
+    svg.gantt__body
+      g.gantt__grid
+        g.gantt__rows
+          rect.gantt__row[data-row][data-task-id][data-stripe][data-invalid][data-placeholder]
+        g.gantt__nonworking[data-mode]
+          rect.gantt__nonworking-day[data-day][data-reason]
+          defs > pattern.gantt__stripes > line.gantt__stripes-line        (stripes mode only)
+        g.gantt__highlights
+          rect.gantt__highlight[data-highlight][data-day]
+        g.gantt__gridlines
+          line.gantt__gridline[data-orientation][data-major][data-minor]
+        line.gantt__today
+      g.gantt__links
+        g.gantt__link[data-link-id][data-type][data-selected][data-conflict][data-cycle]
+          path.gantt__link-path[fill=none]
+          path.gantt__link-arrow
+          path.gantt__link-hit[data-link-id][fill=none]
+      g.gantt__bars
+        g.gantt__bar[data-task-id][data-type][data-selected][data-hovered][data-dragging]
+                    [data-resizing][data-locked][data-readonly][data-movable][data-invalid]
+                    [data-conflict]
+          rect.gantt__bar-track
+          rect.gantt__bar-progress
+          polygon.gantt__bar-milestone                (a milestone instead of the two rects)
+          text.gantt__bar-label[data-placement]
+          foreignObject.gantt__bar-label[data-placement]    (custom label: instead of the text)
+            div.gantt__bar-label-content
+          rect.gantt__handle[data-handle]
+          circle.gantt__link-handle[data-side]
+      g.gantt__overlay
+        path.gantt__link-preview[data-valid]
+  div.gantt__layer
+    div.gantt__popover[data-kind][data-placement][data-interactive][role=tooltip|menu]
+      div.gantt__popover-title
+      div.gantt__popover-subtitle
+      div.gantt__popover-details
+      div.gantt__popover-actions
+        button.gantt__popover-action[data-action][role=menuitem]
+```
+
+Attributes marked optional appear only while they are true. The values of the others:
+
+| Attribute                      | Values                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `data-theme`                   | `light`, `dark` or `auto`                                                                           |
+| `data-height`                  | `auto` while the height follows the rows (the header is then in `div.gantt__pin`); absent otherwise |
+| `data-unit`                    | A time scale unit: `day`, `week`, ...                                                               |
+| `data-handle`                  | `resize-start`, `resize-end` or `progress`                                                          |
+| `data-side`                    | `start` or `end` (the link handles)                                                                 |
+| `data-orientation`             | `vertical` or `horizontal` (grid lines)                                                             |
+| `data-mode`                    | `fill` or `stripes` (non-working days)                                                              |
+| `data-placement`               | `inside` or `outside` on a label; `top` or `bottom` on a popover, after a flip                      |
+| `data-type`                    | The task type on a bar, the link type (`FS`, `SS`, `FF`, `SF`) on a link                            |
+| `data-day`                     | A day key: days since 1970-01-01, an integer                                                        |
+| `data-reason`                  | Why a day does not work: `weekend`, `holiday`, `custom` or `exception`                              |
+| `data-link-id`, `data-task-id` | The link's id (on its group and its hit path), the task's id (on a bar and on the row of its task)  |
+| `data-kind`                    | What a popover is about: `task`, `link` or `day`                                                    |
+| `data-cursor`                  | On the root: the cursor of the gesture in progress; absent otherwise                                |
+
+### States
+
+| Attribute                        | On                | Meaning                                                  |
+| -------------------------------- | ----------------- | -------------------------------------------------------- |
+| `data-selected`                  | bar, link         | Selected                                                 |
+| `data-hovered`                   | bar               | The pointer is over it (the sheet also uses `:hover`)    |
+| `data-dragging`, `data-resizing` | bar               | A drag or a resize of it is in progress                  |
+| `data-locked`                    | bar               | The task is locked                                       |
+| `data-readonly`                  | bar               | The task cannot be edited                                |
+| `data-movable`                   | bar               | The task may be moved: its body can be dragged           |
+| `data-invalid`                   | bar, row          | The task is invalid                                      |
+| `data-conflict`                  | bar, link         | The schedule violates a link                             |
+| `data-cycle`                     | link              | The link closes a cycle (drawn dashed)                   |
+| `data-stripe`                    | row               | Gets the stripe colour                                   |
+| `data-placeholder`               | row               | The row of a placeholder task                            |
+| `data-current`                   | header cell       | The cell contains today                                  |
+| `data-major`                     | header cell, line | A major boundary                                         |
+| `data-minor`                     | line              | A minor line (the snap steps; the sheet draws it dotted) |
+| `data-sticky`                    | header label      | The label stays in view while its cell scrolls out       |
+| `data-valid`                     | link preview      | The link being created is allowed                        |
+| `data-interactive`               | popover           | Has actions: takes pointer events (the rest do not)      |
+
+`data-movable` is the `move` permission of the task and nothing else: a bar that may only be
+resized or linked does not have it, and neither does a `data-readonly` or `data-locked` bar. A
+stylesheet can rely on it (`.gantt__bar[data-movable] { touch-action: none }`), and so does the
+renderer's touch handling: a movable bar takes the whole touch for itself, the others stay
+scrollable.
+
+### Shipping your own stylesheet
+
+To replace `styles.css`, do not import it, and write a sheet that targets the names above. The
+shipped file is a good starting point: copy it from `node_modules/@ganttlane/dom/dist/styles.css`
+and change what you need. The renderer writes four custom properties on `.gantt` (through the
+CSSOM), and a stylesheet that does not use ours has to size the structure from them:
+
+| Property                | Meaning                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `--gantt-content-width` | Width of the scrolled content: both the header and the body are this wide |
+| `--gantt-header-height` | Height of the sticky header                                               |
+| `--gantt-body-height`   | Height of the rows: the body is this tall                                 |
+| `--gantt-height`        | Height of the chart when `layout.height` is a number (else not set)       |
+
+On top of that, a replacement sheet must honour these rules:
+
+- `.gantt` fills its container (or is `--gantt-height` tall) and is the positioning context of
+  `.gantt__layer`. With `data-height="auto"` it is as tall as its content.
+- `.gantt__scroller` is the one scroll container, on both axes (`overflow: auto`). The renderer owns
+  its scroll position: keep `overflow-anchor: none` and `scroll-behavior: auto`. It is a
+  keyboard-focusable named region, so the arrow keys scroll it.
+- `.gantt__header` is `position: sticky; top: 0`, `--gantt-content-width` wide and
+  `--gantt-header-height` tall. The renderer places each header cell, the range and the today marker
+  by `left` and `width` (or `transform`), so they need `position: absolute`.
+- **Header descendants clip with `overflow: clip`, never `hidden`** (nor `auto` or `scroll`). A label
+  with `data-sticky` sticks to the left edge of the viewport, which works only while no element
+  between it and the scroller is a scroll container, and `overflow: hidden` makes its element one.
+- `.gantt__body` is `display: block`, `--gantt-content-width` wide and `--gantt-body-height` tall.
+  Positions and sizes inside it are SVG attributes: do not override them with CSS, and never set
+  `r` (or `x`, `y`, `width`, `height`, `d`, ...) in CSS, because a CSS value outranks the attribute.
+- With `data-height="auto"`, the scroller has `height: auto`, `overflow-y: hidden`, a
+  `padding-block-start` of `--gantt-header-height` and a negative `margin-block-start` of the same.
+  `.gantt__pin` is then the header's container: `position: sticky; top: 0`,
+  `--gantt-header-height` tall, `overflow: hidden`, above the scroller and below `.gantt__layer`.
+- `.gantt__link-hit` needs `fill: none`, a transparent stroke, a wide `stroke-width` and
+  `pointer-events: stroke`; the other link paths should not take pointer events.
+- `.gantt__layer` (tooltips and menus) covers the chart, above the scroller, and takes no pointer
+  events itself.
+- A `.gantt__popover` is `position: absolute` at the top left of the layer. The renderer places it
+  with `--gantt-popover-x` and `--gantt-popover-y` (px): move it with
+  `transform: translate(var(--gantt-popover-x, 0), var(--gantt-popover-y, 0))`, and give
+  `[data-interactive]` popovers `pointer-events: auto`.
+- A `.gantt__bar-label` is SVG text or HTML in a `foreignObject`: set both `fill` and `color`.
+- Leave the presentation attributes the renderer writes alone: `fill="none"` on the link paths,
+  `fill="url(#...)"` on `.gantt__nonworking-day` in `stripes` mode (set its `fill` only for
+  `.gantt__nonworking[data-mode='fill']`), and `text-anchor`, `dy` and `overflow` on labels.
+
+Keep selection visible in the way the shipped sheet does: the outline of a selected bar beats the
+invalid and conflict outlines, which beat the hover outline.
+
+<Aside type="note" title="Shadow DOM">
+  A chart can live in an open shadow root. The styles of the page do not reach into a shadow root,
+  so give the root its own copy of the stylesheet (for example with `adoptedStyleSheets`). A closed
+  shadow root is not supported.
+</Aside>
+
+## Related
+
+- Examples: [theming](../../examples/theming/), [unstyled](../../examples/unstyled/), [task colours
+  and classes](../../examples/task-colors-and-classes/), [bar labels](../../examples/bar-labels/),
+  [grid and today](../../examples/grid-and-today/), [release plan](../../examples/release-plan/).
+- [Options](../options/) for the `layout`, `display` and `interaction` groups, and
+  [Accessibility](../accessibility/) for focus, contrast and motion.
+- [React](../react/) for the `theme` prop and the stylesheet import, and
+  [`ThemeOption`](../../api/ganttlane/dom/type-aliases/themeoption/) in the API reference.

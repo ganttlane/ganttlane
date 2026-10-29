@@ -1,0 +1,283 @@
+---
+title: The work calendar
+description: Which days are working days, how a duration is counted in working time, and what the calendar can and cannot do.
+---
+
+The **work calendar** answers one question for every day: does it work? Weekends, named holidays,
+worked weekends and your own rule are all inputs. The answer drives working-time durations, the
+working-day counts on a record, the conflicts for a bar that lands on a day off, and where a drag is
+allowed to drop an edge. After this page you can describe your week to the chart, choose between
+calendar and working durations, and use the same calendar without a chart.
+
+## Describing the week
+
+The `calendar` option holds four rules. A day is decided by the first rule that applies, strongest
+first:
+
+| Rule          | Option                  | Type                                         | Default  | A day it matches is                                                |
+| ------------- | ----------------------- | -------------------------------------------- | -------- | ------------------------------------------------------------------ |
+| 1. Exceptions | `calendar.workingDays`  | `DateInput[]`                                | none     | working, whatever else is true (a worked Saturday)                 |
+| 2. Holidays   | `calendar.holidays`     | `(DateInput \| { date, name? })[]`           | none     | off. A `name` is the label of the day                              |
+| 3. Your rule  | `calendar.isWorkingDay` | `(day: CalendarDay) => boolean \| undefined` | none     | working for `true`, off for `false`. `undefined` passes the day on |
+| 4. Weekends   | `calendar.weekends`     | `number[]`                                   | `[0, 6]` | off when its weekday is listed. `0` = Sunday, `6` = Saturday       |
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+createGantt(container, {
+  tasks,
+  calendar: {
+    weekends: [5, 6], // Friday and Saturday are off
+    holidays: ['2026-03-17', { date: '2026-12-25', name: 'Christmas' }],
+    workingDays: ['2026-03-14'], // a Saturday that is worked
+    isWorkingDay: (day) => (day.month === 8 ? false : undefined), // August is off
+  },
+});
+```
+
+- **Only the date counts.** A holiday or working day with a time of day (`'2026-03-17T09:00'`) is
+  read by its date, with a `time-ignored` warning unless it is midnight. A date-only string names
+  a wall-clock day like every date in the chart; `new Date('2026-03-17')` can name the day before in
+  a zone behind UTC (see [Dates shifted by a time zone](../dates-and-time/#dates-shifted-by-a-time-zone)).
+- **A holiday beats your rule, and your rule beats the weekend.** An `isWorkingDay` that answers
+  `true` for a Saturday makes it a working day; one that answers `true` for a listed holiday does
+  not.
+- **`isWorkingDay` must be pure.** The calendar caches its answer for every day and calls the rule
+  once. A rule that reads changing state gives stale results, and it must not call the calendar it
+  belongs to. It gets a [`CalendarDay`](../../../api/ganttlane/core/interfaces/calendarday/):
+  `{ dayKey, date, weekday, year, month, day }`.
+- **`weekends: []`** makes every day of the week a working day.
+- **The calendar never throws.** A bad entry is skipped with an issue at its place:
+  `invalid-weekend` (not an integer 0 to 6), `invalid-holiday`, `invalid-working-day`,
+  `invalid-rule` (not a function), `time-ignored`, and `no-working-days` when `weekends` covers the
+  whole week and nothing else works. They are listed in `getIssues().data`.
+- **The calendar is immutable.** `setOptions({ calendar })` builds a new one. The group merges field
+  by field, and a list you give (`holidays`, `weekends`, ...) replaces the old list whole.
+
+A day's reason is one of `'working'`, `'weekend'`, `'holiday'`, `'custom'` (your rule) or
+`'exception'` (a `workingDays` entry); see `explain` below. [Options: Calendar](../../options/#calendar)
+has the table of the option.
+
+## How a duration is counted
+
+`durationMode` says what a `duration` measures. It is `'calendar'` by default, and a task sets its
+own or takes `scheduling.durationMode`.
+
+| Mode         | Precision | `start` plus `duration` ends at                                                                                                                          |
+| ------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'calendar'` | any       | The plain sum: all days and hours count                                                                                                                  |
+| `'working'`  | day       | The last working day of the count. The start counts when it is a working day, else counting begins at the next one. The bar stops at the end of that day |
+| `'working'`  | time      | Working time added to the start, skipping days off. The time of day is kept across them                                                                  |
+
+With the week Monday to Friday, a holiday on Wednesday March 4 and a worked Saturday March 7:
+
+| Task                                                        | Bar covers                  | Calendar days | Working days |
+| ----------------------------------------------------------- | --------------------------- | ------------- | ------------ |
+| `start: '2026-03-02', duration: 5`                          | Mar 2 to Mar 6              | 5             | 4            |
+| `start: '2026-03-02', duration: 5, durationMode: 'working'` | Mar 2 to Mar 7: skips Mar 4 | 6             | 5            |
+| `start: '2026-03-14', duration: 2, durationMode: 'working'` | Mar 14 to Mar 17            | 4             | 2            |
+
+The last task starts on a Saturday. A day off counts nothing, so the count begins on Monday March
+16 and stops on Tuesday March 17. The task is valid; its start is reported as a conflict (next
+section).
+
+At time precision the same idea works on hours. With `scheduling.granularity: '1h'` and Saturday
+and Sunday off:
+
+| Task                                                                 | Ends                                                 |
+| -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `start: '2026-03-06T22:00', duration: '4h'` (calendar)               | Sat Mar 7, 02:00                                     |
+| `start: '2026-03-06T22:00', duration: '4h', durationMode: 'working'` | Mon Mar 9, 02:00: two hours on Friday, two on Monday |
+| `start: '2026-03-05T10:00', duration: '2d', durationMode: 'working'` | Mon Mar 9, 10:00: Thursday plus two working days     |
+
+**A working day is the whole 24 hours.** Working hours are not modelled, so the night between
+Wednesday 17:00 and Thursday 10:00 counts as working time. See [Not available yet](#not-available-yet).
+
+The mode applies in more places than `duration`:
+
+- **Months and years** in a duration are calendar months in both modes: `'1mo'` is not a number of
+  working days.
+- **A link's lag** is counted in the successor's mode. A successor with `durationMode: 'working'`
+  and an `FS` link with `lag: 1` starts one working day after the predecessor ends
+  ([Links and link types](../links-and-types/)).
+- **Progress** is measured along working time for a working task: with the weekend off, 50 % of a
+  Monday-to-Sunday task is reached around Wednesday noon, not Thursday noon (before the boundary is
+  aligned down to the granularity).
+- **Moving a task** keeps its length in its own mode: a working task of five working days keeps five
+  working days when it is dragged across a holiday.
+- **A calendar with no working day** cannot place a working duration: the task is invalid with
+  `no-working-time`.
+
+## Tasks on a day off
+
+The chart does not move your tasks when the data loads. A bar that starts or ends on a day off is
+accepted as written and reported as a **conflict** on its record (`record.conflicts`) and in the
+change set of every edit that touches it:
+
+| Conflict            | Meaning                                                                      |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `non-working-start` | The day of `start` is a day off                                              |
+| `non-working-end`   | The day of the bar's last instant is a day off. Milestones have only a start |
+
+A conflict is a warning. It never refuses a change by itself: `onBeforeTaskChange` receives the
+conflicts and decides, and the
+[hourly example](../../../examples/working-calendar-hourly/) uses it to ask the user. See
+[Propagation and conflicts](../propagation-and-conflicts/).
+
+For a **drag**, `scheduling.skipNonWorkingDays` decides whether the dragged edge avoids days off:
+
+| Key        | Default | Effect when `true`                                                                                 |
+| ---------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `move`     | `true`  | A start dropped on a day off goes to the next working day, at the same time of day                 |
+| `resize`   | `false` | The same for a resized edge: a start moves forward, an end back to the end of the last working day |
+| `progress` | `true`  | The progress boundary does not stop inside a stretch of days off                                   |
+
+A programmatic `updateTask` is **exact**: it does not roll onto working days, and a date on a day
+off shows up as a conflict.
+
+```ts
+createGantt(container, {
+  tasks,
+  scheduling: {
+    durationMode: 'working',
+    skipNonWorkingDays: { move: true, resize: true, progress: true },
+  },
+});
+```
+
+## Working figures on a record
+
+Every `TaskRecord` with a bar carries `duration`, a
+[`TaskDuration`](../../../api/ganttlane/core/interfaces/taskduration/):
+
+| Field             | Meaning                                                              |
+| ----------------- | -------------------------------------------------------------------- |
+| `calendarDays`    | All days from `start` to `endExclusive`; fractional for a timed task |
+| `workingDays`     | The part that falls on working days                                  |
+| `nonWorkingDays`  | `calendarDays - workingDays`                                         |
+| `ms`, `workingMs` | The same two lengths in milliseconds                                 |
+
+They are filled in for every task, whatever its `durationMode`. A working task of two days that
+starts on a Friday and stops on the Monday has `calendarDays: 4` and `workingDays: 2`. The built-in
+tooltip shows the working days, and its preview during a drag follows the move.
+
+## The calendar on its own
+
+The calendar needs no chart. `createWorkCalendar(options)` takes the same options as `calendar` and
+returns the calendar with the issues it found in them:
+
+```ts
+import { createWorkCalendar, fromDayKey, parseDateInput, toDate, toDayKey } from '@ganttlane/core';
+
+const { calendar, issues } = createWorkCalendar({
+  weekends: [0, 6],
+  holidays: [{ date: '2026-03-04', name: 'Office closed' }],
+  workingDays: ['2026-03-07'],
+});
+
+// Day-level methods take day keys: a number per calendar day.
+function dayOf(iso: string) {
+  const parsed = parseDateInput(iso);
+  if (!parsed.ok) throw new Error(parsed.issue.code);
+  return toDayKey(parsed.value.value);
+}
+
+calendar.explain(dayOf('2026-03-04')); // { working: false, reason: 'holiday', label: 'Office closed' }
+calendar.countDays(dayOf('2026-03-02'), dayOf('2026-03-09')); // { calendar: 7, working: 5, nonWorking: 2 }
+
+const tuesday = calendar.addWorkingDays(dayOf('2026-03-06'), 3); // a day key, or undefined
+if (tuesday !== undefined) console.log(toDate(fromDayKey(tuesday))); // Tue Mar 10 2026
+```
+
+Every method of the returned [`WorkCalendar`](../../../api/ganttlane/core/interfaces/workcalendar/)
+is a plain function (no `this`):
+
+| Method                                  | Use                                                                                |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
+| `isWorkingDay(day)`                     | `true` for a working day                                                           |
+| `explain(day)`                          | `{ working, reason, label? }`: which rule decided, and the holiday name            |
+| `countDays(start, endExclusive)`        | `{ calendar, working, nonWorking }` of a half-open range; negated when reversed    |
+| `countWorkingDaysInclusive(start, end)` | Working days in a closed range, for inclusive end dates                            |
+| `countWorkingTime(start, end)`          | Working milliseconds in `[start, end)`, partial days included                      |
+| `addWorkingDays(day, n)`                | The `n`-th working day after `day` (before it when negative)                       |
+| `addWorkingTime(t, ms)`                 | Moves a date-time by working milliseconds, keeping the time of day across days off |
+| `nextWorkingDay(day, { inclusive })`    | The first working day after `day`; `inclusive` returns `day` itself when it works  |
+| `prevWorkingDay(day, { inclusive })`    | The last working day before `day`                                                  |
+| `rollToWorking(t, direction, options)`  | Moves an instant on a day off to the next (`1`) or previous (`-1`) working day     |
+| `workingSpanEnd(start, workingDays)`    | The last day of a span that holds that many working days                           |
+
+Methods that run out of working days, or get a day outside the calendar (about 270 000 years either
+side of 1970), return `undefined`; counts are `NaN` there. A calendar is a cache with prefix sums, so
+counting is cheap and searches are logarithmic. Build a new calendar to change the rules.
+
+`toDayKey`, `fromDayKey`, `parseDateInput` and `toDate` convert between day keys, floating times and
+`Date`s. The [dates and time](../dates-and-time/) page explains the first two forms of time.
+
+## Showing days off
+
+Days off are shaded in the chart. `display.nonWorkingDays` is `'fill'` (default), `'stripes'` or
+`false`, and a holiday's name shows when you hover the day. The colours are theme tokens
+(`--gantt-nonworking-color`, `--gantt-nonworking-stripe-color`); see
+[Theming](../../theming/#grid-days-off-and-the-today-line). `highlights` marks other days in the
+same way, for looks only: they change no schedule.
+
+## A worked example
+
+The week of the table above, as code: Monday to Friday, a holiday on Wednesday March 4, a worked
+Saturday on March 7, and working durations by default.
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  calendar: {
+    weekends: [0, 6],
+    holidays: [{ date: '2026-03-04', name: 'Office closed' }],
+    workingDays: ['2026-03-07'], // a worked Saturday
+  },
+  scheduling: { durationMode: 'working' }, // the default for every task below
+  tasks: [
+    { id: 'build', name: 'Build', start: '2026-03-02', duration: 5 },
+    { id: 'wall', name: 'Wall-clock', start: '2026-03-02', duration: 5, durationMode: 'calendar' },
+    { id: 'review', name: 'Review', start: '2026-03-14', duration: 2 },
+  ],
+});
+
+const build = gantt.getTask('build');
+build?.end; // Sat Mar 07: the fifth working day (Wednesday is off, the Saturday works)
+build?.duration; // { calendarDays: 6, workingDays: 5, nonWorkingDays: 1, ... }
+
+gantt.getTask('wall')?.duration?.workingDays; // 4: five calendar days, one of them the holiday
+gantt.getTask('review')?.conflicts.map((conflict) => conflict.type); // ['non-working-start']
+
+// An exact move across the holiday: Build keeps its five working days and grows in calendar days.
+await gantt.updateTask('build', { start: '2026-03-03' });
+gantt.getTask('build')?.end; // Mon Mar 09
+gantt.getTask('build')?.duration?.calendarDays; // 7
+```
+
+A drag is different from `updateTask`. Drag Review so that its start would fall on a Sunday and the
+start rolls forward to the Monday (`skipNonWorkingDays.move` is on by default), so moving a bar
+never leaves it starting on a day off. Review starts on Saturday March 14 only because the data
+says so. In the chart the holiday shades Wednesday and shows `Office closed` on hover.
+
+## Not available yet
+
+- **Working hours.** A working day is 24 hours. Shifts, breaks and a 9-to-5 day are not modelled.
+- **Calendars per task or per resource.** One calendar per chart.
+- **Locale defaults.** The weekend is Saturday and Sunday and weeks start on Monday whatever the
+  `locale`. Set `calendar.weekends` yourself.
+- **Holiday lists.** The calendar knows only the days you give it.
+
+## Related
+
+- [Dates and time](../dates-and-time/) and
+  [Granularity and alignment](../granularity-and-alignment/): the date rules the calendar builds on.
+- [Tasks and records](../tasks-and-records/): `durationMode` and the record fields.
+- [Propagation and conflicts](../propagation-and-conflicts/): what an edit does to a bar on a day off.
+- Options: [Calendar](../../options/#calendar) and [Scheduling](../../options/#scheduling).
+- Examples: [working days at hourly granularity](../../../examples/working-calendar-hourly/) and the
+  [working calendar example](../../../examples/working-calendar/).
+- API reference: [`createWorkCalendar`](../../../api/ganttlane/core/functions/createworkcalendar/),
+  [`WorkCalendarOptions`](../../../api/ganttlane/core/interfaces/workcalendaroptions/),
+  [`WorkCalendar`](../../../api/ganttlane/core/interfaces/workcalendar/).

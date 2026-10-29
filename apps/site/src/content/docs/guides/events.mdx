@@ -1,19 +1,732 @@
 ---
 title: Events
-description: What a chart reports, and the hooks that can cancel or rewrite a change.
+description: Every event a chart reports, with its arguments and when it fires, and the before-hooks that can cancel or rewrite a change.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-<Aside title="Coming soon">
-  This guide is not written yet. The events are listed with their arguments in the references:
-  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#events),
-  [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#events)
-  and
-  [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#events).
+A chart tells your code what happens to it through events: a user dragged a bar, a link was drawn,
+the selection changed, the view scrolled, an option turned out to be wrong. This page explains how to
+listen, when handlers are called and what happens when one throws, then lists
+[every event](#all-events) with its arguments and the exact conditions under which it fires. The
+two before-hooks that can cancel or rewrite a change are summarised at the end. The calls that cause
+events are on [Methods](../methods/).
+
+## Listening to events
+
+There are two ways to listen. Both take the same arguments.
+
+- An **`on<Event>` option**: `onTasksChange`, `onTaskClick`, and so on. Give it at creation, or swap
+  it later with `setOptions`. One handler per event.
+- **`gantt.on(name, handler)`**, which adds a listener at any time and returns a function that
+  removes it. As many listeners per event as you like.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import '@ganttlane/dom/styles.css';
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  tasks,
+  // An option: set at creation, swapped with setOptions.
+  onTasksChange: (changeSet) => save(changeSet),
+});
+
+// A listener: added and removed at any time.
+const off = gantt.on('taskClick', (record, event) => {
+  console.log(record.name, (event as PointerEvent).shiftKey);
+});
+
+off(); // stops it; calling it again does nothing
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { useEffect, useRef } from 'react';
+
+import { Gantt, type GanttHandle } from '@ganttlane/react';
+
+export function Plan() {
+  const chart = useRef<GanttHandle>(null);
+
+  // A listener that is not tied to a render: add it once, remove it on cleanup.
+  useEffect(() => chart.current?.on('scroll', ({ date }) => console.log(date)), []);
+
+  return (
+    <Gantt
+      ref={chart}
+      defaultTasks={tasks}
+      style={{ height: 420 }}
+      onTasksChange={(changeSet) => save(changeSet)}
+      onTaskClick={(record) => console.log(record.name)}
+    />
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+How listeners behave:
+
+- **Unsubscribing.** `on` returns a plain function. It is safe to call twice. There is no
+  `off(name, handler)` and no `once`: to listen once, call the returned function inside the
+  handler.
+
+  ```ts
+  const off = gantt.on('rangeChange', (range) => {
+    off();
+    console.log(range.reason);
+  });
+  ```
+
+- **Order.** Listeners of one event are called in the order they were added. An `on<Event>` option
+  counts as a listener that was added when the option was first given, so an option set at creation
+  runs before every `gantt.on` listener. Swapping an option with `setOptions` keeps its place, costs
+  nothing and redraws nothing; `undefined` removes it.
+- **Duplicates.** The same function added twice is called twice.
+- **While an event is being delivered**, a listener that is added is first called for the next
+  event, and one that is removed is not called any more, not even for the event in progress.
+- **Payloads are read-only.** Change sets, records and the other payloads are frozen. A
+  `TaskRecord` is the same object for as long as nothing it shows has changed.
+- **After `destroy()`** nothing fires, and `on` returns a function that does nothing.
+
+## When events are delivered
+
+- **Synchronously.** Handlers run inside the call that caused the event, before it returns. There
+  is no microtask, no debouncing and no batching across actions. The three methods that return a
+  promise (`updateTask`, `addLink`, `removeLink`) apply the change and fire its events inside the
+  call as well, unless a [before-hook](#before-hooks) returns a promise: then the change and its
+  events wait for the answer, and the chart is busy meanwhile.
+- **One action, one event.** A drag, a drawn link, an `updateTask` call and an undo each fire exactly
+  one `tasksChange` (or one `linkCreate` or `linkDelete`). Tasks moved along links or with their
+  parent are in the same change set.
+- **A drag fires nothing until it ends.** While a bar is dragged the chart shows a preview and no
+  change event is emitted. Releasing the pointer commits; Escape or a cancelled pointer commits
+  nothing. (`scroll` and `rangeChange` can still fire during a drag, because the view moves with
+  the autoscroll.)
+- **Order inside one action:** `historyChange` and `dirtyChange` (when they flip), then `issues` with
+  `source: 'change-set'` (when re-validation corrected the change), `tasksChange`, and then, for
+  each changed task in the order of `changeSet.changes`, `taskDatesChange` and
+  `taskProgressChange`.
+- **View events come after.** `rangeChange`, `viewModeChange`, `selectionChange`, `expandedChange`,
+  `scroll`, the `issues` of the data and of the options, and the click and hover events are
+  collected while an operation runs and delivered when the outermost operation ends, after the
+  change events of that operation.
+- **Calling the chart from a handler is fine.** The examples call `setTasks` from `onTasksChange`.
+  What the nested call causes is delivered after the events of the action that is being reported.
+  Do not write a handler that changes the very thing it listens to on every call: the chart follows
+  such cascades for a few rounds only.
+- **Inside a handler**, `getTask` already shows the new state (controlled data shows your tasks until
+  you pass the new ones). The snapshot, `gantt.core.getSnapshot()`, is replaced when the outermost
+  operation ends, so inside a handler it can still be the previous one, and the geometry queries
+  (`getBarRect`, `getVisibleRange`) can lag a step behind. Prefer the payload.
+- **Some events fire before `createGantt` returns.** The first `issues` event (when the data or the
+  options have problems), and, when the container already has a width, the first `rangeChange`
+  (reason `'initial'`) and the first `scroll`, are emitted inside `createGantt`. An `on<Event>` option cannot use the variable that is about to
+  hold the chart; read the payload instead, or add a listener with `gantt.on` afterwards. In React,
+  events from the creation are held until the first commit (see [Events in React](#events-in-react)).
+
+## User actions, API calls and events
+
+An event does not say who caused it: there is no `source` field. The same `selectionChange` fires
+for a call to `select()` and for a click on a link; the same `viewModeChange` for `setViewMode` and
+for `setOptions({ viewMode })`. For task changes, `changeSet.reason` tells you what produced the
+change.
+
+| `changeSet.reason`               | Produced by                        |
+| -------------------------------- | ---------------------------------- |
+| `'move'`                         | Dragging a bar                     |
+| `'resize-start'`, `'resize-end'` | Dragging the start or the end edge |
+| `'progress'`                     | Dragging the progress handle       |
+| `'api'`                          | `updateTask(...)`                  |
+| `'undo'`, `'redo'`               | `undo()` and `redo()`              |
+
+To ignore changes you made yourself, test the reason:
+
+```ts
+gantt.on('tasksChange', (changeSet) => {
+  if (changeSet.reason === 'api') return; // your own updateTask call
+  save(changeSet);
+});
+```
+
+For the other events, a flag around the call works, because the event is delivered before the call
+returns:
+
+```ts
+let fromCode = false;
+function selectFromCode(ids: string[]): void {
+  fromCode = true;
+  try {
+    gantt.select(ids);
+  } finally {
+    fromCode = false;
+  }
+}
+
+gantt.on('selectionChange', (selectedKeys) => {
+  if (!fromCode) console.log('The user changed the selection', selectedKeys);
+});
+```
+
+The flag does not hold for a call made from inside another handler (its events are delivered after
+that handler's operation), nor for a change that waits for an asynchronous before-hook.
+
+Which calls cause which events:
+
+| Call                                             | Events it can cause                                                                                                                                             |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updateTask`                                     | `issues` (change-set), `tasksChange` (reason `'api'`), `taskDatesChange`, `taskProgressChange`, `historyChange`, `dirtyChange`, `rangeChange`                   |
+| `addLink`, `removeLink`                          | `linkCreate`, `linkDelete`, `historyChange`, `dirtyChange`                                                                                                      |
+| `undo`, `redo`                                   | `tasksChange` (reason `'undo'` or `'redo'`) and its per-task events, or `linkCreate` / `linkDelete`; `historyChange`, `dirtyChange`                             |
+| `setTasks`, `setLinks`                           | No change events. `rangeChange` (`'data'`), `issues` (data), `selectionChange` (ids that left the data), `historyChange` (uncontrolled data clears the history) |
+| `setOptions`                                     | `rangeChange`, `viewModeChange`, `issues` (options), `selectionChange`, `historyChange`. Not `expandedChange`                                                   |
+| `setViewMode`, `zoomTo`                          | `viewModeChange` (`setViewMode`), `rangeChange` (`'view-mode'`, `'zoom'`) when the range changes, `scroll`                                                      |
+| `scrollToDate`, `scrollToToday`, `scrollToTask`  | `scroll`; `rangeChange` (`'scroll-to'`) with an infinite timeline; `expandedChange` when `scrollToTask` expands ancestors                                       |
+| `expand`, `collapse`, `expandAll`, `collapseAll` | `expandedChange`                                                                                                                                                |
+| `select`, `selectLink`, `clearSelection`         | `selectionChange`                                                                                                                                               |
+| `edit.commit()`                                  | `dirtyChange` when the session was dirty. No `tasksChange`                                                                                                      |
+| `edit.rollback()`                                | `historyChange`, `dirtyChange`, then `editRollback`. No `tasksChange`                                                                                           |
+
+## Events in an edit session
+
+An [edit session](../concepts/edit-sessions-and-history/) does not hold anything back. Between
+`edit.begin()` and `edit.commit()` every drag and every call is committed as usual and fires its own
+events, one `tasksChange` per action, and the chart shows the data as it is.
+
+- `dirtyChange` tells you when the session gains its first change and when it has none again (also
+  when the user drags a bar back to where it began).
+- `edit.commit()` fires no `tasksChange`: it returns the net difference since `begin()` as
+  `changes`. Use that for "Save".
+- `edit.rollback()` puts the data back and fires one `editRollback` with everything to revert. It
+  fires no `tasksChange`, `linkCreate` or `linkDelete`, and it never asks a before-hook.
+- Undo and redo work inside a session and fire their usual events.
+
+The [edit session example](../../examples/edit-session/) wires all of this to Edit, Save and Cancel
+buttons.
+
+## When a handler throws
+
+A handler that throws does not stop the others and does not break the chart. What happens to its
+error depends on whether you listen for `error` (the `onError` option or `gantt.on('error', ...)`):
+
+| Situation                                                                                 | Where the error goes                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| You listen for `error`                                                                    | After every listener of the event ran, `error` fires once per error with `{ error, source: 'listener', name }`, `name` being the event                                |
+| No `error` listener, the event was caused by a method                                     | The method rethrows it once the change is done and all events were delivered: a synchronous method throws, a promise rejects. Several errors are one `AggregateError` |
+| No `error` listener, the event was caused by the pointer, a scroll, a resize or the clock | Reported to the host's unhandled-rejection channel (`unhandledrejection` in a browser), never thrown into the chart                                                   |
+| The `error` listener itself throws                                                        | Handled like the previous two rows                                                                                                                                    |
+| A before-hook throws, rejects or answers something invalid                                | The change is cancelled and `error` fires with `source: 'hook'` and `name: 'beforeTaskChange'` or `'beforeLinkCreate'`                                                |
+
+The change is already applied when a listener throws. A rejected `updateTask` promise does not mean
+the update failed.
+
+```ts
+const gantt = createGantt(container, {
+  tasks,
+  onError: ({ error, source, name }) => {
+    // `name` is the event ('tasksChange') or the hook ('beforeTaskChange') that failed.
+    reportToTracker(error, { source, name });
+  },
+});
+```
+
+<Aside type="caution" title="Give the chart an error listener if you use hooks">
+  A hook that throws cancels the change. Without an `error` listener nothing reports it for a drag
+  or a drawn link; `updateTask` and `addLink` hand it back as `error` in their `cancelled` result.
 </Aside>
 
-Every event has an `on<Event>` option and a listener added with `gantt.on(name, handler)`, which
-returns a function that removes it. `onBeforeTaskChange` and `onBeforeLinkCreate` run before a
-change is committed and can cancel or rewrite it. The [basic chart](../../examples/basic/) logs two
-events, and [the working calendar](../../examples/working-calendar-hourly/) uses a before-hook.
+## All events
+
+Twenty events. The `Option` column is the `on<Event>` option (and React prop) of the same event.
+Payload types are exported from `@ganttlane/dom` and `@ganttlane/core`; the whole map is
+[`GanttEventMap`](../../api/ganttlane/core/interfaces/gantteventmap/).
+
+| Event                                                           | Option                 | Arguments                                                              | Fires when                                                        |
+| --------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`tasksChange`](#taskschange)                                   | `onTasksChange`        | `(changeSet: ChangeSet)`                                               | A change was committed: a drag, `updateTask`, undo, redo          |
+| [`taskDatesChange`](#taskdateschange-and-taskprogresschange)    | `onTaskDatesChange`    | `(record: TaskRecord, dates: TaskDates)`                               | After `tasksChange`, for each task whose dates changed            |
+| [`taskProgressChange`](#taskdateschange-and-taskprogresschange) | `onTaskProgressChange` | `(record: TaskRecord, progress: number)`                               | After `tasksChange`, for each task whose progress changed         |
+| [`linkCreate`](#linkcreate-and-linkdelete)                      | `onLinkCreate`         | `(link: Link, id: string)`                                             | A link was created                                                |
+| [`linkDelete`](#linkcreate-and-linkdelete)                      | `onLinkDelete`         | `(link: LinkRecord)`                                                   | A link was deleted                                                |
+| [`linkClick`](#linkclick)                                       | `onLinkClick`          | `(link: LinkRecord, event: unknown)`                                   | A link arrow was clicked                                          |
+| [`taskClick`](#taskclick-and-taskdoubleclick)                   | `onTaskClick`          | `(record: TaskRecord, event: unknown)`                                 | A bar was clicked, never after a drag                             |
+| [`taskDoubleClick`](#taskclick-and-taskdoubleclick)             | `onTaskDoubleClick`    | `(record: TaskRecord, event: unknown)`                                 | A bar was double-clicked                                          |
+| [`taskHoverChange`](#taskhoverchange)                           | `onTaskHoverChange`    | `(record: TaskRecord \| null, event: unknown)`                         | The task under the pointer changed                                |
+| [`selectionChange`](#selectionchange)                           | `onSelectionChange`    | `(selectedKeys: readonly TaskId[], selectedLink: string \| undefined)` | The selected tasks or the selected link changed                   |
+| [`viewModeChange`](#viewmodechange)                             | `onViewModeChange`     | `(viewMode: ViewMode)`                                                 | The view mode in use changed                                      |
+| [`rangeChange`](#rangechange)                                   | `onRangeChange`        | `(range: RangeChangeInfo)`                                             | The timeline range changed; also once when the chart gets a width |
+| [`expandedChange`](#expandedchange)                             | `onExpandedChange`     | `(expandedKeys: 'all' \| readonly TaskId[])`                           | The expanded parents changed                                      |
+| [`scroll`](#scroll)                                             | `onScroll`             | `(scroll: ScrollInfo)`                                                 | The scroll position changed                                       |
+| [`editRollback`](#editrollback)                                 | `onEditRollback`       | `(changes: SessionChanges)`                                            | An edit session was rolled back                                   |
+| [`dirtyChange`](#dirtychange)                                   | `onDirtyChange`        | `(payload: DirtyChangePayload)`                                        | `edit.isDirty` flipped                                            |
+| [`historyChange`](#historychange)                               | `onHistoryChange`      | `(payload: HistoryChangePayload)`                                      | `canUndo` or `canRedo` flipped                                    |
+| [`editRefused`](#editrefused)                                   | `onEditRefused`        | `(refusal: EditRefusedPayload)`                                        | A drag or a drawn link was refused                                |
+| [`issues`](#issues)                                             | `onIssues`             | `(payload: IssuesPayload)`                                             | Problems in the data, the options or a change                     |
+| [`error`](#error)                                               | `onError`              | `(payload: ErrorPayload)`                                              | A listener or a before-hook threw                                 |
+
+The before-hooks `onBeforeTaskChange` and `onBeforeLinkCreate` are options only, see
+[Before-hooks](#before-hooks). The events are the same in the vanilla chart and in React; React adds
+one prop, `onLinksChange`.
+
+## Task and link changes
+
+### `tasksChange`
+
+```ts
+onTasksChange: (changeSet: ChangeSet) => void
+```
+
+The chart committed a change. A [`ChangeSet`](../../api/ganttlane/core/interfaces/changeset/) has
+three fields:
+
+| Field       | Type                                                                                  | Meaning                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `reason`    | `'move' \| 'resize-start' \| 'resize-end' \| 'progress' \| 'api' \| 'undo' \| 'redo'` | What produced it (see [the table above](#user-actions-api-calls-and-events))                                    |
+| `changes`   | `readonly Change[]`                                                                   | Every task that changed, directly or by propagation: the edited task first, then the others in dependency order |
+| `conflicts` | `readonly Conflict[]`                                                                 | Scheduling conflicts of the result that involve a changed task, as warnings                                     |
+
+Each `Change` is `{ id, before, after, cause, via? }`:
+
+- `before` and `after` are `TaskPatch` objects: `start` and `endExclusive` (the half-open interval),
+  `progress` (percent), and `precision` only when the change turns a day task into a timed one or
+  back. Dates are **floating wall-clock numbers** (epoch milliseconds without a time zone), not
+  `Date`s. Convert with `toDate` from `@ganttlane/core`, or let `patchTasks` write the change into
+  your own tasks.
+- `cause` is `'direct'` (the task that was edited), `'link'` (a predecessor moved it) or
+  `'parent'` (its parent moved it). `via` is that predecessor or parent.
+
+```ts
+import { toDate } from '@ganttlane/core';
+
+gantt.on('tasksChange', (changeSet) => {
+  for (const { id, before, after, cause } of changeSet.changes) {
+    console.log(id, cause, toDate(before.start), 'to', toDate(after.start));
+  }
+});
+```
+
+**Fires** once per committed action: when a drag is released (reasons `'move'`, `'resize-start'`,
+`'resize-end'`, `'progress'`), for `updateTask` (`'api'`), and for each `undo()` and `redo()`. The
+change set is the final one: after a before-hook replaced it, and after the chart aligned its dates
+to `scheduling.granularity`.
+
+**Does not fire** while a bar is being dragged, when a before-hook cancels the change, when nothing
+is left to change (the `unchanged` result), for `setTasks`, `setLinks` and `setOptions`, for link
+changes (`linkCreate`, `linkDelete`), and for `edit.commit()` and `edit.rollback()`.
+
+With `dataMode: 'controlled'` the chart does not apply the change: it shows it as a draft and waits
+for you to pass the new tasks with `setTasks`. Until then it is busy and refuses new edits. See
+[Data ownership](../concepts/data-ownership/) and the
+[controlled data example](../../examples/controlled-data/). For what a change set contains and how
+propagation fills it, see [Change sets and hooks](../concepts/change-sets-and-hooks/) and
+[Propagation and conflicts](../concepts/propagation-and-conflicts/).
+
+### `taskDatesChange` and `taskProgressChange`
+
+```ts
+onTaskDatesChange: (record: TaskRecord, dates: TaskDates) => void
+onTaskProgressChange: (record: TaskRecord, progress: number) => void
+```
+
+Convenience events that spare you from walking `changeSet.changes`. They fire right after
+`tasksChange`, once for every changed task whose dates (`start` or `endExclusive`) or progress
+changed. For a task whose dates and progress both changed you get both events, the dates first.
+They fire in the order of `changeSet.changes`, so the edited task comes first.
+
+`dates` is a [`TaskDates`](../../api/ganttlane/core/interfaces/taskdates/) with three `Date`s in the
+local wall clock:
+
+| Field          | Meaning                                                                                                                                               |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start`        | The new start                                                                                                                                         |
+| `end`          | The end in the semantics of your input: the last day, inclusive, for a day-precision task with `dates.endInclusive` (the default), else the exact end |
+| `endExclusive` | The end of the half-open interval `[start, endExclusive)`                                                                                             |
+
+`progress` is the new progress in percent, from `0` to `100`, not rounded.
+
+The `record` is the task's [`TaskRecord`](../../api/ganttlane/core/interfaces/taskrecord/) at the
+moment of the event. With uncontrolled data it already shows the new values. With controlled data it
+still shows your tasks, with the old dates, until you pass the new ones: read the new values from
+`dates` and `progress`.
+
+Both fire in the same cases as `tasksChange`, and not for a task whose dates or progress did not
+change. A progress drag changes no dates, so it fires `taskProgressChange` and no
+`taskDatesChange`.
+
+### `linkCreate` and `linkDelete`
+
+```ts
+onLinkCreate: (link: Link, id: string) => void
+onLinkDelete: (link: LinkRecord) => void
+```
+
+`linkCreate` gives you the `Link` as it was written and its `id`. The id is `link.id` when the link
+has one; otherwise `source:type:target` with the default type (for example `design:FS:build`); if
+another link already has that id, the first free `source:type:target#2`, `#3`, and so on, in which
+case `link` is a copy that carries the free id as its explicit `id`. With controlled data you append
+exactly this `link` to your `links`.
+
+A link the user draws is `{ source, target, type }`, with `type` set to `scheduling.defaultLinkType`
+and no `id` and no `lag`.
+
+`linkDelete` gives you the [`LinkRecord`](../../api/ganttlane/core/type-aliases/linkrecord/) the link
+had in the graph: `id`, `source`, `target`, `type`, `editable`, `lag`, `active`, `inCycle`, `issues`
+and `model` (`model.link` is your original `Link`, absent for a link that came from
+`Task.dependencies`).
+
+**`linkCreate` fires** when the user finishes a link (dragging from a link handle to another bar, or
+clicking the handle and then the target) and `onBeforeLinkCreate` accepted it, and when `addLink`
+resolves `created`. **`linkDelete` fires** when `removeLink` resolves `deleted` and when the link
+menu's remove action runs (it calls `removeLink`). Undoing a created link fires `linkDelete`,
+undoing a deleted link fires `linkCreate`, and redo does the reverse.
+
+**Neither fires** for a refused link (see [`editRefused`](#editrefused) for a drawn one, and the
+`rejected` result of `addLink`), or when `setLinks` or `setTasks` replaces the links.
+
+See [Links and types](../concepts/links-and-types/).
+
+## Pointer events
+
+The `event` argument of the pointer events is the browser's `PointerEvent` that ended the gesture
+(typed `unknown`; cast it to read modifier keys or coordinates).
+
+### `taskClick` and `taskDoubleClick`
+
+```ts
+onTaskClick: (record: TaskRecord, event: unknown) => void
+onTaskDoubleClick: (record: TaskRecord, event: unknown) => void
+```
+
+**`taskClick`** fires when a pointer is pressed on a bar and released within the drag threshold
+(`interaction.dragThreshold`, 3 px by default, and `interaction.touchDragThreshold`, 8 px, for a
+touch). It fires for
+the whole bar, the resize zones and the progress handle included; a press on a link handle starts a
+link instead and is no click. It **never fires after a drag**, after Escape, or after a cancelled
+pointer.
+
+**`taskDoubleClick`** fires when a second click lands on the same task within
+`interaction.doubleClickTime` (500 ms by default) and `interaction.doubleClickDistance` (6 px).
+Clicks are never delayed: a double click is `taskClick`, `taskClick`, then `taskDoubleClick`.
+
+Both fire in a read-only chart (`editing: false`) too. A click on a bar does not select the task; it
+clears the selected link (`selectionChange` fires if there was one). A click on empty space does the
+same and fires nothing else.
+
+### `taskHoverChange`
+
+```ts
+onTaskHoverChange: (record: TaskRecord | null, event: unknown) => void
+```
+
+Fires when the task under the pointer **changes**, not on every movement: when the pointer enters a
+bar, moves from one bar to another, or leaves all bars (`record` is `null`). `event` is the pointer
+event, or `undefined` when the change followed a key press or a cancel instead of a pointer move.
+
+### `linkClick`
+
+```ts
+onLinkClick: (link: LinkRecord, event: unknown) => void
+```
+
+Fires when the user clicks a link arrow. The link becomes the selected link first, so
+`selectionChange` fires before it (if the selection changed), and the DOM chart opens its link menu.
+It fires on every click, also on the link that is already selected. A double click on a link is two clicks; there is no separate
+event.
+
+### `editRefused`
+
+```ts
+onEditRefused: (refusal: EditRefusedPayload) => void
+```
+
+Fires when the user's gesture was refused, so that you can explain why. Nothing was changed.
+
+| Field     | Type                                                                           | Meaning                                                                   |
+| --------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `gesture` | `'move' \| 'resize-start' \| 'resize-end' \| 'progress' \| 'link-create'`      | What the user tried                                                       |
+| `id`      | `TaskId`                                                                       | The dragged task, or the source of the link                               |
+| `target`  | `TaskId \| undefined`                                                          | For `'link-create'`: the task the link was dropped on, when there was one |
+| `reason`  | `'busy' \| 'permission' \| 'unknown-task' \| 'self' \| 'cycle' \| 'duplicate'` | Why (below)                                                               |
+| `at`      | `'start' \| 'commit'`                                                          | When: the drag was about to start, or it was released                     |
+
+| `reason`         | Meaning                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `'busy'`         | A before-hook is being awaited, or controlled data holds a change you have not applied yet                       |
+| `'permission'`   | `editing`, a task's `editable`, `locked`, `fixedDuration` or `linkable`, or the kind of task forbids the gesture |
+| `'unknown-task'` | The task is gone from the data, or has no bar                                                                    |
+| `'self'`         | A link from a task to itself                                                                                     |
+| `'cycle'`        | The link would close a cycle                                                                                     |
+| `'duplicate'`    | A link with the same source, target and type exists                                                              |
+
+Permissions are checked when the drag starts and again when it is released, so the same gesture can
+be refused at either time. The event reports **gestures only**: a call to `updateTask` or `addLink`
+reports a refusal in its result, never here. A read-only chart (`editing: false`) refuses drags with
+`'permission'` too, so the event fires there as well; a touch that starts on a bar that cannot be
+moved is left to the browser to pan and reports nothing.
+
+## View events
+
+### `selectionChange`
+
+```ts
+onSelectionChange: (selectedKeys: readonly TaskId[], selectedLink: string | undefined) => void
+```
+
+`selectedKeys` are the selected task ids, in the order given to `select()`, without duplicates or
+ids the data does not have. `selectedLink` is the id of the selected link, or `undefined`.
+
+**Fires** only when the selection actually changed: `select`, `selectLink`, `clearSelection`, a click
+on a link (selects it), a click on a bar or on empty space (clears the selected link, keeps the
+selected tasks), and a change of the data that removes a selected task or link (the pruned selection
+is reported).
+
+**Does not fire** when you select what is already selected. Tasks are never selected by a click on a
+bar: in the DOM chart the selection is yours to set with `select()`.
+
+### `viewModeChange`
+
+```ts
+onViewModeChange: (viewMode: ViewMode) => void
+```
+
+`viewMode` is the `ViewMode` object now in use (see `viewModes` in [Options](../options/)); read its
+`id` (`'day'`, `'week'`, ...).
+
+**Fires** when the view mode in use changes: `setViewMode`, `setOptions({ viewMode })` and a change
+of `viewModes` that changes the mode in use. An unknown id falls back to `'day'` with an
+`unknown-view-mode` issue and fires the event if that is a change.
+
+**Does not fire** when the chart is created, when the id is the one in use, or for `zoomTo` (the zoom
+changes the scale, not the view mode).
+
+### `rangeChange`
+
+```ts
+onRangeChange: (range: RangeChangeInfo) => void
+```
+
+`range` is `{ start: Date, end: Date, reason }`. `end` is exclusive. Use it to load tasks by date
+range as the timeline grows:
+
+```ts
+gantt.on('rangeChange', ({ start, end }) => {
+  // Load what falls in [start, end), then give the chart all the tasks you now have.
+  void loadTasks(start, end).then((loaded) => gantt.setTasks(mergeTasks(loaded)));
+});
+```
+
+**Fires** once when the chart first gets a non-zero width (reason `'initial'`, even though the range
+did not change), and afterwards whenever `start` or `end` change. `reason` says why:
+
+| `reason`                         | Meaning                                                                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `'initial'`                      | The first range                                                                                                                          |
+| `'data'`                         | New tasks or links, or a change that moves a task out of the range. A fixed range follows the data; an infinite timeline keeps its range |
+| `'options'`                      | New `timeline` options, `now`, `direction`, or options the tasks are read with (`calendar`, `dates`, ...)                                |
+| `'view-mode'`                    | Another view mode                                                                                                                        |
+| `'zoom'`                         | `zoomTo`                                                                                                                                 |
+| `'resize'`                       | The infinite timeline settled for a new viewport width                                                                                   |
+| `'extend-start'`, `'extend-end'` | The infinite timeline grew at an edge because the user scrolled near it                                                                  |
+| `'trim-start'`, `'trim-end'`     | The infinite timeline shrank at an edge                                                                                                  |
+| `'scroll-to'`                    | Grown for a `scrollTo*` target outside the range (infinite timeline)                                                                     |
+| `'drag'`                         | Grown for a bar dragged past the edge (infinite timeline)                                                                                |
+
+A change that makes the infinite timeline settle (a new view mode, new options, a resize) is
+reported once, with the final range and its cause. If the container has no width yet (a hidden tab,
+`display: none`), `'initial'` waits for the first resize.
+
+### `scroll`
+
+```ts
+onScroll: (scroll: ScrollInfo) => void
+```
+
+`scroll` is `{ x: number, y: number, date: Date }`: the horizontal offset in content pixels, the
+vertical offset in body pixels, and the date at the left edge of the viewport.
+
+**Fires** when the offset changes, whether the user scrolled or a call such as `scrollToTask`,
+`setViewMode` or `zoomTo` moved it, and once when the chart first gets a width. While the user
+scrolls it fires at most once per animation frame, so keep the handler cheap.
+
+**Does not fire** before the chart has a width.
+
+### `expandedChange`
+
+```ts
+onExpandedChange: (expandedKeys: 'all' | readonly TaskId[]) => void
+```
+
+The ids of the expanded parents (the type also allows `'all'`). **Fires** when `expand`, `collapse`,
+`expandAll` or `collapseAll` change them, and when `scrollToTask` expands the collapsed ancestors of
+a row. The DOM chart has no row toggles of its own, so the event reports your own calls.
+
+**Does not fire** when nothing changes (expanding a parent that is open), or when
+`setOptions({ hierarchy: { expandedKeys } })` replaces the state. See
+[Hierarchy](../concepts/hierarchy/).
+
+## Edit session and history events
+
+### `dirtyChange`
+
+```ts
+onDirtyChange: (payload: { isDirty: boolean }) => void
+```
+
+Fires when `edit.isDirty` flips: to `true` when an open session gets its first net change, to
+`false` when the session closes or its changes are undone or dragged back. It does not fire on every
+change, and only around an edit session. It comes right after the data changed, before the events
+of the action that caused it.
+
+### `editRollback`
+
+```ts
+onEditRollback: (changes: SessionChanges) => void
+```
+
+Fires once when `edit.rollback()` closes a session, in both data modes. `changes` is what the
+rollback reverts, a [`SessionChanges`](../../api/ganttlane/core/interfaces/sessionchanges/): a change
+set with `reason: 'rollback'`, where each change has `before` (the value now) and `after` (the value
+at `begin()`), plus `links`:
+
+| Field           | Meaning                                                      |
+| --------------- | ------------------------------------------------------------ |
+| `links.added`   | Links to put back: present at `begin()`, gone or changed now |
+| `links.removed` | Links to remove: not there at `begin()`                      |
+
+Both lists hold normalised link models: `id`, `source`, `target`, `type`, `lag`, `editable`, and
+`link` (your original `Link`, absent for a link from `Task.dependencies`).
+
+With uncontrolled data the chart has already put the data back and the event only informs you. With
+controlled data it is your cue to revert your own tasks and links: apply `changes` the way you apply
+`tasksChange` (`patchTasks` takes it), and the links by the lists above. The order of a rollback is
+`historyChange`, `dirtyChange`, `editRollback`.
+
+It does not fire for `edit.commit()`.
+
+### `historyChange`
+
+```ts
+onHistoryChange: (payload: { canUndo: boolean; canRedo: boolean }) => void
+```
+
+Fires when `canUndo` or `canRedo` flips, right after the change that flipped it and before that
+change's own events. The second action in a row does not fire it (`canUndo` stays `true`); the first
+undo does (`canRedo` turns `true`), and so does the one that empties a stack. Anything that empties
+or restores the stacks fires it too: uncontrolled `setTasks`, a rolled-back session, turning
+`history` off, a `'stale'` undo. Without the `history` option it never fires.
+
+## Problems and errors
+
+### `issues`
+
+```ts
+onIssues: (payload: { source: 'data' | 'options' | 'change-set'; issues: readonly Issue[] }) => void
+```
+
+Bad input is never thrown; it is reported here, repaired, and the default is used. Every
+[`Issue`](../concepts/issues/) has a `code`, a `severity` (`'error'` or `'warning'`), a `message`
+and, where they apply, `path`, `taskId`, `linkId`, `value` and `suggested`.
+
+| `source`       | `issues` holds                                                                                                               | Fires                                                                                            |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `'data'`       | The complete current list of problems in the tasks and links: model, hierarchy, link graph                                   | When the list changes (compared by content, not by message), also at creation if it is not empty |
+| `'options'`    | The complete current list of problems in the options. In `@ganttlane/dom` the renderer's options are in the same list        | When the list changes, also at creation if it is not empty                                       |
+| `'change-set'` | Only the problems of one action: a misaligned date that was aligned, a locked task, an unknown task, an end before the start | With the action, whether it was committed, cancelled, left unchanged or refused (see below)      |
+
+An `'options'` or `'data'` event with an empty list means the problems are gone. The list is the
+whole picture, not a difference.
+
+A `'change-set'` event comes before `tasksChange` when the chart re-validated the change set (a
+drag, a hook's replacement), and after the change events of the call when `updateTask` itself
+corrected or refused its values.
+
+### `error`
+
+```ts
+onError: (payload: { error: unknown; source: 'listener' | 'hook'; name: string }) => void
+```
+
+Fires when something you supplied threw. `error` is the thrown value or the rejection reason as it
+was. `source: 'listener'` with `name` set to the event whose handler threw, or `source: 'hook'` with
+`name` set to `'beforeTaskChange'` or `'beforeLinkCreate'`. See
+[When a handler throws](#when-a-handler-throws) for what happens when there is no `error` listener.
+
+## Before-hooks
+
+`onBeforeTaskChange` and `onBeforeLinkCreate` run before a change is committed and can cancel it.
+They are options only (there is no `gantt.on` for them), and they are not events: they answer.
+
+| Hook                 | Receives                           | Answers                                                                                                                |
+| -------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `onBeforeTaskChange` | `{ changeSet, reason, conflicts }` | `false` cancels; a `ChangeSet` replaces the change (it is re-validated and re-aligned); `true` or nothing lets it pass |
+| `onBeforeLinkCreate` | `{ link, id, wouldCreateCycle }`   | `false` cancels; `true` or nothing lets it pass. A link that would close a cycle is refused whatever the answer        |
+
+Both may be asynchronous, for example to ask the user. A hook that throws, rejects or answers
+anything else cancels the change and reports the error on `error`. While a hook waits, the chart is
+**busy**: new gestures fire `editRefused` with `'busy'`, and `updateTask`, `addLink`, `removeLink`
+and the edit-session and history methods resolve `{ status: 'busy' }`.
+
+```ts
+const gantt = createGantt(container, {
+  tasks,
+  onBeforeTaskChange: async ({ changeSet, conflicts }) => {
+    if (conflicts.length === 0) return true;
+    return await askUser(`This change causes ${conflicts.length} conflicts. Apply it?`);
+  },
+});
+```
+
+Hooks run for drags, for `updateTask` (`reason: 'api'`), for links the user draws and for `addLink`.
+They do **not** run for undo and redo, for `edit.rollback()`, for `setTasks`, or when a link is
+removed. Everything about contexts, results, chains of hooks and re-validation is in
+[Change sets and hooks](../concepts/change-sets-and-hooks/); the
+[before-hooks example](../../examples/before-hooks/) and the
+[hourly working calendar example](../../examples/working-calendar-hourly/) use them.
+
+## Events in React
+
+In `@ganttlane/react` every event is a prop of `<Gantt>` (and an option of `useGantt`) with the same
+name and arguments: `onTasksChange`, `onTaskClick`, and so on, plus the two before-hooks. The
+package adds `onLinksChange(links)`, which gives you the links after one was drawn or removed,
+ready to be your next `links`.
+
+- **Stable identity is not required.** The chart is given one stable function per handler that calls
+  the latest one you passed, so a handler written inline, which is new on every render, costs
+  nothing and never closes over stale state. Giving a handler for the first time, or removing it, is
+  a change.
+- **Handlers are never called while React renders.** Events from the creation (the first `issues`
+  and `rangeChange`, and the first `scroll`) are held until the end of the first commit, so they
+  see the `ref` already set. On a server no event is delivered.
+- **A handler that throws never reaches React.** The error goes to `onError` with
+  `source: 'listener'` and the event name, and without an `error` listener to the unhandled-rejection
+  channel, outside the commit. So does an error thrown by a slot function such as `renderTooltip`,
+  named after its prop.
+- **Controlled values.** When `tasks`, `links`, `viewMode`, `expandedKeys` or `selectedKeys` are
+  controlled, the matching handler (`onTasksChange`, `onLinkCreate` and `onLinkDelete`,
+  `onViewModeChange`, `onExpandedChange`, `onSelectionChange`) tells you what the chart wanted to
+  do; the chart then goes back to your prop, so a value changes only when your state does.
+- **Listeners outside a render** (a log, an analytics call) use `on(name, handler)` on the `ref`
+  handle or on the `useGantt` instance. They survive the chart being rebuilt after a hidden
+  `<Activity>`.
+
+See [React](../react/) for the props, the `ref` handle and `useGantt`.
+
+## Related
+
+- [Methods](../methods/): the calls that cause events and the results they return.
+- [Change sets and hooks](../concepts/change-sets-and-hooks/), [Edit sessions and history](../concepts/edit-sessions-and-history/)
+  and [Issues](../concepts/issues/): the meaning behind `tasksChange`, `editRollback` and `issues`.
+- [Events log example](../../examples/events-log/): every event of a chart, logged as it fires.
+- [Before-hooks example](../../examples/before-hooks/), [selection example](../../examples/selection/)
+  and [edit session example](../../examples/edit-session/).
+- [`Gantt` API reference](../../api/ganttlane/dom/interfaces/gantt/) and
+  [`GanttEventMap`](../../api/ganttlane/core/interfaces/gantteventmap/).

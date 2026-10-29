@@ -1,0 +1,181 @@
+---
+title: Concepts
+description: 'How data flows through the library, and a map of the concepts: tasks, links, time, scheduling, edits and issues.'
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+ganttlane has a small number of ideas, and they repeat in every package. A **Task** you pass in
+becomes a **TaskRecord** you read back. A drag or an API call becomes one **ChangeSet**. Bad input
+becomes an **issue**. This page shows how the pieces fit, which setting applies where, and which
+page explains what. Read it once, then use the glossary at the end as an index.
+
+## How data flows
+
+There are two paths through the library, one for reading and one for writing.
+
+```text
+READ: your data to the screen
+
+  tasks, links, options
+        |   checked at the boundary: bad input is an issue, never a throw
+        v
+  model: a TaskRecord per task, a LinkRecord per link, rows, issues
+        |   work calendar, granularity, hierarchy
+        v
+  layout: rows, bars and arrows on the TimeScale of the ViewMode
+        |
+        v
+  renderer: draws the visible window and the draft of a drag
+
+
+WRITE: an edit to your data
+
+  a drag, updateTask(), addLink() ...
+        |   propagation along links and to children
+        v
+  ChangeSet --> before-hook --> cancelled: nothing changes
+                    |
+                    |  allowed, or rewritten by the hook
+                    v
+  uncontrolled: the chart applies it to its own copy of the tasks
+  controlled:   a draft until you hand back new tasks (patchTasks + setTasks)
+                    |
+                    v
+  events: one tasksChange with every touched task, then taskDatesChange, ...
+```
+
+### Reading
+
+You give the chart `tasks`, `links` and options. They are checked once, at the boundary: the shape
+of a task with a schema, the rules (unknown references, cycles, the calendar) with plain code. A
+problem never throws. It becomes an [issue](./issues/) and the chart repairs or skips the thing: an
+invalid task keeps its row without a bar, a bad link is dropped, a bad option takes its default.
+
+What is left is the **model**: a `TaskRecord` per task with its dates as `Date`s, its lengths in
+calendar and working days, its progress, its issues and its conflicts, and a `LinkRecord` per link.
+Your objects are never changed. From the model the core works out the rows, the bars and the arrows
+on the time scale of the current view mode, and the renderer draws only what is on screen.
+
+### Writing
+
+An edit starts as new dates for one task: a drag, or `updateTask`. The edit is then **propagated**:
+the tasks linked to it, and the children pinned to it, move so that their links keep their lags. The
+result is one `ChangeSet` with every task the edit touched, before and after, and the conflicts of
+the result.
+
+The ChangeSet goes through the **before-hook** `onBeforeTaskChange`, which can allow it, cancel it
+or rewrite it, also after asking the user. If it is allowed, it is committed. With uncontrolled
+data the chart applies it to its own copy of the tasks. With controlled data the chart reports it,
+shows it as a draft, and waits for you to hand back the new tasks. Then the events fire: exactly one
+`tasksChange` per action.
+
+While a drag is in progress the chart shows a preview of the same computation, as a **draft** over
+your data. Nothing is committed, and no hook runs, until the pointer is released.
+
+## Where each setting applies
+
+| Setting                                            | Applies to                                                                                                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `calendar`, `scheduling.durationMode`              | Reading: working days and working-time lengths of the records. Writing: drags skip days off, lags count working time, conflicts name days off. |
+| `scheduling.granularity`, `alignInput`             | Reading: dates, durations and lags are aligned, with a `misaligned` issue. Writing: every ChangeSet is aligned again, hook replacements too.   |
+| `scheduling.propagation`, `hierarchy.moveChildren` | Writing only, inside the propagation. They do not change how the data is read.                                                                 |
+| `editing`                                          | Gestures from the UI only. Your own calls (`updateTask`, `addLink`, `removeLink`, `setTasks`) are not limited by it.                           |
+| `dataMode` (React: `tasks` or `defaultTasks`)      | Writing, at the commit: who applies the change.                                                                                                |
+| `history`                                          | Writing: one undo entry per committed action. Off by default.                                                                                  |
+| `onBeforeTaskChange`, `onBeforeLinkCreate`         | Writing, before the commit of a drag, an `updateTask` or a new link. Not before undo, redo, rollback or removing a link.                       |
+
+## The concept pages
+
+Each page states the rules, shows a short example, and lists the traps.
+
+<CardGrid>
+  <LinkCard
+    title="Tasks and records"
+    description="What you pass in, and the TaskRecord you read back."
+    href="./tasks-and-records/"
+  />
+  <LinkCard
+    title="Links and types"
+    description="Finish-to-start and the other types, lags and leads, cycles."
+    href="./links-and-types/"
+  />
+  <LinkCard
+    title="Dates and time"
+    description="Floating wall-clock time, precision, inclusive ends and durations."
+    href="./dates-and-time/"
+  />
+  <LinkCard
+    title="Granularity and alignment"
+    description="The data step, and how off-step input is aligned."
+    href="./granularity-and-alignment/"
+  />
+  <LinkCard
+    title="Work calendar"
+    description="Weekends, holidays, custom rules and working time."
+    href="./work-calendar/"
+  />
+  <LinkCard
+    title="Hierarchy"
+    description="Parents and children, expanded rows, children pinned to a parent."
+    href="./hierarchy/"
+  />
+  <LinkCard
+    title="Propagation and conflicts"
+    description="What moves when a task is edited, and what is reported when the result is not clean."
+    href="./propagation-and-conflicts/"
+  />
+  <LinkCard
+    title="Who owns the data"
+    description="Uncontrolled and controlled data, patchTasks, refused saves."
+    href="./data-ownership/"
+  />
+  <LinkCard
+    title="Change sets and before-hooks"
+    description="The ChangeSet of every action, and hooks that allow, cancel or rewrite it."
+    href="./change-sets-and-hooks/"
+  />
+  <LinkCard
+    title="Edit sessions and history"
+    description="Edit, Save and Cancel, and undo and redo."
+    href="./edit-sessions-and-history/"
+  />
+  <LinkCard
+    title="Issues instead of exceptions"
+    description="Every issue code, where issues are delivered, and what still throws."
+    href="./issues/"
+  />
+</CardGrid>
+
+The lists of options, events and methods are in the [Options](../options/), [Events](../events/)
+and [Methods](../methods/) guides. The concept pages explain what they mean.
+
+## Glossary
+
+| Term                | Meaning                                                                                                                                                   | Read more                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Task**            | The object you pass in: an `id`, a `name`, dates, and optional fields. The library never mutates it.                                                      | [Tasks and records](./tasks-and-records/)                                |
+| **TaskRecord**      | The computed, read-only form of a task: `Date`s, lengths, progress, `issues`, `conflicts`. From `getTask(id)` or an event.                                | [Tasks and records](./tasks-and-records/)                                |
+| **Link**            | A dependency you pass in: a `source`, a `target`, a type and a lag.                                                                                       | [Links and types](./links-and-types/)                                    |
+| **LinkRecord**      | The computed form of a link, with its resolved lag and its own issues. From `getLink(id)`.                                                                | [Links and types](./links-and-types/)                                    |
+| **WorkCalendar**    | Which days are working days: weekends, holidays, exceptions and your own rule.                                                                            | [Work calendar](./work-calendar/)                                        |
+| **TimeScale**       | The linear map between dates and pixels, made from the zoom (`pxPerDay`) of the view mode.                                                                | [`TimeScale`](../../api/ganttlane/core/interfaces/timescale/)            |
+| **ViewMode**        | A named scale preset (`'day'`, `'week'`, …): column unit, zoom, header rows and drag snap. You can override presets and add your own.                     | [Options](../options/), [view modes example](../../examples/view-modes/) |
+| **Granularity**     | The data step, `'1d'` by default. Every date, duration and lag is a multiple of it.                                                                       | [Granularity and alignment](./granularity-and-alignment/)                |
+| **Propagation**     | Moving the tasks linked to an edited task, and its pinned children, so that links keep their lags.                                                        | [Propagation and conflicts](./propagation-and-conflicts/)                |
+| **Conflict**        | A warning in a ChangeSet or a record: a bar on a day off, a child outside its parent, a violated link. Never blocks a change.                             | [Propagation and conflicts](./propagation-and-conflicts/#conflicts)      |
+| **ChangeSet**       | The outcome of one action: every task it changed, before and after, with the conflicts of the result.                                                     | [Change sets and hooks](./change-sets-and-hooks/)                        |
+| **Before-hook**     | `onBeforeTaskChange` and `onBeforeLinkCreate`: your function, run before a commit, that allows, cancels or rewrites it.                                   | [Change sets and hooks](./change-sets-and-hooks/#before-hooks)           |
+| **Draft**           | A layer of changes shown over the data: the preview of a drag, a change waiting for a hook, or a change the owner of controlled data has not applied yet. | [Who owns the data](./data-ownership/)                                   |
+| **Controlled data** | You own the tasks: the chart reports each change and you hand back the new tasks. The alternative is uncontrolled, the default.                           | [Who owns the data](./data-ownership/)                                   |
+| **Edit session**    | A spell of editing with a base to return to: `edit.begin()`, then `commit()` (Save) or `rollback()` (Cancel).                                             | [Edit sessions and history](./edit-sessions-and-history/)                |
+| **History**         | Undo and redo, opt in with `history: true`: one entry per committed action.                                                                               | [Edit sessions and history](./edit-sessions-and-history/#undo-and-redo)  |
+| **Issue**           | A problem with data or options, reported with a `code` and a `path`. The chart repairs or skips the thing. Never an exception.                            | [Issues instead of exceptions](./issues/)                                |
+
+## Related
+
+- Examples: [basic chart](../../examples/basic/), [controlled data](../../examples/controlled-data/),
+  [propagation](../../examples/propagation/), [edit session](../../examples/edit-session/),
+  [before-hooks](../../examples/before-hooks/) and [issues](../../examples/issues/).
+- Guides: [Options](../options/), [Events](../events/), [Methods](../methods/), and
+  [React](../react/) for the props.

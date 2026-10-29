@@ -3,11 +3,15 @@ import { fileURLToPath } from 'node:url';
 import react from '@astrojs/react';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
+import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 import { defaultClientConditions, defaultServerConditions, searchForWorkspaceRoot } from 'vite';
 
 import { readExamples } from '../../examples/discover.ts';
 import { groupByCategory } from '../../examples/meta.ts';
 import { exampleAliases } from '../../examples/resolve.ts';
+import { migrationPage } from './integrations/migration-page.ts';
+import { typeDocOptions } from './typedoc/options.ts';
+import { apiSidebar } from './typedoc/sidebar.ts';
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 
@@ -26,13 +30,54 @@ function exampleSidebar() {
   };
 }
 
-const GUIDES = ['concepts', 'options', 'events', 'methods', 'theming', 'react', 'migration'];
+/** The concept pages, in the order a reader needs them (the overview first). */
+const CONCEPTS = [
+  'tasks-and-records',
+  'links-and-types',
+  'dates-and-time',
+  'granularity-and-alignment',
+  'work-calendar',
+  'hierarchy',
+  'propagation-and-conflicts',
+  'data-ownership',
+  'change-sets-and-hooks',
+  'edit-sessions-and-history',
+  'issues',
+];
+
+/** The Guides group of the sidebar: the concepts, then one page per topic. */
+const guidesSidebar = {
+  label: 'Guides',
+  items: [
+    {
+      label: 'Concepts',
+      items: [
+        { slug: 'guides/concepts', label: 'Overview' },
+        ...CONCEPTS.map((page) => ({ slug: `guides/concepts/${page}` })),
+      ],
+    },
+    ...[
+      'options',
+      'events',
+      'methods',
+      'theming',
+      'react',
+      'custom-renderers',
+      'performance',
+      'accessibility',
+      'migration',
+      'faq',
+    ].map((page) => ({ slug: `guides/${page}` })),
+  ],
+};
 
 // https://ganttlane.github.io/ganttlane/ (GitHub Pages, project site: hence the base).
 export default defineConfig({
   site: 'https://ganttlane.github.io',
   base: '/ganttlane/',
   integrations: [
+    // Writes the Migration page from `MIGRATION.md` (before Starlight reads the content).
+    migrationPage(),
     starlight({
       title: 'ganttlane',
       description:
@@ -40,6 +85,8 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ganttlane/ganttlane' }],
       editLink: { baseUrl: 'https://github.com/ganttlane/ganttlane/edit/main/apps/site/' },
       customCss: ['./src/styles/site.css'],
+      // The API sidebar is finished by `apiSidebar`, so it must come after TypeDoc's plugin.
+      plugins: [starlightTypeDoc(typeDocOptions), apiSidebar()],
       sidebar: [
         {
           label: 'Getting started',
@@ -47,10 +94,10 @@ export default defineConfig({
             slug: `getting-started/${page}`,
           })),
         },
-        { label: 'Guides', items: GUIDES.map((page) => ({ slug: `guides/${page}` })) },
+        guidesSidebar,
         exampleSidebar(),
-        // Filled by the TypeDoc step: its output goes to `src/content/docs/api/`.
-        { label: 'API reference', items: [{ autogenerate: { directory: 'api' } }] },
+        // Replaced by the groups `starlight-typedoc` generates (`typedoc/options.ts`).
+        typeDocSidebarGroup,
       ],
     }),
     // The islands of the live demos (`src/components/ReactDemo.tsx`).

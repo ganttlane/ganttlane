@@ -1,0 +1,316 @@
+---
+title: Issues instead of exceptions
+description: Bad data and bad options never throw. They become issues, and the chart repairs or skips the thing. Every issue code, where issues are delivered, and what still throws.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Real data is messy: a date typed wrong, a link to a task that was deleted, an option with a
+typo. ganttlane's rule is that **bad data and bad options never throw**. Each problem becomes an
+**issue**, a plain object with a `code` and a `path`, and the chart carries on with a fallback: an
+invalid task keeps its row without a bar, a bad link is dropped, a bad option takes its default.
+This page lists every issue, says where to read them, and names the few cases that still throw.
+
+## The shape of an issue
+
+```ts
+interface Issue {
+  readonly code: string; // 'invalid-date', 'unknown-link-task', ... stable
+  readonly severity: 'error' | 'warning';
+  readonly message: string; // for people; never parse it
+  readonly path?: string; // where: 'tasks[2].start', 'calendar.holidays[1]', 'scheduling.snap'
+  readonly taskId?: string | number; // the task it belongs to
+  readonly linkId?: string; // the link it belongs to
+  readonly value?: unknown; // the offending value, as received
+  readonly suggested?: unknown; // what the chart applied or would use instead
+}
+```
+
+- **`error`** means the item was rejected: a task became invalid, a link was dropped, an option
+  was ignored and its default used.
+- **`warning`** means it was accepted or corrected: a progress clamped to 100, a date aligned to the
+  granularity, a task with no dates shown as a row without a bar.
+- **`code`, `path`, `value`, `suggested` and the ids are stable** and identical in every build.
+- **`message`** differs. The development build (the `development` export condition, which Vite and
+  webpack pick in dev mode) spells out the value and a hint. The production build says only
+  `'<path>: <code>'`. The renderer's own issues always use the short form.
+
+An `OptionIssue` is an issue about an option; it has the code `invalid-option` or
+`unsupported-option`. A `cycle` issue also carries `taskIds` and `linkIds`.
+
+## Where issues are delivered
+
+| Where                                   | What you get                                                                                                                                                     |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `onIssues` option, `gantt.on('issues')` | `{ source, issues }` whenever a list changes, also when the chart is created with a list that is not empty. `source` is `'data'`, `'options'` or `'change-set'`. |
+| `getIssues()`                           | `{ data, options }`: the current problems of the data and of the options. Always answers, also after `destroy()`.                                                |
+| `setOptions(patch)`                     | Returns the issues of the options now in use.                                                                                                                    |
+| `TaskRecord.issues`                     | The issues of one task: its model issues and the hierarchy issues of its `parentId`.                                                                             |
+| `LinkRecord.issues`                     | The schedule issues of one link (`inactive-link`, `cycle`).                                                                                                      |
+| Results of `updateTask` and `addLink`   | `issues` on the result, for what re-validation corrected or dropped, and for a rejected link.                                                                    |
+
+The three sources:
+
+- **`'data'`:** problems in `tasks`, `links` and the hierarchy. It comes from `getIssues().data`,
+  which also holds the `granularity` and `hierarchy.childAnchor` options, because the model reads
+  those.
+- **`'options'`:** problems in the other options, the renderer's included. One list, the core's
+  first and the renderer's after it.
+- **`'change-set'`:** a change that was corrected or partly dropped while it was committed: an
+  `updateTask` with a misaligned date, a hook's replacement with an unknown task.
+
+The `issues` event fires when a list **changes**, compared by code, severity, path, ids, `value`
+and `suggested`. An unchanged list is not repeated, and a list that becomes empty is announced with
+an empty `issues` array, so you can clear what you showed. In React the first events, for the first
+options and data, are held back and delivered in order once the component is committed.
+
+```ts
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  onIssues: ({ source, issues }) => {
+    for (const issue of issues) {
+      console.warn(source, issue.code, issue.path, issue.value, '->', issue.suggested);
+    }
+  },
+});
+
+const { data, options } = gantt.getIssues();
+const broken = data.filter((issue) => issue.severity === 'error').length;
+```
+
+### Showing them in an app
+
+Keep the latest list per source, and treat `'change-set'` as a one-off notice:
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import type { Issue } from '@ganttlane/dom';
+
+const shown: { data: readonly Issue[]; options: readonly Issue[] } = { data: [], options: [] };
+
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  onIssues: ({ source, issues }) => {
+    if (source === 'change-set') {
+      showToast(issues.map((issue) => issue.code).join(', ')); // your UI
+      return;
+    }
+    shown[source] = issues; // replaces the list, an empty one clears it
+    renderIssuePanel([...shown.data, ...shown.options]); // your UI
+  },
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { useState } from 'react';
+import { Gantt, type Issue } from '@ganttlane/react';
+
+export function Plan() {
+  const [data, setData] = useState<readonly Issue[]>([]);
+  const [options, setOptions] = useState<readonly Issue[]>([]);
+
+  return (
+    <>
+      <Gantt
+        style={{ height: 420 }}
+        defaultTasks={tasks}
+        defaultLinks={links}
+        onIssues={({ source, issues }) => {
+          if (source === 'data') setData(issues);
+          else if (source === 'options') setOptions(issues);
+        }}
+      />
+      <IssueList issues={[...data, ...options]} />
+    </>
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+Records carry the issues of their own task, which is handy for a badge in a tooltip or a row:
+`gantt.getTask('build')?.issues`.
+
+## Issue codes
+
+### Dates and durations
+
+| Code                  | Severity         | When                                                                                                  | What the chart does                                                                                                                                           |
+| --------------------- | ---------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invalid-date`        | error            | `start` or `end` is not a real date or not in a supported format (`'tomorrow'`, `'2026-13-40'`).      | The task is invalid: it keeps its row with no bar. `updateTask` is rejected.                                                                                  |
+| `unsupported-offset`  | error            | An ISO string with `Z` or a UTC offset. Time is floating wall-clock time.                             | As above. Convert the string first, or pass a `Date`.                                                                                                         |
+| `invalid-duration`    | error            | A malformed or ambiguous duration (`'5m'`), a negative number of days, or a `lag` with months.        | An invalid task, or a dropped link when it is a lag.                                                                                                          |
+| `invalid-granularity` | error            | `scheduling.granularity` cannot be the data step: it must divide 24 hours exactly, or be `'1d'`.      | `'1d'` is used. Listed in `getIssues().data`.                                                                                                                 |
+| `misaligned`          | warning or error | A date, duration or lag is not a multiple of the granularity (or of a day, for a day-precision task). | A warning when it was aligned per `scheduling.alignInput`; `suggested` is the applied value. An error with `'reject'`: the task is invalid, the link dropped. |
+
+### Tasks
+
+| Code                    | Severity | When                                                                                        | What the chart does                                                                                                                               |
+| ----------------------- | -------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invalid-shape`         | error    | A field has the wrong type; `tasks` or `links` is not an array; a link has an unknown type. | A task with a bad field is invalid (one issue per field). A task without a usable `id` (a string or a number), and a malformed link, are dropped. |
+| `duplicate-id`          | error    | A task id or a link id is used again (`5` and `'5'` are different ids).                     | The first one wins; the later item is dropped.                                                                                                    |
+| `no-dates`              | warning  | A task has no dates at all.                                                                 | Shown as a row without a bar (a placeholder).                                                                                                     |
+| `incomplete-dates`      | error    | Only `start`, only `end`, or a `duration` without a `start`.                                | The task is invalid. Ends are never projected backwards.                                                                                          |
+| `end-before-start`      | error    | `end` lies before `start`.                                                                  | The task is invalid.                                                                                                                              |
+| `too-long`              | error    | The task is longer than 10 years.                                                           | The task is invalid.                                                                                                                              |
+| `no-working-time`       | error    | A working-time `duration` cannot be placed: the calendar has no working days ahead.         | The task is invalid.                                                                                                                              |
+| `progress-out-of-range` | warning  | `progress` is outside 0 to 100.                                                             | Clamped; `suggested` is the clamped value.                                                                                                        |
+
+### Hierarchy
+
+| Code                    | Severity | When                                                                                           | What the chart does                                                                  |
+| ----------------------- | -------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `unknown-parent`        | warning  | `parentId` matches no task.                                                                    | The task is shown as a root.                                                         |
+| `parent-cycle`          | error    | Parents form a loop. `value` lists the members.                                                | The member that comes first in your input becomes a root; the others keep parents.   |
+| `invalid-parent-anchor` | warning  | `parentAnchor` or `hierarchy.childAnchor` is not a link type, is empty, or pins an edge twice. | The bad entries are ignored; the default is used; `suggested` is the anchor applied. |
+
+### Links
+
+| Code                | Severity | When                                                                      | What the chart does                                                                                      |
+| ------------------- | -------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `unknown-link-task` | error    | The `source` or the `target` matches no task (one issue per missing end). | The link is dropped. Ids compare with `===`: `5` is not `'5'`.                                           |
+| `self-link`         | error    | The source and the target are the same task.                              | The link is dropped.                                                                                     |
+| `duplicate-link`    | error    | Another link has the same source, target and type.                        | The later one is dropped. (Links with the same `id`, explicit or default, are a `duplicate-id` instead.) |
+| `inactive-link`     | warning  | The link touches a row without a bar (a placeholder or an invalid task).  | The link is kept as data, but not drawn and not propagated.                                              |
+| `cycle`             | error    | The links form a cycle. The issue lists `taskIds` and `linkIds`.          | The links stay, drawn in the conflict colour, and take no part in scheduling.                            |
+
+### Work calendar
+
+| Code                  | Severity         | When                                                                                                                       | What the chart does                                                  |
+| --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `invalid-weekend`     | error            | `calendar.weekends` is not an array, or an entry is not an integer from 0 to 6.                                            | The default `[0, 6]`, or the entry is ignored.                       |
+| `invalid-holiday`     | error or warning | `calendar.holidays` is not an array, or an entry is neither a date nor `{ date, name }`; a non-string `name` is a warning. | The entry is ignored (a bad `name` only loses the name).             |
+| `invalid-working-day` | error            | `calendar.workingDays` is not an array, or an entry is not a valid date.                                                   | The entry is ignored.                                                |
+| `invalid-rule`        | error            | `calendar.isWorkingDay` is given and is not a function.                                                                    | It is ignored.                                                       |
+| `time-ignored`        | warning          | A holiday or working-day date has a time of day. Often a time zone shift upstream.                                         | Only its calendar day is used.                                       |
+| `no-working-days`     | warning          | `weekends` covers the whole week and there is no exception and no rule.                                                    | Kept as given. Tasks in `'working'` mode then get `no-working-time`. |
+
+### View, scale and snap
+
+| Code                     | Severity         | When                                                                                                 | What the chart does                                                  |
+| ------------------------ | ---------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `invalid-view-mode`      | error or warning | `viewModes` or one of its modes is malformed. Unknown fields are warnings.                           | An error drops the mode (an override of a preset leaves the preset). |
+| `unknown-view-mode`      | warning          | `viewMode` names no view mode.                                                                       | `'day'` is used, else the first mode.                                |
+| `invalid-snap`           | error            | A snap setting (`scheduling.snap`, or a view mode's) is malformed or mixes calendar and fixed units. | The setting is ignored.                                              |
+| `snap-below-granularity` | warning          | An explicit snap step is finer than the granularity.                                                 | Raised to the granularity.                                           |
+| `snap-not-multiple`      | warning          | An explicit snap step is not a multiple of the granularity, or does not fit in a day.                | Raised to the next step that fits.                                   |
+
+### Other options
+
+| Code                      | Severity         | When                                                                                                                                    | What the chart does                                                          |
+| ------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `invalid-option`          | error            | An option has the wrong type or an unusable value: `dataMode: 'x'`, `locale: '!'`, a handler that is not a function, a missing `tasks`. | The default is used; `suggested` holds it when it is a plain value.          |
+| `unsupported-option`      | error            | A value reserved for a later release (see below).                                                                                       | Accepted, behaves as the default, and has no other effect.                   |
+| `invalid-layout-option`   | error or warning | `layout.rowHeight`, `barHeight`, `barRadius` or `headerRowHeight` is not a usable size.                                                 | The default (an error), or a bar taller than its row is clamped (a warning). |
+| `invalid-timeline-option` | error            | `timeline.range`, `padding`, `includeToday` or `infinite` is unusable.                                                                  | The default is used.                                                         |
+| `invalid-scroll-option`   | error            | `scroll.initial`, `align`, `behavior` or `autoScroll` has an unusable value.                                                            | The default is used.                                                         |
+
+`path` names the option in full: `scheduling.alignInput`, `calendar.holidays[1].name`,
+`viewModes.day.pxPerDay`, `timeline.range.start`, `highlights[1].dates`, `onTasksChange`. Option
+keys that nobody knows are ignored without an issue, which lets a renderer pass its own options
+object whole.
+
+**The DOM package** checks the options of the renderer the same way and reports them with
+`invalid-option` and the full path: `theme`, `strings.removeLink`, `layout.height`,
+`display.gridLines`, `tooltip.trigger`, `linkMenu.onRemove`, `highlights[2].dates`, `onIssues`, and
+so on. A highlight with no `id` or a repeated `id` is left out; a highlight with a field of the
+wrong kind keeps the rest. These issues join the core's in `getIssues().options` and in
+`source: 'options'`. The React package adds no issue codes: its warnings about how props are used
+go to the console in development and are not issues.
+
+### Reserved values
+
+These are accepted, reported as `unsupported-option` with the default in `suggested`, and drawn or
+scheduled as the default:
+
+| Option                                                            | Behaves as       |
+| ----------------------------------------------------------------- | ---------------- |
+| `scheduling.propagation: 'push-forward'`                          | `'preserve-lag'` |
+| `direction: 'rtl'`                                                | `'ltr'`          |
+| `toolbar` when it is on                                           | nothing is drawn |
+| `tooltip.trigger: 'focus'`                                        | opens nothing    |
+| `display.stickyBarLabels: true`, `display.expectedProgress: true` | drawn as if off  |
+
+### Changes (source `'change-set'`)
+
+A change set from outside the propagation, a hook's replacement or an `updateTask` call, is
+checked before it is committed. The values are the core's floating numbers, and `path` points into
+the change set (`changes[2].after.start`).
+
+| Code                    | Severity         | When                                                          | What the chart does                                                 |
+| ----------------------- | ---------------- | ------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `misaligned`            | warning or error | A date is not a multiple of the task's step.                  | Aligned per `alignInput`, or the change is dropped with `'reject'`. |
+| `too-short`             | warning          | A bar that is not a milestone would be shorter than one step. | Its end is moved to `start` plus one step.                          |
+| `end-before-start`      | error            | `endExclusive` is before `start`.                             | The change is dropped.                                              |
+| `progress-out-of-range` | warning          | `progress` is outside 0 to 100.                               | Clamped.                                                            |
+| `invalid-change`        | error            | Not a change object, or a value that is not a finite number.  | The change is dropped.                                              |
+| `unknown-task`          | error            | No task has that id, or the task has no bar.                  | The change is dropped.                                              |
+| `locked-task`           | error            | The task has `locked: true`.                                  | The change is dropped.                                              |
+| `duplicate-change`      | error            | A later change of the same task replaces this one.            | Only the later one counts.                                          |
+
+## What still throws
+
+Almost nothing, and always for a programming mistake rather than for data:
+
+- **A container that is not an element.** `createGantt(container, options)` (and `createChart`,
+  `mount`, `mountRenderer`) throw a `TypeError` for a selector string, `null`, `undefined` or a node
+  that is not an element. The message names the argument and hints at the fix. The usual cause is
+  `document.querySelector` finding nothing. An element from an iframe or another window is fine.
+- **Your own code.** An exception from your event handler, from a render callback such as
+  `tooltip.render`, or from a custom layer is never swallowed. A handler error goes to the `error`
+  event (`onError`) with `source: 'listener'`; the other handlers still run. With no `error`
+  listener it is rethrown by the call that triggered it, after the change was made: `setTasks`
+  throws, `updateTask` rejects. For input from the renderer (pointer, scroll, resize) it goes to
+  the host's unhandled-rejection channel instead. Several errors become one `AggregateError`.
+- **The low-level building blocks.** The numeric helpers of `@ganttlane/core` (`createTimeScale`,
+  `layoutRows`, `planScrollTo` and the like) throw a `RangeError` for arguments that make no sense,
+  such as a `pxPerDay` that is not finite. They take numbers from your code, not data. Everything
+  that takes data or options (`createGanttCore`, `normalizeModel`, `createWorkCalendar`,
+  `propagate`, `parseDateInput`, `parseDuration`) returns a result or issues.
+
+A before-hook that throws does **not** throw to you: the change is cancelled and the error goes to
+`error` with `source: 'hook'`. See [Change sets and before-hooks](../change-sets-and-hooks/).
+
+### Returned, not thrown
+
+Calls with a bad argument answer with a status:
+
+| Call                                                                | Answer                                                                                       |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `updateTask('nope', { start })`                                     | `{ status: 'rejected', reason: 'unknown-task', issues: [] }`                                 |
+| `updateTask('a', { start: 'tomorrow' })`                            | `{ status: 'rejected', reason: 'invalid-value', issues: [invalid-date] }`                    |
+| `updateTask('a', { end: before start })`                            | `{ status: 'rejected', reason: 'invalid-value', issues: [end-before-start] }`                |
+| `updateTask` on a `locked` task, or with nothing to change          | `{ status: 'unchanged', issues }`                                                            |
+| `getTask('nope')`, `getLink('nope')`                                | `undefined`                                                                                  |
+| `removeLink('nope')`                                                | `{ status: 'rejected', reason: 'unknown-link' }`                                             |
+| `addLink` with an unknown task, a duplicate, a cycle or a bad shape | `{ status: 'rejected', reason: 'unknown-task' \| 'duplicate' \| 'cycle' \| 'invalid' }`      |
+| Any command after `destroy()`                                       | Nothing happens; the ones with a result answer `{ status: 'cancelled', reason: 'disposed' }` |
+
+<Aside type="tip" title="Use the development build while you build">
+  Vite and webpack choose the development build of the core on their own in dev mode, so
+  `issue.message` is a full sentence while you work and the short `'<path>: <code>'` in production.
+  Outside those bundlers, set the `development` export condition. Never branch on `message`.
+</Aside>
+
+## Related
+
+- Examples: the [issues example](../../../examples/issues/), and the
+  [working calendar](../../../examples/working-calendar-hourly/), which logs issues with `onIssues`.
+- Concepts: [Granularity and alignment](../granularity-and-alignment/) for `misaligned`,
+  [Work calendar](../work-calendar/) for the calendar codes, and
+  [Propagation and conflicts](../propagation-and-conflicts/) for conflicts, which are not issues.
+- API: [`Issue`](../../../api/ganttlane/core/interfaces/issue/),
+  [`GanttIssues`](../../../api/ganttlane/core/interfaces/ganttissues/),
+  [`IssuesPayload`](../../../api/ganttlane/core/interfaces/issuespayload/) and
+  [`OptionIssue`](../../../api/ganttlane/core/type-aliases/optionissue/).

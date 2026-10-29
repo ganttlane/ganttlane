@@ -1,21 +1,1010 @@
 ---
 title: Options
-description: Every option of a chart, by domain.
+description: Every option of a chart by domain, with its type, its default, what it does and what a bad value does.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
 
-<Aside title="Coming soon">
-  This guide is not written yet. The options are listed with their types and defaults in the
-  references:
-  [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#options)
-  (data, calendar, scheduling, view, scroll, layout, editing),
-  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#options)
-  (theme, strings, display, tooltips) and
-  [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#props)
-  (the same, as props).
+`createGantt(container, options)` takes one flat object. This page lists every key of it, grouped by
+domain: its type, its default, what it does, and what happens when its value cannot be used. The
+first sections explain how options behave (what `setOptions` changes, how bad values are reported,
+how the React props map); the rest is the reference.
+
+The groups, in the order of the reference:
+
+- **Data and rules:** [Data](#data), [Dates](#dates), [Calendar](#calendar),
+  [Scheduling](#scheduling), [Hierarchy](#hierarchy)
+- **View:** [View modes](#view-modes), [Timeline](#timeline), [Scroll](#scroll), [Layout](#layout),
+  [Clock and direction](#clock-and-direction)
+- **Editing:** [Editing](#editing), [Interaction](#interaction), [History](#history),
+  [Selection](#selection)
+- **Look:** [Display](#display), [Highlights](#highlights), [Tooltip](#tooltip), [Theme](#theme),
+  [Toolbar](#toolbar), [Locale and strings](#locale-and-strings)
+- **Events:** [Handlers](#handlers)
+- **Other:** [Mount options](#mount-options), [Not available yet](#not-available-yet)
+
+## How options work
+
+### One flat object
+
+Options are one flat object. A name is a plain value (`viewMode: 'week'`), a list (`tasks`), a
+function (`now`, `onTasksChange`) or a **group**: an object of related fields (`scheduling`,
+`display`, `scroll`, …). The same names are the React props.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import '@ganttlane/dom/styles.css';
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  calendar: { holidays: [{ date: '2026-03-17', name: 'Public holiday' }] },
+  scheduling: { propagation: 'preserve-lag', skipNonWorkingDays: { move: true } },
+  viewMode: 'week',
+  scroll: { initial: 'first-task' },
+  layout: { rowHeight: 40, height: 480 },
+  display: { rowStripes: 'group' },
+  theme: 'light',
+  onTasksChange: (changeSet) => save(changeSet),
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import '@ganttlane/react/styles.css';
+import { Gantt } from '@ganttlane/react';
+
+export function Plan() {
+  return (
+    <Gantt
+      defaultTasks={tasks}
+      defaultLinks={links}
+      calendar={{ holidays: [{ date: '2026-03-17', name: 'Public holiday' }] }}
+      scheduling={{ propagation: 'preserve-lag', skipNonWorkingDays: { move: true } }}
+      defaultViewMode="week"
+      scroll={{ initial: 'first-task' }}
+      layout={{ rowHeight: 40, height: 480 }}
+      display={{ rowStripes: 'group' }}
+      theme="light"
+      onTasksChange={(changeSet) => save(changeSet)}
+    />
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+Every [example](../../examples/) has a table of the options it uses.
+
+### Changing options with setOptions
+
+`gantt.setOptions(patch)` changes options without recreating the chart. Any option can change,
+except `renderer` ([mount options](#mount-options)), which is read when the chart is created.
+Nothing is recomputed that the keys you give do not affect: a new `locale` only re-labels the
+header, a new handler is swapped in without a redraw, a new `calendar` rebuilds the model.
+
+| Kind of option | Options                                                                                                                 | What `setOptions` does                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Groups         | `calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`, `interaction`, `display`, `strings`     | Merges the fields you give into the group, one level deep. Fields you leave out keep their value. |
+| Taken whole    | `tasks`, `links`, `viewModes`, `editing`, `history`, `highlights`, `tooltip`, `linkMenu`, `highlightTooltip`, `toolbar` | Replaces the value. A field the new object leaves out is back to its default.                     |
+| Plain values   | `dataMode`, `viewMode`, `locale`, `direction`, `now`, `theme`                                                           | Replaces the value.                                                                               |
+| Handlers       | `on<Event>`, `onBeforeTaskChange`, `onBeforeLinkCreate`                                                                 | Swaps the handler; `undefined` removes it.                                                        |
+| Creation only  | `renderer`                                                                                                              | Ignored.                                                                                          |
+
+```ts
+gantt.setOptions({ theme: 'dark' }); // one key
+gantt.setOptions({ scheduling: { propagation: 'none' } }); // one field; the rest of the group stays
+gantt.setOptions({ scheduling: { propagation: undefined } }); // that field, back to its default
+gantt.setOptions({ scheduling: undefined }); // the whole group, back to its defaults
+gantt.setOptions({ editing: { resize: false } }); // taken whole: move, progress, links are on again
+```
+
+- **A key left out keeps its value. A key given as `undefined` returns to its default.** That holds
+  for a whole group, for a field of a group, and for `viewMode` (back to `'day'`). `tasks` is the
+  exception: it has no default, so `undefined` is an `invalid-option` issue and the chart shows no
+  tasks. Pass `[]` to clear them.
+- **Groups merge one level deep.** The objects inside a group are taken whole:
+  `scheduling.skipNonWorkingDays`, `scheduling.snap`, `timeline.range`, `timeline.infinite`,
+  `scroll.autoScroll`, `interaction.handles`, `calendar.holidays` and the other lists. So
+  `setOptions({ scheduling: { skipNonWorkingDays: { move: false } } })` also resets
+  `skipNonWorkingDays.resize` and `.progress` to their defaults.
+- **`layout` merges with `layout.height`.** `setOptions({ layout: { rowHeight: 40 } })` keeps the
+  height; `layout: undefined` resets the sizes and the height.
+- **An unusable field returns to its default.** A bad field of a group does not keep the value the
+  field had: it goes back to the default, with an [issue](#bad-values-and-unknown-keys).
+- **`interaction` recreates the interaction machine:** a drag in progress is cancelled. `editing`
+  and `scroll.autoScroll` apply to a drag in progress at once.
+- **It returns the issues** of the options now in use (the same list as
+  `gantt.getIssues().options`), and never throws on a bad value. A handler of yours that throws goes
+  to `onError` (see [Events](../events/)); the one exception is an `onIssues` handler that throws
+  when only the renderer's issues changed, which `setOptions` rethrows.
+
+[Data ownership](../concepts/data-ownership/) explains `tasks`, `links` and `dataMode` further.
+
+### Bad values and unknown keys
+
+**Unknown keys are ignored**, silently: a typo in a name has no effect and no issue. Unknown fields
+inside a group are ignored as well. The one exception is `viewModes`, where an unknown field of a
+view mode, of a header row or of `majorLine` is reported as an `invalid-view-mode` warning.
+
+**A value that cannot be used is never a throw.** It becomes an [issue](../concepts/issues/), the
+option's default is used instead, and the rest of the options still apply. An issue carries a
+`code`, a `path` (the full path of the option, such as `scroll.align`), the `value` you gave and,
+when the default is a plain value, `suggested`:
+
+```ts
+const issues = gantt.setOptions({
+  scroll: { align: 'middle' },
+  display: { gridLines: 'dots' },
+});
+// [
+//   { code: 'invalid-scroll-option', path: 'scroll.align', value: 'middle', suggested: 'start', … },
+//   { code: 'invalid-option', path: 'display.gridLines', value: 'dots', suggested: 'both', … },
+// ]
+```
+
+The issues of the options are also in `gantt.getIssues().options` and in the `issues` event
+(`onIssues`, `source: 'options'`), which fires when the list changes, also when the chart is
+created. The code tells which part found the problem:
+
+| Code                                                                        | Found in                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `invalid-option`                                                            | The type or value of a key, the enum and flag fields of `dates`, `scheduling`, `hierarchy`, `editing`, `history` and `interaction`, and the renderer's options (`theme`, `strings`, `display`, `highlights`, `tooltip`, `linkMenu`, `highlightTooltip`, `layout.height`, `onIssues`) |
+| `unsupported-option`                                                        | A value that is accepted but not available yet: see [Not available yet](#not-available-yet)                                                                                                                                                                                          |
+| `invalid-weekend`, `invalid-holiday`, `invalid-working-day`, `invalid-rule` | `calendar` (errors); `time-ignored` and `no-working-days` are warnings                                                                                                                                                                                                               |
+| `invalid-view-mode`                                                         | `viewModes` and every field of a view mode                                                                                                                                                                                                                                           |
+| `unknown-view-mode`                                                         | `viewMode` is not among the view modes (warning)                                                                                                                                                                                                                                     |
+| `invalid-snap`, `snap-below-granularity`, `snap-not-multiple`               | `scheduling.snap` and the `snap` of a view mode                                                                                                                                                                                                                                      |
+| `invalid-layout-option`, `invalid-timeline-option`, `invalid-scroll-option` | `layout`, `timeline`, `scroll`                                                                                                                                                                                                                                                       |
+
+Two options are checked with the data, so their issues are in `getIssues().data`:
+`scheduling.granularity` (`invalid-duration` or `invalid-granularity`) and `hierarchy.childAnchor`
+(`invalid-parent-anchor`, a warning).
+
+`code`, `path`, `value` and `suggested` are the same in every build. The `message` is short in
+the renderer's own issues (`'<path>: <code>'`) and in the production build of the core; the
+development build of the core spells it out. Never parse it.
+
+### TypeScript
+
+The options of `createGantt` are typed by
+[`GanttOptions<TData>`](../../api/ganttlane/dom/type-aliases/ganttoptions/), and the argument of
+`setOptions` by
+[`GanttOptionsPatch<TData>`](../../api/ganttlane/dom/type-aliases/ganttoptionspatch/): the same keys,
+all optional, and no `renderer`. `TData` is the type of `task.data`. It is inferred from `tasks`
+and flows into the records and payloads of every handler and into `tooltip.render`,
+`linkMenu.render` and `display.renderBarLabel`.
+
+```ts
+import { createGantt, type GanttOptions, type GanttOptionsPatch } from '@ganttlane/dom';
+
+interface Meta {
+  owner: string;
+}
+
+const options = {
+  tasks: [
+    { id: 'a', name: 'Design', start: '2026-03-02', end: '2026-03-06', data: { owner: 'Ann' } },
+  ],
+  tooltip: { render: ({ task }) => task.task.data?.owner ?? '' },
+} satisfies GanttOptions<Meta>;
+
+const patch: GanttOptionsPatch<Meta> = { theme: 'dark', display: { today: false } };
+```
+
+The headless chart of `@ganttlane/core` has the core part of these options:
+[`GanttCoreOptions`](../../api/ganttlane/core/type-aliases/ganttcoreoptions/) and
+[`GanttCoreOptionsPatch`](../../api/ganttlane/core/type-aliases/ganttcoreoptionspatch/).
+
+### React props
+
+Every option is a prop with the same name, type and default, and so is every `on<Event>` handler.
+`<Gantt>` works out what changed after each commit and gives `setOptions` only that. Five groups of
+options can be controlled by your state; the guide [React](../react/) has the details.
+
+| Vanilla                                                       | React props                                                                                                                                   |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tasks`, `dataMode`                                           | `tasks` (controlled) or `defaultTasks` (uncontrolled), with `onTasksChange`. There is no `dataMode` prop: `tasks` makes the chart controlled. |
+| `links`                                                       | `links` or `defaultLinks`, with `onLinksChange`                                                                                               |
+| `viewMode`                                                    | `viewMode` or `defaultViewMode`, with `onViewModeChange`                                                                                      |
+| `hierarchy.expandedKeys`                                      | `expandedKeys` or `defaultExpandedKeys`, with `onExpandedChange`. The `hierarchy` prop has no `expandedKeys`.                                 |
+| selection (methods)                                           | `selectedKeys` or `defaultSelectedKeys`, with `onSelectionChange`                                                                             |
+| `tooltip.render`, `linkMenu.render`, `display.renderBarLabel` | `renderTooltip`, `renderLinkMenu`, `renderBarLabel`: functions that return a `ReactNode`                                                      |
+| the container element                                         | `className`, `style`, `id`, `aria-*` and `data-*` go to the container `div`                                                                   |
+
+Option props are compared by content (arrays, plain objects and dates), so an inline
+`calendar={{ weekends: [0, 6] }}` costs nothing on a render where it did not change. Functions are
+compared by identity: an option object that holds a function (`tooltip.render`,
+`calendar.isWorkingDay`, `now`) counts as changed on every render unless the function is memoized.
+`tasks` and `links` are compared by identity too, so memoize the ones you derive. A prop that you
+remove goes back to its default, and `renderer` is read once. The type of the props is
+[`GanttProps`](../../api/ganttlane/react/type-aliases/ganttprops/).
+
+## Data
+
+`tasks` and `links` are the data of the chart; `dataMode` says who owns it after the user edits it.
+Concepts: [tasks and records](../concepts/tasks-and-records/),
+[links and types](../concepts/links-and-types/), [data ownership](../concepts/data-ownership/).
+
+| Option     | Type                             | Default          | What it does                                                            |
+| ---------- | -------------------------------- | ---------------- | ----------------------------------------------------------------------- |
+| `tasks`    | `readonly Task<TData>[]`         | required         | The tasks, in display order.                                            |
+| `links`    | `readonly Link[]`                | none             | The links between tasks. The `dependencies` of the tasks are merged in. |
+| `dataMode` | `'uncontrolled' \| 'controlled'` | `'uncontrolled'` | Who owns the tasks after a user edit.                                   |
+
+**Notes**
+
+- `tasks` is the only required option. A missing `tasks`, or one that is not an array, is an
+  `invalid-option` issue at `tasks` and the chart shows no tasks. `links` that is not an array is an
+  `invalid-option` issue and is ignored.
+- Your tasks and links are never mutated. Problems in the data are issues too: a task with bad
+  dates becomes a row without a bar, a task with an unknown parent is shown as a root, a bad link is
+  dropped. See [issues](../concepts/issues/).
+- `'uncontrolled'`: the chart applies a committed change to its own copy of the tasks and reports
+  it. `'controlled'`: the chart only reports the `ChangeSet` (`onTasksChange`) and you pass the new
+  tasks back with `setTasks` or `setOptions({ tasks })`; until you do, the change is shown as a
+  draft, and no new edit starts. In React the mode is decided by `tasks` or `defaultTasks`.
+- `setTasks(tasks)` and `setOptions({ tasks })` are the same call: the new tasks are diffed by id
+  and only what changed is recomputed.
+
+Examples: [controlled data](../../examples/controlled-data/),
+[programmatic updates](../../examples/programmatic-updates/), [data formats](../../examples/data-formats/).
+
+## Dates
+
+How dates in your data are read. The rest of the date rules (precision, floating time) are in
+[dates and time](../concepts/dates-and-time/).
+
+| Option               | Type      | Default | What it does                                                                                             |
+| -------------------- | --------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `dates.endInclusive` | `boolean` | `true`  | Whether a date-only `end` is the last day of the task (inclusive) or the first day after it (exclusive). |
+
+**Notes**
+
+- With `true`, `{ start: '2026-03-02', end: '2026-03-06' }` covers five days, Monday to Friday.
+  With `false` the same five days are `end: '2026-03-07'`.
+- It applies to date-only values (`'2026-03-06'`) only. An `end` with a time
+  (`'2026-03-06T17:00'`) is always the exact end.
+- It is also how the chart reports dates: `TaskRecord.end` and the `end` of `onTaskDatesChange` are
+  in the same semantics, and `endExclusive` is always the exclusive end. A date-only
+  `timeline.range.end` and `timeline.infinite.bounds.max` follow it too.
+- A value that is not a boolean is an `invalid-option` issue at `dates.endInclusive`, suggested
+  `true`.
+
+## Calendar
+
+The work calendar decides which days are working days. It drives `'working'` durations, the
+`skipNonWorkingDays` rules, the working-day counts in the tooltip and the shading of
+`display.nonWorkingDays`. See [the work calendar](../concepts/work-calendar/).
+
+| Option                  | Type                                                           | Default  | What it does                                                                                      |
+| ----------------------- | -------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `calendar.weekends`     | `readonly number[]`                                            | `[0, 6]` | Days of the week that are off, `0` = Sunday … `6` = Saturday. `[]` makes every day a working day. |
+| `calendar.holidays`     | `readonly (DateInput \| { date: DateInput; name?: string })[]` | none     | Non-working days. A `name` is the label shown on the day.                                         |
+| `calendar.workingDays`  | `readonly DateInput[]`                                         | none     | Days that work whatever the other rules say: a worked Saturday, a holiday that is worked anyway.  |
+| `calendar.isWorkingDay` | `(day: CalendarDay) => boolean \| undefined`                   | none     | A custom rule: `true` works, `false` is off, `undefined` leaves the decision to `weekends`.       |
+
+```ts
+calendar: {
+  weekends: [5, 6], // Friday and Saturday
+  holidays: ['2026-03-17', { date: '2026-12-25', name: 'Christmas' }],
+  workingDays: ['2026-03-14'], // a Saturday that is worked
+  isWorkingDay: (day) => (day.month === 8 ? false : undefined), // August is off
+},
+```
+
+`isWorkingDay` receives the day as an object:
+
+```ts
+interface CalendarDay {
+  dayKey: DayKey; // the day as a number
+  date: DateTimeMs; // midnight of the day, floating time
+  weekday: Weekday; // 0 = Sunday … 6 = Saturday
+  year: number;
+  month: number; // 1 = January … 12 = December
+  day: number; // 1 … 31
+}
+```
+
+**Notes**
+
+- **Precedence**, strongest first: `workingDays`, `holidays`, `isWorkingDay`, `weekends`.
+- `isWorkingDay` must be **pure**: the calendar caches its answer for each day. A rule that reads
+  changing state gives stale results. It must not call the calendar it belongs to.
+- Only the date of a holiday or working-day entry counts. A time of day is ignored with a
+  `time-ignored` warning (unless it is midnight).
+- A bad entry is skipped on its own, with an issue at its place (`calendar.holidays[2]`). A group
+  that is not an object is an `invalid-option` issue. When `weekends` covers the whole week and
+  there is no `workingDays` entry and no rule, the calendar has no working days: a
+  `no-working-days` warning, and working-day arithmetic finds no day.
+- `isWorkingDay` that is not a function is an `invalid-rule` issue and is ignored.
+
+Examples: [working calendar](../../examples/working-calendar/),
+[hourly working calendar](../../examples/working-calendar-hourly/).
+
+## Scheduling
+
+How an edit is scheduled: durations, propagation along links, the data step and snapping. Concepts:
+[granularity and alignment](../concepts/granularity-and-alignment/),
+[propagation and conflicts](../concepts/propagation-and-conflicts/).
+
+| Option                          | Type                                                       | Default                                         | What it does                                                                                                                      |
+| ------------------------------- | ---------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `scheduling.durationMode`       | `'calendar' \| 'working'`                                  | `'calendar'`                                    | Default `Task.durationMode`: whether a duration counts all days or working days. A link's lag is counted in the successor's mode. |
+| `scheduling.propagation`        | `'preserve-lag' \| 'none'`                                 | `'preserve-lag'`                                | How an edit spreads along links. `'push-forward'` is not available yet.                                                           |
+| `scheduling.defaultLinkType`    | `'FS' \| 'SS' \| 'FF' \| 'SF'`                             | `'FS'`                                          | The type of a link that names none.                                                                                               |
+| `scheduling.granularity`        | `DurationInput`                                            | `'1d'`                                          | The data step: the smallest step of dates, durations and lags.                                                                    |
+| `scheduling.alignInput`         | `'expand' \| 'nearest' \| 'reject'`                        | `'expand'`                                      | What to do with a date, duration or lag that is not a multiple of the granularity.                                                |
+| `scheduling.snap`               | `SnapInput`                                                | the view mode's                                 | How dragged edges snap. Overrides the snap of the view mode.                                                                      |
+| `scheduling.keepDayPrecision`   | `boolean`                                                  | `true`                                          | Day-precision tasks snap to whole days at least. `false` lets a drag turn them into timed tasks.                                  |
+| `scheduling.skipNonWorkingDays` | `{ move?: boolean; resize?: boolean; progress?: boolean }` | `{ move: true, resize: false, progress: true }` | Whether the edited edge skips non-working days, by kind of drag.                                                                  |
+
+`scheduling.snap` takes a single step or an object:
+
+```ts
+type SnapStep = DurationInput | 'unit' | false; // '15min', '1h', '1d', '1w', '1mo', { hours: 1 }
+
+type SnapInput =
+  | SnapStep
+  | {
+      step?: SnapStep; // shared by every kind of drag
+      mode?: 'grid' | 'relative'; // default 'grid'
+      move?: SnapStep; // moving a bar
+      resize?: SnapStep; // resizing an edge
+      progress?: SnapStep; // dragging the progress handle
+    };
+```
+
+**Notes**
+
+- **`granularity`** is a fixed step that divides 24 hours (`'1min'`, `'15min'`, `'1h'`, `'6h'`,
+  `'12h'`, …) or exactly one day (`'1d'`). A malformed value (`'5m'`) is an `invalid-duration`
+  issue, a valid duration that is not allowed (`'7min'`, `'5h'`, `'2d'`, `'1mo'`) is an
+  `invalid-granularity` issue; in both the issue is in `getIssues().data`, at
+  `scheduling.granularity`, and `'1d'` is used. Every date, duration and lag in the chart is a
+  multiple of it.
+- **`alignInput`** only matters for input that is not aligned (it is also reported as a
+  `misaligned` issue). `'expand'`: `start` goes down, `end` and `duration` go up, so the task loses no
+  time. `'nearest'`: to the nearest boundary, a tie widens the task. `'reject'`: the task becomes
+  invalid (a row without a bar) and a link is dropped. Lags always go to the nearest multiple,
+  except with `'reject'`.
+- **`snap`** defaults to the snap of the view mode, raised to the granularity. A task never
+  snaps finer than `granularity`. With the default `'1d'`, the `hour` view mode therefore snaps drags to
+  whole days: for 15-minute drags set `granularity: '15min'` and give the tasks times. An explicit
+  step that is finer than the granularity, or not a multiple of it, is raised with a
+  `snap-below-granularity` or `snap-not-multiple` warning; a malformed one is an `invalid-snap`
+  error and is ignored. `'unit'` is the view mode's column (`step` × `unit`). `mode: 'grid'` snaps
+  to the nearest boundary; `'relative'` moves by whole steps from where the drag started. An object
+  overrides the view mode's snap field by field; a single step replaces it as a whole.
+- **`skipNonWorkingDays`** is shallow-merged like a group (see
+  [above](#changing-options-with-setoptions)): give all the fields you want to change in one object.
+  `progress` is read for the progress handle.
+- **`propagation`**: `'preserve-lag'` moves the linked tasks with the edited one, later and
+  earlier, so that every link keeps its lag. `'none'` only draws the links: an edit moves no linked
+  task. In both cases children follow their parent per `hierarchy.moveChildren`.
+- A field with a wrong value is an `invalid-option` issue at its path (`scheduling.alignInput`), with
+  the default as `suggested`.
+
+Examples: [granularity and snapping](../../examples/granularity-and-snapping/),
+[propagation](../../examples/propagation/), [link types](../../examples/link-types/).
+
+## Hierarchy
+
+The task tree: which parents are open, how children are pinned to their parent, and which children
+move with it. See [hierarchy](../concepts/hierarchy/).
+
+| Option                   | Type                              | Default | What it does                                                               |
+| ------------------------ | --------------------------------- | ------- | -------------------------------------------------------------------------- |
+| `hierarchy.expandedKeys` | `'all' \| readonly TaskId[]`      | `'all'` | The expanded parents: all of them, or the ids of the open ones.            |
+| `hierarchy.childAnchor`  | `LinkType \| readonly LinkType[]` | `'SS'`  | The default `Task.parentAnchor`: which edges of a child follow its parent. |
+| `hierarchy.moveChildren` | `'all' \| 'following' \| 'none'`  | `'all'` | Which children move when their parent moves.                               |
+
+**Notes**
+
+- **`expandedKeys`** replaces the expanded state when you set it. The chart changes it from inside
+  with `expand()`, `collapse()`, `expandAll()` and `collapseAll()` and reports it with
+  `onExpandedChange`. Setting the value the option already has (`'all'` again, or the same array
+  object) changes nothing, even if rows were expanded or collapsed since: pass a new array, or call
+  `expandAll()` or `collapseAll()`. A value that is not `'all'` or an array is an `invalid-option`
+  issue at `hierarchy.expandedKeys`, suggested `'all'`. In React it is the prop `expandedKeys`.
+- **`childAnchor`** is one link type (`'SS'`: the child's start follows the parent's start; `'FS'`:
+  it follows the parent's end; `'FF'` and `'SF'` pin the child's end to the parent's end or start) or
+  a list that pins both edges, such as `['SS', 'FF']`. At most one type may pin the start (`SS` or
+  `FS`) and one the end (`FF` or `SF`). A value that cannot be read is an `invalid-parent-anchor`
+  warning in `getIssues().data`, at `hierarchy.childAnchor`, and `'SS'` is used. A task's own
+  `parentAnchor` wins.
+- **`moveChildren`**: `'all'`: children with `followParent` follow their `parentAnchor`, the others
+  shift with the parent's start, keeping their offset. `'following'`: only children with
+  `followParent` move. `'none'`: no child moves.
+
+Example: [hierarchy](../../examples/hierarchy/), [release plan](../../examples/release-plan/).
+
+## View modes
+
+The view mode is the scale of the timeline: what one column is, how wide a day is, which header rows
+and grid lines are drawn, and the default snap and padding.
+
+| Option      | Type                                       | Default           | What it does                                                                                        |
+| ----------- | ------------------------------------------ | ----------------- | --------------------------------------------------------------------------------------------------- |
+| `viewMode`  | `string`                                   | `'day'`           | The id of the view mode in use: a preset id or one of your own.                                     |
+| `viewModes` | `readonly ViewMode[] \| ViewModeOverrides` | the seven presets | A complete list that replaces the presets, or an object of overrides keyed by id, merged over them. |
+
+An unknown `viewMode` id is an `unknown-view-mode` warning and the `'day'` mode (else the first mode)
+is used; a `viewMode` that is not a string is an `invalid-option` issue. `gantt.setViewMode(id)` switches at runtime and keeps the date at the centre of the
+viewport in place.
+
+### Presets
+
+| `id`          | Column   | `pxPerDay` | Default snap | Padding | Header rows (top first) |
+| ------------- | -------- | ---------- | ------------ | ------- | ----------------------- |
+| `hour`        | 1 hour   | `960`      | `15min`      | `7d`    | day, hour               |
+| `quarter-day` | 6 hours  | `160`      | `1h`         | `7d`    | day, 6 hours            |
+| `half-day`    | 12 hours | `80`       | `1h`         | `14d`   | day, 12 hours           |
+| `day`         | 1 day    | `40`       | `1d`         | `14d`   | month, day              |
+| `week`        | 1 week   | `20`       | `1d`         | `4w`    | month, week             |
+| `month`       | 1 month  | `4`        | `1d`         | `4mo`   | year, month             |
+| `year`        | 1 year   | `1`        | `1mo`        | `2y`    | decade, year            |
+
+The presets are exported as
+[`VIEW_MODE_PRESETS`](../../api/ganttlane/core/variables/view_mode_presets/). Weeks start on Monday.
+The labels are English; override `label` to translate them.
+
+### The shape of a view mode
+
+```ts
+type TimeUnit = 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+interface ViewMode {
+  id: string;
+  label?: string;
+  unit: Exclude<TimeUnit, 'minute'>; // a column is an hour at least
+  step?: number;
+  pxPerDay: number;
+  headers: readonly HeaderRowSpec[];
+  majorLine?: { unit: TimeUnit } | ((date: DateTimeMs) => boolean) | false;
+  minorLine?: DurationInput | false;
+  snap?: SnapInput;
+  padding?: DurationInput | readonly [before: DurationInput, after: DurationInput];
+}
+
+interface HeaderRowSpec {
+  unit: TimeUnit;
+  step?: number;
+  format: Intl.DateTimeFormatOptions | HeaderFormatter;
+}
+
+type HeaderFormatter = (
+  range: { start: DateTimeMs; end: DateTimeMs },
+  locale: string,
+  adapter: DateAdapter,
+) => string;
+```
+
+| Field       | Type                               | Default         | What it does                                                                                                                                                               |
+| ----------- | ---------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`        | `string`                           | required        | Unique id, non-empty. In the record form of `viewModes` the key is the id.                                                                                                 |
+| `label`     | `string`                           | none            | Display name, for a view mode switcher.                                                                                                                                    |
+| `unit`      | see above                          | required        | The unit of one column.                                                                                                                                                    |
+| `step`      | positive integer                   | `1`             | Units per column: `unit: 'hour', step: 6` is a quarter day.                                                                                                                |
+| `pxPerDay`  | `number`                           | required        | The zoom: pixels per day. Finite and greater than `0`.                                                                                                                     |
+| `headers`   | `HeaderRowSpec[]`                  | required        | The header rows, top first; at least one. Each cell is `step` × `unit` wide and labelled by `format`.                                                                      |
+| `majorLine` | see above                          | none            | Major grid lines: at every start of a unit, or wherever the function returns `true` for a column start.                                                                    |
+| `minorLine` | `DurationInput \| false`           | none            | Minor grid lines every given duration (`'15min'`, `'1d 12h'`), a step of one kind: calendar (`'1mo'`) or fixed, not both. They are left out while they would be too dense. |
+| `snap`      | `SnapInput`                        | the granularity | The default snap step of the mode; `scheduling.snap` overrides it.                                                                                                         |
+| `padding`   | `DurationInput \| [before, after]` | none            | Timeline padding around the data in this mode; `timeline.padding` overrides it.                                                                                            |
+
+The formatter of a header row receives the cell's range in **floating wall-clock time** and the
+chart's `DateAdapter`: read dates with `adapter.getParts(t)` or `adapter.format(t, options, locale)`,
+never with the `Date` getters of the runtime.
+
+### Overrides and custom modes
+
+`viewModes` has two forms:
+
+- **A record keyed by id** merges over the presets. A key that is a preset id merges the override
+  over that preset: every field you set replaces the preset's field as a whole (`headers` is
+  replaced, not concatenated); a field you leave out, or set to `undefined`, keeps the preset's;
+  `false` removes a preset's `majorLine`, `minorLine` or `snap`. An object-form `snap` is the
+  exception: it merges field by field with the preset's snap, so `{ snap: { mode: 'relative' } }`
+  keeps the preset's step. A key that is not a preset id adds a **new** view mode after the presets;
+  it must be complete (`unit`, `pxPerDay`, `headers`).
+- **An array of view modes** is a complete list that replaces the presets. Ids must be unique; a
+  later duplicate is dropped. If the list has no `'day'` mode, set `viewMode` to one of its ids,
+  otherwise you get an `unknown-view-mode` warning and the first mode.
+
+```ts
+createGantt(container, {
+  tasks,
+  viewMode: 'sprint',
+  viewModes: {
+    day: { pxPerDay: 56 }, // a preset, wider
+    sprint: {
+      // a new id: a complete view mode, two weeks per column
+      label: 'Sprint',
+      unit: 'week',
+      step: 2,
+      pxPerDay: 12,
+      headers: [
+        { unit: 'month', format: { month: 'long', year: 'numeric' } },
+        { unit: 'week', step: 2, format: { day: 'numeric', month: 'short' } },
+      ],
+      majorLine: { unit: 'month' },
+      snap: '1d',
+      padding: ['1w', '4w'],
+    },
+  },
+});
+```
+
+**Notes**
+
+- An invalid override of a preset leaves the preset as it is; an invalid new mode is dropped; both
+  are `invalid-view-mode` errors at a path such as `viewModes.day.pxPerDay` or
+  `viewModes[2].headers[0].unit`. If no valid mode is left, the presets are used.
+- A mode you add has no `snap` and no `padding` unless you give them: it snaps to the granularity and
+  has no padding.
+- `viewModes` is taken whole by `setOptions`.
+- Switching the mode and zooming are methods: `setViewMode(id)` and `zoomTo(pxPerDay)` (see
+  [Methods](../methods/)).
+
+Examples: [view modes](../../examples/view-modes/),
+[a custom view mode](../../examples/custom-view-mode/).
+
+## Timeline
+
+The range of time the chart spans, and the infinite timeline.
+
+| Option                  | Type                                                       | Default         | What it does                                                                   |
+| ----------------------- | ---------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------ |
+| `timeline.range`        | `'auto' \| { start: DateInput; end: DateInput }`           | `'auto'`        | `'auto'`: the tasks plus the padding. Otherwise a fixed range.                 |
+| `timeline.padding`      | `DurationInput \| readonly [DurationInput, DurationInput]` | the view mode's | Extra time around the data (`'14d'`, or `['1w', '1mo']` for before and after). |
+| `timeline.includeToday` | `boolean`                                                  | `false`         | Whether the automatic range always contains today.                             |
+| `timeline.infinite`     | `boolean \| InfiniteTimelineOptions`                       | `false`         | The range grows as the viewport nears an edge. `true` uses the defaults.       |
+
+`timeline.infinite` as an object:
+
+| Field       | Type                                   | Default                     | What it does                                                             |
+| ----------- | -------------------------------------- | --------------------------- | ------------------------------------------------------------------------ |
+| `threshold` | `number` (px)                          | the viewport width          | Distance to an edge at which the range is extended. Finite, `0` or more. |
+| `extendBy`  | `DurationInput`                        | two viewport widths of time | How much one extension adds, such as `'1mo'`.                            |
+| `bounds`    | `{ min?: DateInput; max?: DateInput }` | none                        | Dates the timeline never extends past.                                   |
+| `maxSpan`   | `DurationInput`                        | none                        | The longest range, such as `'5y'`: the far side is trimmed down to it.   |
+
+**Notes**
+
+- A fixed `range` covers `start` up to `end`. A date-only `end` includes its whole day
+  (`dates.endInclusive`). If a date cannot be read, or `end` is not after `start`, the range is
+  `'auto'`, with an `invalid-timeline-option` issue.
+- A `padding` of `'0d'` is valid (no padding); an empty or malformed duration is an issue and the
+  view mode's padding is used. A list needs exactly two items.
+- With `infinite`, a date-only `bounds.max` includes its day too. `bounds.min` must be before
+  `bounds.max`, otherwise the bounds are ignored with an issue. `extendBy` and `maxSpan` must be
+  positive.
+- However you set it, the content of the infinite timeline never exceeds about 4 000 000 px (browsers
+  cap the size of an element); the far side is trimmed.
+- Each invalid field of `timeline` is an `invalid-timeline-option` issue (path `timeline.range`,
+  `timeline.infinite.extendBy`, …) and takes its default.
+- `rangeChange` reports every change of the range (see [Events](../events/)).
+
+Examples: [infinite timeline](../../examples/infinite-timeline/),
+[scrolling and today](../../examples/scrolling-and-today/).
+
+## Scroll
+
+Where the chart opens and how programmatic scrolls and drags move it.
+
+| Option              | Type                                                                 | Default                      | What it does                                                                                              |
+| ------------------- | -------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `scroll.initial`    | `'today' \| 'start' \| 'end' \| 'first-task' \| 'none' \| DateInput` | `'today'`                    | Where the chart opens.                                                                                    |
+| `scroll.behavior`   | `'smooth' \| 'instant' \| 'auto'`                                    | `'smooth'`                   | How programmatic scrolls (`scrollToDate`, `scrollToTask`, …) move.                                        |
+| `scroll.align`      | `'start' \| 'center' \| 'end' \| number`                             | `'start'`                    | Where the target lands in the viewport. A number is a fraction from `0` to `1`.                           |
+| `scroll.autoScroll` | `false \| { edge?: number; maxSpeed?: number }`                      | `{ edge: 40, maxSpeed: 20 }` | Scrolling while a drag nears an edge: the zone in px and the speed in px per frame. `false` turns it off. |
+
+**Notes**
+
+- **`initial`**: `'today'` puts today at `align`; `'first-task'` the earliest task start (today
+  when there are no tasks); a date (a `Date`, an ISO string, epoch ms) that date. `'start'` and
+  `'end'` put the start of the range at the left edge, or its end at the right edge, whatever
+  `align` is. `'none'` leaves the chart where it is.
+- The default is `'today'`. A plan that lies in the past or in the future then opens at the nearest
+  end of its range: use `'first-task'` or `'start'` for a fixed plan. Without `timeline.infinite` a
+  target outside the range is clamped to it; with it, the range grows first.
+- A `scrollTo*` call made before the chart has a width wins over `scroll.initial`.
+- The `align` of a call (`scrollToDate(date, { align })`) overrides `scroll.align`.
+- `edge` and `maxSpeed` are finite numbers, `0` or more; a missing one takes its default. Each bad
+  field is an `invalid-scroll-option` issue (`scroll.autoScroll.edge`) and takes its default.
+
+Examples: [scrolling and today](../../examples/scrolling-and-today/),
+[infinite timeline](../../examples/infinite-timeline/).
+
+## Layout
+
+Sizes in pixels.
+
+| Option                   | Type                          | Default                         | What it does                                                                                  |
+| ------------------------ | ----------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------- |
+| `layout.rowHeight`       | `number`                      | `48`                            | Height of a task row. Finite, greater than `0`.                                               |
+| `layout.barHeight`       | `number`                      | `30`, or `rowHeight` if smaller | Height of a bar, centred in its row. Finite, greater than `0`.                                |
+| `layout.barRadius`       | `number`                      | `3`                             | Corner radius of a bar. Finite, `0` or more. Each bar clamps it to half its height and width. |
+| `layout.headerRowHeight` | `number \| readonly number[]` | `[45, 30]`                      | The height of every header row (a number), or one per header row, top first. `0` or more.     |
+| `layout.height`          | `number \| 'auto'`            | the container's                 | The height of the chart: see below.                                                           |
+
+**Notes**
+
+- A `barHeight` taller than the row is clamped to `rowHeight` with a warning
+  (`layout.barHeight`).
+- A `headerRowHeight` list gives one height per header row of the view mode, top first. A missing or
+  invalid entry takes its default: `45` for the first row and `30` for the others. Extra entries are
+  ignored, so one list fits modes with different numbers of header rows. The header is exactly the
+  sum of its rows.
+- **`height`** is read by the renderer. A number is a height in px (greater than `0`): the chart is
+  that tall and scrolls the rows inside itself. `'auto'`: the chart is as tall as its rows, the page
+  scrolls it and the header sticks to the page; no ancestor between the chart and what scrolls may clip
+  it (`overflow: hidden`). Left out, the chart fills its container, which then needs a height.
+- A bad size is an `invalid-layout-option` issue (`layout.rowHeight`) and takes its default; a bad
+  `layout.height` is an `invalid-option` issue and fills the container.
+
+Examples: [layout and sizes](../../examples/layout-and-sizes/).
+
+## Clock and direction
+
+| Option      | Type              | Default          | What it does                                                                               |
+| ----------- | ----------------- | ---------------- | ------------------------------------------------------------------------------------------ |
+| `now`       | `() => DateInput` | the system clock | The source of "today": the today line, `scroll.initial: 'today'`, `timeline.includeToday`. |
+| `direction` | `'ltr' \| 'rtl'`  | `'ltr'`          | Writing direction. `'rtl'` is not available yet.                                           |
+
+**Notes**
+
+- `now` is read when the chart starts, when you set it, and once a minute by the renderer. Give a
+  fixed clock for a test or a server time. A `now` that throws or returns a date that cannot be
+  read is an `invalid-option` issue at `now`, and the system clock is used.
+- A `direction` other than `'ltr'` or `'rtl'` is an `invalid-option` issue. See
+  [Not available yet](#not-available-yet) for `'rtl'`.
+
+## Editing
+
+What the user may do with the pointer. See
+[edit sessions and history](../concepts/edit-sessions-and-history/).
+
+| Option    | Type                                                                                   | Default | What it does                                       |
+| --------- | -------------------------------------------------------------------------------------- | ------- | -------------------------------------------------- |
+| `editing` | `boolean \| { move?: boolean; resize?: boolean; progress?: boolean; links?: boolean }` | `true`  | Editing from the UI. `false` is a view-only chart. |
+
+| Flag       | What it allows                |
+| ---------- | ----------------------------- |
+| `move`     | Dragging the whole bar.       |
+| `resize`   | Dragging an edge of a bar.    |
+| `progress` | Dragging the progress handle. |
+| `links`    | Drawing and deleting links.   |
+
+**Notes**
+
+- Every flag defaults to `true`: `editing: { resize: false }` forbids resizing only.
+- It is the **global** switch for the UI. A task's own `editable` overrides it for that task, and
+  `locked`, `fixedDuration`, milestones and `linkable: false` restrict a task further.
+- It does not stop your own calls: `updateTask`, `addLink`, `removeLink` and `setTasks` still commit.
+- The object form is taken whole by `setOptions`.
+- A value of another type is an `invalid-option` issue at `editing`; a flag that is not a boolean is
+  one at `editing.move` and so on, suggested `true`.
+
+Examples: [read-only](../../examples/read-only/), [link editing](../../examples/link-editing/),
+[before hooks](../../examples/before-hooks/).
+
+## Interaction
+
+Thresholds and sizes of the pointer gestures. All are finite numbers, `0` or more; a bad one is an
+`invalid-option` issue (`interaction.dragThreshold`) and takes its default.
+
+| Option                            | Type          | Default | What it does                                                                          |
+| --------------------------------- | ------------- | ------- | ------------------------------------------------------------------------------------- |
+| `interaction.dragThreshold`       | `number` (px) | `3`     | How far a mouse or pen press travels before it is a drag. Shorter presses are clicks. |
+| `interaction.touchDragThreshold`  | `number` (px) | `8`     | The same for touch.                                                                   |
+| `interaction.doubleClickTime`     | `number` (ms) | `500`   | The longest time between the two clicks of a double click.                            |
+| `interaction.doubleClickDistance` | `number` (px) | `6`     | The farthest distance between them.                                                   |
+| `interaction.handles.resize`      | `number` (px) | `8`     | Width of each resize zone inside a bar edge (at most a third of the bar).             |
+| `interaction.handles.progress`    | `number` (px) | `6`     | Half-size of the progress handle.                                                     |
+| `interaction.handles.link`        | `number` (px) | `6`     | Radius of the link handles.                                                           |
+| `interaction.handles.linkOffset`  | `number` (px) | `10`    | How far the link handles' centres sit outside the bar edges.                          |
+
+The hit test and the renderer share the handle sizes. `handles` is one object: setting it replaces the
+sizes you gave before. Changing `interaction` cancels a drag in progress.
+
+## History
+
+Undo and redo. See [edit sessions and history](../concepts/edit-sessions-and-history/).
+
+| Option    | Type                                               | Default | What it does                                                                  |
+| --------- | -------------------------------------------------- | ------- | ----------------------------------------------------------------------------- |
+| `history` | `boolean \| { enabled?: boolean; limit?: number }` | `false` | `true` turns undo and redo on. The object form is on unless `enabled: false`. |
+
+**Notes**
+
+- `limit` is the most entries kept, default `100`: a whole number, `0` or more, or `Infinity`. `0`
+  keeps nothing.
+- One action is one entry. `gantt.undo()` and `gantt.redo()` replay entries; there are no hotkeys.
+- A bad `enabled` or `limit` is an `invalid-option` issue (`history.limit`, suggested `100`). The
+  option is taken whole by `setOptions`. Turning it off, or lowering the limit, drops entries
+  (oldest first).
+
+Example: [undo and redo](../../examples/undo-redo/).
+
+## Selection
+
+Selection is not an option of the vanilla chart. Use `gantt.select(ids)`, `gantt.selectLink(id)` and
+`gantt.clearSelection()`, and listen to `onSelectionChange`. A click on a link selects it. In
+React the selected tasks are the props `selectedKeys` and `defaultSelectedKeys`. See
+[Methods](../methods/) and the [selection example](../../examples/selection/).
+
+## Display
+
+What the renderer draws: grid lines, the today line, shaded days, stripes, bar labels. The `display`
+group is merged field by field with what was set before, and `undefined` puts a field back to its
+default. The popovers (`tooltip`, `linkMenu`, `highlightTooltip`) and the list `highlights` are
+**not** inside `display`: they are top-level options.
+
+| Option                         | Type                                                                 | Default       | What it does                                                                           |
+| ------------------------------ | -------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------- |
+| `display.gridLines`            | `'both' \| 'vertical' \| 'horizontal' \| 'none'`                     | `'both'`      | Which grid lines the body draws.                                                       |
+| `display.today`                | `boolean`                                                            | `true`        | The today line, and its marker and highlighted cell in the header.                     |
+| `display.nonWorkingDays`       | `'fill' \| 'stripes' \| false`                                       | `'fill'`      | How days off (weekends, holidays) are shown: a fill, a striped pattern, or not at all. |
+| `display.highlights`           | `boolean`                                                            | `true`        | Whether the [highlights](#highlights) are drawn.                                       |
+| `display.rowStripes`           | `'row' \| 'group' \| false`                                          | `false`       | Zebra rows: by row, or by group (a parent with its children).                          |
+| `display.barLabel`             | `'auto' \| 'inside' \| 'outside' \| 'none'`                          | `'auto'`      | Where a bar's label goes. `'auto'` puts it inside when it fits, else outside.          |
+| `display.renderBarLabel`       | `(context) => Node \| DisposableNode \| string \| null \| undefined` | the task name | Custom label content. `null` or `undefined` falls back to the name.                    |
+| `display.headerRangeHighlight` | `boolean`                                                            | `true`        | Highlights the hovered bar's range in the header.                                      |
+| `display.linkCurveRadius`      | `number` (px)                                                        | `5`           | The largest corner radius of a link's route. Finite, `0` or more.                      |
+| `display.stickyBarLabels`      | `boolean`                                                            | `false`       | Not available yet.                                                                     |
+| `display.expectedProgress`     | `boolean`                                                            | `false`       | Not available yet.                                                                     |
+
+**Notes**
+
+- `renderBarLabel` receives `{ id, name, task, progress }`. A string is inserted as text, never
+  parsed. A node is used as it is. For `'auto'` placement a plain node counts with the width of its
+  text; a `DisposableNode` has an unknown width and goes inside the bar. Choose `'inside'` or
+  `'outside'` when you need one of them. In React use the prop `renderBarLabel`.
+- Days narrower than 2 px (the year view) are not drawn as non-working days or highlights.
+- A bad value is an `invalid-option` issue at `display.<field>` and takes its default.
+  `display.stickyBarLabels: true` and `display.expectedProgress: true` are accepted and drawn as off,
+  with an `unsupported-option` issue.
+- `display` that is not an object, or `undefined`, puts every field back to its default. Keys of
+  `display` that are not listed here, including `tooltip`, are ignored.
+
+Examples: [grid and today](../../examples/grid-and-today/), [bar labels](../../examples/bar-labels/),
+[task colors and classes](../../examples/task-colors-and-classes/).
+
+## Highlights
+
+Highlighted days are visual only: they change no schedule. `highlights` is a list; `display.highlights`
+turns drawing it on and off.
+
+| Option       | Type                        | Default | What it does                                              |
+| ------------ | --------------------------- | ------- | --------------------------------------------------------- |
+| `highlights` | `readonly HighlightInput[]` | none    | The highlighted days. A list replaces the one set before. |
+
+| `HighlightInput` field | Type                                       | What it does                                                                    |
+| ---------------------- | ------------------------------------------ | ------------------------------------------------------------------------------- |
+| `id`                   | `string`                                   | Required and unique. The key of the highlight's nodes and its `data-highlight`. |
+| `dates`                | `readonly DateInput[]`                     | Single days.                                                                    |
+| `range`                | `{ start: DateInput; end: DateInput }`     | A run of days, both ends included.                                              |
+| `match`                | `(day: CalendarDay) => boolean`            | Days the function accepts.                                                      |
+| `label`                | `string \| ((day: CalendarDay) => string)` | Text shown when the day is hovered.                                             |
+| `className`            | `string`                                   | An extra class on the highlight's nodes.                                        |
+| `color`                | `string`                                   | A colour, set as `--gantt-highlight-color` on the nodes.                        |
+
+```ts
+highlights: [
+  { id: 'launch', dates: ['2026-03-04'], label: 'Launch day', color: '#d97706' },
+  { id: 'freeze', range: { start: '2026-03-16', end: '2026-03-18' }, label: 'Code freeze' },
+  { id: 'fridays', match: (day) => day.weekday === 5, className: 'is-demo-day' },
+],
+```
+
+`dates`, `range` and `match` can be combined. A holiday of the work calendar shows its name the same
+way. An item that is not an object, has no string `id` or repeats an earlier `id` is left out
+(`invalid-option` at `highlights[2]` or `highlights[2].id`); a field of the wrong kind is dropped
+and the highlight stays (`highlights[2].dates`).
+
+Example: [highlights](../../examples/highlights/).
+
+## Tooltip
+
+The popovers are options of their own, each taken whole by `setOptions`. A bad field is an
+`invalid-option` issue (`tooltip.delay`) and takes its default; a field you leave out is its
+default.
+
+### Task tooltip
+
+| Option                      | Type                                      | Default                                    | What it does                                                                     |
+| --------------------------- | ----------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------- |
+| `tooltip.trigger`           | `'hover' \| 'click' \| 'focus' \| 'none'` | `'hover'`                                  | What opens the tooltip. `'focus'` is not available yet and opens nothing.        |
+| `tooltip.followCursor`      | `boolean`                                 | `false`                                    | The tooltip sits above the cursor and follows it, instead of sitting on the bar. |
+| `tooltip.showWhileDragging` | `boolean`                                 | `true`                                     | Keep the tooltip during a drag, showing the previewed values.                    |
+| `tooltip.render`            | `(context) => TooltipContent \| null`     | the name, dates, progress and working days | The content. `null` shows nothing.                                               |
+| `tooltip.delay`             | `number` (ms)                             | `150`                                      | How long a hovered bar waits before its tooltip opens. Finite, `0` or more.      |
+| `tooltip.placement`         | `'top' \| 'bottom'`                       | `'top'`                                    | The side the tooltip prefers; it flips when there is no room.                    |
+
+`render` is called when the tooltip opens and when its inputs change (another task, new previewed
+values while dragging), not on every mouse move. What it returns decides how it is inserted:
+
+| `render` returns                        | Shown as                                                              |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| a `string`                              | text, never parsed                                                    |
+| `{ title, subtitle, details, actions }` | up to three lines of text and buttons that call `onSelect(context)`   |
+| a `Node`                                | the node, as it is                                                    |
+| `{ node, dispose }`                     | a node that is told with `dispose()` when the tooltip is done with it |
+| `{ html }`                              | markup, parsed as it is                                               |
+| `null`, `''`, whitespace                | no tooltip                                                            |
+
+<Aside type="caution" title="Markup is not sanitised">
+  The `html` form is the only way to insert markup, and the markup is inserted as you give it. Never
+  pass it data you do not trust.
 </Aside>
 
-`createGantt(container, options)` takes one flat object, and `gantt.setOptions(patch)` changes any
-of it later without recreating the chart. Every [example](../../examples/) has a table of the
-options it uses.
+In React use the prop `renderTooltip`, which returns a `ReactNode`. Example:
+[custom tooltip](../../examples/custom-tooltip/).
+
+### Link menu
+
+The menu a click on a link opens.
+
+| Option              | Type                                  | Default                        | What it does                                                                                                        |
+| ------------------- | ------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `linkMenu.render`   | `(context) => TooltipContent \| null` | a menu with one action, remove | The menu's content. `null` shows no menu.                                                                           |
+| `linkMenu.onRemove` | `(link: LinkRecord) => unknown`       | the chart's own `removeLink`   | What the remove action calls. Give your own to confirm, or to remove the link from your data in a controlled setup. |
+
+The context has `link`, `source`, `target`, `canRemove`, `remove()`, `locale` and `api`. The default
+menu needs a link that can be removed: `editing.links` on, the link editable and an `onRemove`. In
+React use `renderLinkMenu`. Example: [link menu](../../examples/link-menu/).
+
+### Highlight tooltip
+
+The label of a highlighted day or a holiday.
+
+| Option                          | Type      | Default | What it does                                                     |
+| ------------------------------- | --------- | ------- | ---------------------------------------------------------------- |
+| `highlightTooltip.followCursor` | `boolean` | `false` | The label follows the cursor instead of staying where it opened. |
+
+## Theme
+
+| Option  | Type                          | Default  | What it does                                                            |
+| ------- | ----------------------------- | -------- | ----------------------------------------------------------------------- |
+| `theme` | `'auto' \| 'light' \| 'dark'` | `'auto'` | The `data-theme` of the chart. `'auto'` follows `prefers-color-scheme`. |
+
+It changes at runtime without a redraw. Any other value is an `invalid-option` issue, suggested
+`'auto'`. The colours, sizes and tokens are in [Theming](../theming/); the stylesheet is
+`@ganttlane/dom/styles.css`. Example: [theming](../../examples/theming/).
+
+## Toolbar
+
+| Option    | Type                                                                           | Default | What it does                                                            |
+| --------- | ------------------------------------------------------------------------------ | ------- | ----------------------------------------------------------------------- |
+| `toolbar` | `false \| { todayButton?: boolean; viewModeSelect?: boolean; zoom?: boolean }` | `false` | A today button, a view mode select and zoom buttons. Not available yet. |
+
+Until it is available, build your own controls on `scrollToToday()`, `setViewMode()` and `zoomTo()`
+(see [Methods](../methods/)). Any value but `false` or `undefined` is an `unsupported-option`
+issue and draws nothing.
+
+## Locale and strings
+
+Two separate things make a chart speak your language: the **locale** formats dates and numbers, and
+the **strings** are the words the chart writes itself.
+
+| Option    | Type                | Default | What it does                                                                     |
+| --------- | ------------------- | ------- | -------------------------------------------------------------------------------- |
+| `locale`  | `string` (BCP 47)   | `'en'`  | Formats the header labels and the dates and numbers of the tooltip, with `Intl`. |
+| `strings` | `GanttStringsInput` | English | Any subset of the strings below, merged key by key.                              |
+
+**Notes**
+
+- The default `locale` is `'en'`, **not** the browser's, so a server and a browser draw the same
+  text. A tag that is not well formed (`''`, `'x_y'`) is an `invalid-option` issue and `'en'` is used.
+  A well-formed tag the runtime does not have (`'xx'`) is not an error and is drawn in English.
+- Changing `locale` re-labels the header and an open tooltip. Week starts and weekends do not follow
+  the locale: weeks start on Monday and the weekend is `calendar.weekends`.
+- `strings` is a group: keys you give merge over the strings set before, and `strings: undefined`
+  puts English back. A key that is not listed is ignored. A value of the wrong kind (a function where
+  a string goes, an empty string) is an `invalid-option` issue at `strings.<key>` and takes the
+  default of its key.
+- A string that puts a number or a name into a sentence is a function of the values and the chart's
+  locale, so it does the grammar, plurals included. Strings are inserted as text, never as markup.
+- Not in `strings`: task names, highlight and holiday labels, the output of `tooltip.render`, and
+  the messages of issues.
+
+| Key                                                                        | Type                                                         | Default                                                                                      | Used for                                                            |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `chartLabel`                                                               | `string`                                                     | `'Gantt chart'`                                                                              | The accessible name (`aria-label`) of the chart's focusable region. |
+| `progress`                                                                 | `(percent: number, locale: string) => string`                | `'60% done'`                                                                                 | The progress line of the tooltip.                                   |
+| `workingDays`                                                              | `(days: number, locale: string) => string`                   | `'2.5 working days'`                                                                         | The length line of the tooltip; `days` has one decimal at most.     |
+| `dateRange`                                                                | `(from: string, to: string, locale: string) => string`       | `'Mar 2, 2026 – Mar 6, 2026'`                                                                | The dates line of a task that spans more than one moment.           |
+| `linkTitle`                                                                | `(source: string, target: string, locale: string) => string` | `'Design → Build'`                                                                           | The title of the link menu.                                         |
+| `removeLink`                                                               | `string`                                                     | `'Remove dependency'`                                                                        | The action of the link menu.                                        |
+| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `string`                                                     | `'Today'`, `'Zoom in'`, `'Zoom out'`, `'View mode'`                                          | The toolbar. Not available yet: nothing draws them.                 |
+| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `string`                                                     | `'Hour'`, `'Quarter day'`, `'Half day'`, `'Day'`, `'Week'`, `'Month'`, `'Quarter'`, `'Year'` | The items of a view mode switcher. Not available yet.               |
+
+```ts
+createGantt(container, {
+  tasks,
+  locale: 'fr',
+  strings: {
+    chartLabel: 'Diagramme de Gantt',
+    progress: (percent, locale) => `${percent.toLocaleString(locale)} % terminé`,
+    removeLink: 'Supprimer la dépendance',
+  },
+});
+```
+
+The type of a `strings` object is [`GanttStringsInput`](../../api/ganttlane/dom/type-aliases/ganttstringsinput/).
+Example: [locale and strings](../../examples/locale-and-strings/).
+
+## Handlers
+
+Every event has an option named `on<Event>`, and `gantt.on(name, handler)` adds more listeners. Each
+option is a function or `undefined`; anything else is an `invalid-option` issue at the option's name.
+`setOptions` swaps a handler without recomputing or redrawing anything. The arguments of each
+handler are in [Events](../events/).
+
+| Group                     | Options                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| Data changes              | `onTasksChange`, `onTaskDatesChange`, `onTaskProgressChange`, `onLinkCreate`, `onLinkDelete` |
+| Pointer                   | `onTaskClick`, `onTaskDoubleClick`, `onTaskHoverChange`, `onLinkClick`                       |
+| View                      | `onViewModeChange`, `onRangeChange`, `onScroll`, `onExpandedChange`, `onSelectionChange`     |
+| Edit sessions and history | `onEditRollback`, `onDirtyChange`, `onHistoryChange`, `onEditRefused`                        |
+| Problems                  | `onIssues`, `onError`                                                                        |
+| Before-hooks              | `onBeforeTaskChange`, `onBeforeLinkCreate`                                                   |
+
+The two before-hooks are options only (there is no `gantt.on`): they can pass, veto or modify a
+change before it is committed. `onIssues` is the chart's own, and reports the issues of the renderer's
+options together with the core's. In React the handlers are never stale: a handler that is new on
+every render, or closes over state, is fine.
+
+Examples: [events log](../../examples/events-log/), [before hooks](../../examples/before-hooks/).
+
+## Mount options
+
+`renderer` is the only option that cannot change after creation: `setOptions` ignores it. In React
+it is read once, when the chart is created.
+
+| Option              | Type             | Default                 | What it does                                                                                                                                                                |
+| ------------------- | ---------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `renderer.idPrefix` | `string`         | `gantt-1`, `gantt-2`, … | The prefix of every element id of the chart, and the id of its root. Give your own for ids that are the same on every render, such as a server render or React's `useId()`. |
+| `renderer.layers`   | `LayerFactories` | the built-in layers     | Replaces built-in layers by name. Advanced: custom renderers and tests.                                                                                                     |
+| `renderer.frames`   | `FrameSource`    | `requestAnimationFrame` | Where frames come from. Tests pass a manual queue.                                                                                                                          |
+
+See [custom renderers](../custom-renderers/) and
+[`GanttMountOptions`](../../api/ganttlane/dom/interfaces/ganttmountoptions/).
+
+## Not available yet
+
+These are accepted, but they have no effect yet. A value that is reported is an
+`unsupported-option` issue at the path in the table; the last column says what the chart does
+instead.
+
+| Option                                                                                        | Today                                                                                                                  |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `toolbar` (anything but `false` or `undefined`), with `todayButton`, `viewModeSelect`, `zoom` | An `unsupported-option` issue at `toolbar`. Nothing is drawn.                                                          |
+| `direction: 'rtl'`                                                                            | An `unsupported-option` issue at `direction`. The chart is drawn left to right.                                        |
+| `scheduling.propagation: 'push-forward'`                                                      | An `unsupported-option` issue at `scheduling.propagation`, suggested `'preserve-lag'`. It behaves as `'preserve-lag'`. |
+| `tooltip.trigger: 'focus'`                                                                    | An `unsupported-option` issue at `tooltip.trigger`. No tooltip opens, as with `'none'`.                                |
+| `display.stickyBarLabels: true`                                                               | An `unsupported-option` issue at `display.stickyBarLabels`. Drawn as if `false`.                                       |
+| `display.expectedProgress: true`                                                              | An `unsupported-option` issue at `display.expectedProgress`. Drawn as if `false`.                                      |
+| `strings.today`, `zoomIn`, `zoomOut`, `viewMode` and the view mode names                      | Accepted, no issue. Nothing draws them.                                                                                |
+
+## Related
+
+- Guides: [Events](../events/), [Methods](../methods/), [Theming](../theming/), [React](../react/),
+  [Concepts](../concepts/).
+- Examples that use many options: [basic](../../examples/basic/),
+  [release plan](../../examples/release-plan/), [controlled data](../../examples/controlled-data/),
+  [edit session](../../examples/edit-session/).
+- API reference: [`GanttOptions`](../../api/ganttlane/dom/type-aliases/ganttoptions/),
+  [`GanttOptionsPatch`](../../api/ganttlane/dom/type-aliases/ganttoptionspatch/),
+  [`createGantt`](../../api/ganttlane/dom/functions/creategantt/).

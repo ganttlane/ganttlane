@@ -1,0 +1,357 @@
+---
+title: Propagation and conflicts
+description: What happens to other tasks when one is edited, what a conflict is, and how to turn propagation off.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+When you move, resize or link a task, the tasks that depend on it should follow. **Propagation** is
+the step that works out how. This page explains what moves and what does not, how the chart walks
+the links, what a **conflict** is and where it is reported, and how to get plain moves with no
+propagation at all.
+
+## The short version
+
+- A drag or an `updateTask` call becomes new dates for one task. Propagation then moves the tasks
+  linked to it, and the children pinned to it. The result is one [`ChangeSet`](../change-sets-and-hooks/).
+- A link is **rigid**: it keeps its lag, in both directions in time. Move the predecessor later or
+  earlier and the successor follows.
+- Propagation never refuses an edit. If the result breaks a rule (a bar on a day off, a child
+  outside its parent, a link whose gap is too small), the ChangeSet carries a **conflict**, and
+  your before-hook decides what to do.
+- Only dates propagate. A change of progress touches its own task and no other.
+- It is on by default. `scheduling.propagation: 'none'` turns off the links, and
+  `hierarchy.moveChildren: 'none'` turns off the children.
+
+## What moves
+
+| Related task                                    | Moves when the edited task moves?                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| A **successor** along a link of any type        | Yes, keeping the link's lag. Only an edge that changed moves its dependents.                  |
+| A **predecessor**                               | No. Editing a task never pushes its predecessors. A gap that becomes too small is a conflict. |
+| A **child** that has `followParent: true`       | Yes, by the edges of its `parentAnchor`.                                                      |
+| Any other child, with `moveChildren: 'all'`     | Yes, when the parent's **start** changes: the child keeps its offset from it.                 |
+| The **parent** of the edited task               | No. A child that sticks out of its parent is an `outside-parent` conflict.                    |
+| A **milestone**                                 | Yes, like any task; it stays a point. It cannot be resized.                                   |
+| A task with `locked: true`                      | Never. It also **stops** propagation: nothing beyond it is moved on its account.              |
+| A row without a bar (placeholder, invalid task) | Never, and it stops propagation. Links to it are inactive (an `inactive-link` issue).         |
+| A task with `fixedDuration: true`               | Moves, keeping its length. It cannot be resized and never stretches between two pins.         |
+
+Propagation also follows a changed task onward: when a link moves `build`, `build`'s own successors
+and children move too, each task at most once.
+
+## The options
+
+| Option                          | Values                                | Default                                         | What it decides                                                                                    |
+| ------------------------------- | ------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `scheduling.propagation`        | `'preserve-lag'` \| `'none'`          | `'preserve-lag'`                                | Whether edits travel along links. `'push-forward'` is reserved (see below).                        |
+| `hierarchy.moveChildren`        | `'all'` \| `'following'` \| `'none'`  | `'all'`                                         | Which children move with a moved parent: all, only those with `followParent`, or none.             |
+| `hierarchy.childAnchor`         | a link type, or a list of them        | `'SS'`                                          | The default `parentAnchor` of a child with `followParent`: which edges are pinned to the parent's. |
+| `scheduling.skipNonWorkingDays` | `{ move, resize, progress }` booleans | `{ move: true, resize: false, progress: true }` | Whether the edited edge of a **drag** skips days off. `updateTask` never does.                     |
+| `scheduling.durationMode`       | `'calendar'` \| `'working'`           | `'calendar'`                                    | Whether lengths and lags count all time or working time. `task.durationMode` overrides it.         |
+| `scheduling.keepDayPrecision`   | `boolean`                             | `true`                                          | Whether a day-precision task stays on whole days when edited.                                      |
+
+Some fields of tasks and links take part as well:
+
+| Field                                    | Effect                                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| `task.locked`                            | Not editable, not moved, and a wall for propagation.                                 |
+| `task.fixedDuration`                     | Keeps its length when pushed; cannot be resized.                                     |
+| `task.followParent`, `task.parentAnchor` | Pin the child to its parent's edges, see [Hierarchy](../hierarchy/).                 |
+| `task.type: 'milestone'`                 | A point: zero length, cannot be resized.                                             |
+| `link.type`, `link.lag`                  | Which edges are joined and the gap kept, see [Links and types](../links-and-types/). |
+
+The granularity and `alignInput` apply too: every date in the result is a multiple of the
+granularity, see [Granularity and alignment](../granularity-and-alignment/).
+
+## How the chart walks the links
+
+Take four tasks and three links. Design, Build and Test are in a chain; Docs starts a week after
+Design starts.
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  tasks: [
+    { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06' }, // Mon to Fri
+    { id: 'build', name: 'Build', start: '2026-03-09', end: '2026-03-13' },
+    { id: 'test', name: 'Test', start: '2026-03-16', end: '2026-03-18' },
+    { id: 'docs', name: 'Docs', start: '2026-03-09', end: '2026-03-11' },
+  ],
+  links: [
+    // Finish-to-start with no lag: keeps the gap the data has now, the weekend.
+    { source: 'design', target: 'build' },
+    // Finish-to-start with a lag: Test starts two days after Build ends.
+    { source: 'build', target: 'test', lag: 2 },
+    // Start-to-start with a lag: Docs starts seven days after Design starts.
+    { source: 'design', target: 'docs', type: 'SS', lag: 7 },
+  ],
+  onTasksChange: (changeSet) => console.log(changeSet),
+});
+
+// Move Design one week later.
+await gantt.updateTask('design', { start: '2026-03-09' });
+```
+
+One `tasksChange` fires. Its ChangeSet has all four tasks, the edited one first and the others in
+topological order (the table gives the first and the last day of each bar):
+
+| Task     | Cause      | `via`    | Before           | After            |
+| -------- | ---------- | -------- | ---------------- | ---------------- |
+| `design` | `'direct'` |          | Mar 2 to Mar 6   | Mar 9 to Mar 13  |
+| `build`  | `'link'`   | `design` | Mar 9 to Mar 13  | Mar 16 to Mar 20 |
+| `test`   | `'link'`   | `build`  | Mar 16 to Mar 18 | Mar 23 to Mar 25 |
+| `docs`   | `'link'`   | `design` | Mar 9 to Mar 11  | Mar 16 to Mar 18 |
+
+In the ChangeSet itself the dates are the core's floating numbers, and `endExclusive` is the first
+moment after the bar:
+
+```ts
+{
+  reason: 'api',
+  changes: [
+    {
+      id: 'design',
+      cause: 'direct',
+      before: { start: 1772409600000, endExclusive: 1772841600000, progress: 0 }, // Mar 2, Mar 7
+      after: { start: 1773014400000, endExclusive: 1773446400000, progress: 0 }, // Mar 9, Mar 14
+    },
+    {
+      id: 'build',
+      cause: 'link',
+      via: 'design', // the predecessor whose link placed it
+      before: { start: 1773014400000, endExclusive: 1773446400000, progress: 0 },
+      after: { start: 1773619200000, endExclusive: 1774051200000, progress: 0 },
+    },
+    // ... test, docs
+  ],
+  conflicts: [], // Nothing is on a day off or outside a parent, and no link is short.
+}
+```
+
+Step by step, this is what happened:
+
+1. **The edited task gets its new dates.** From a drag they are already snapped; from
+   `updateTask` they are exact (aligned to the granularity, never rolled onto working days). An
+   unknown task, a task without a bar, a `locked` task or an edit that changes nothing gives an
+   empty ChangeSet, and nothing is committed.
+2. **The direction is decided.** An edit is _forward_ when either edge moves later, and _backward_
+   otherwise. It matters when several links hit the same edge, and for rounding ties.
+3. **The reachable tasks are collected and sorted.** The chain is followed from predecessors to
+   successors over active links that are not on a cycle, and from parents to children according to
+   `moveChildren`. The tasks are put in topological order, ties in the order of your `tasks` array.
+   Each task is visited at most once, so a cycle cannot loop.
+4. **Each task collects pins.** A link pins the edge of the successor that its type names (`FS`
+   and `SS` the start, `FF` and `SF` the end) at the predecessor's new edge plus the lag. A parent
+   pins the edges of a following child at its own new edge plus the child's old offset. When
+   several pins hit the same edge, the one furthest in the direction of the edit wins.
+5. **The task is placed.** Only the start pinned: it moves there and keeps its length. Only the
+   end pinned: it moves so that it ends there. Both pinned (an `SS` and an `FF` link from the same
+   predecessor, or a `parentAnchor` with two edges): it is placed between the pins, so its length
+   can change, unless it is a milestone or `fixedDuration`. An `FS` and an `FF` link with no lags
+   both hang from the predecessor's end, so the task keeps its length. The new edges are aligned to the granularity, and in working mode
+   rolled onto working time.
+6. **Nothing changed means nothing follows.** If the new bounds equal the old ones, the task is not
+   in the ChangeSet and moves nothing else. This is why resizing the start of a task leaves its
+   `FS` successors alone, and moves its `SS` successors.
+7. **Progress is rebased.** A task whose length changed keeps either the done part
+   (`progressAnchor: 'start'`, the default) or the remainder (`'end'`). A task that only moved
+   keeps its percentage.
+8. **Conflicts are collected** for the result, see below.
+
+### When two pins meet
+
+A task can be pinned twice on the same edge: by two links, or by a link and by its parent. The pin
+**furthest in the direction of the edit** wins: the latest after a forward edit, the earliest after
+a backward one. After a forward edit this keeps a successor from being left behind by a
+predecessor that moved later. On equal times the parent's pin wins over the links, and among links
+the first one read wins (your `links` array, then `task.dependencies`). After a backward edit
+another link of the task can end up short, and that is reported as a `link-violated` conflict.
+
+### Lag is a rule, not a minimum
+
+A link with a `lag` puts the successor **exactly** that far from its predecessor after every
+propagation, not at least that far. A link without a `lag` keeps the gap the data has when it is
+read, measured in the successor's `durationMode`. `getLink(id).lag` shows the result as
+`{ ms, days, mode, derived }`, and `derived` is `true` for a measured gap.
+
+Data whose gaps do not match the lags you wrote will jump on the first propagation. Write the
+dates that the lag implies, or leave the lag out.
+
+## Conflicts
+
+A **conflict** is a warning about the state of the plan. It never blocks anything: the chart does
+not refuse, move or correct a bar because of it. It is information for your before-hook, your UI
+and your users.
+
+| `type`                | Meaning                                            | Fields besides `type`, `severity` (`'warning'`), `id`, `message` |
+| --------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
+| `'non-working-start'` | The bar starts on a non-working day.               | `date`: midnight of that day.                                    |
+| `'non-working-end'`   | The last day of the bar is a non-working day.      | `date`                                                           |
+| `'outside-parent'`    | The bar starts before its parent or ends after it. | `parentId`, `edges`: `'start'`, `'end'` or both.                 |
+| `'link-violated'`     | A link's gap is below the minimum it requires.     | `linkId`, `requiredMs`, `actualMs`. `id` is the link's target.   |
+
+`id` is the task the conflict is shown on. A milestone has only a start. For an `outside-parent`
+conflict, `parentId` is the parent that has a bar. The minimum gap of a `link-violated` conflict is
+the link's `lag` when it has one, and `min(measured lag, 0)` when it does not, so a link without a
+lag conflicts only when the successor overlaps its predecessor more than it did when the data was
+read.
+
+### Where conflicts are reported
+
+| Where                               | What it holds                                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `ChangeSet.conflicts`               | The conflicts of the **result** that involve a task the edit changed, and no others. Delivered with `tasksChange`.              |
+| `BeforeTaskChangeContext.conflicts` | The same list, so a hook can answer before the commit. See [Change sets and hooks](../change-sets-and-hooks/).                  |
+| `TaskRecord.conflicts`              | The conflicts of the **committed data**, for every task, including those that were in your data from the start.                 |
+| `SessionChanges.conflicts`          | The conflicts of the state that an edit session's changes lead to.                                                              |
+| `data-conflict` on bars and arrows  | The default theme outlines a bar and an arrow in conflict, with `--gantt-bar-conflict-color` and `--gantt-link-conflict-color`. |
+
+There is no `conflict` event. Read `changeSet.conflicts` in `onTasksChange`.
+
+### In the data versus after an edit
+
+A conflict can exist before anyone drags anything. A task that starts on a Saturday, a child that
+begins before its parent, or a link whose gap is shorter than its `lag` is a conflict in
+`TaskRecord.conflicts` as soon as the data is loaded. A drag can create new ones, and it can fix
+old ones: moving a bar off a Saturday removes its `non-working-start`.
+
+A link without a `lag` is the subtle case. Its minimum comes from the gap measured when the data
+was read, so each time the model is rebuilt (after a committed change in uncontrolled mode, or
+after `setTasks`) the current gap becomes the new baseline. The ChangeSet of the edit that shortened
+the gap carries the `link-violated` conflict, so a hook sees it. The records read afterwards do not
+show it, because the shortened gap is now what the data says. Give the link a `lag` when the gap is
+a rule.
+
+Two more things to know about timing:
+
+- **A drag has no conflicts while it is in progress.** The preview moves the bars live but skips
+  the check, to stay fast. The conflicts are computed once, when the drag is committed.
+- **Backward edits can short a link from a task that did not move.** Propagation follows changed
+  tasks only. Pull a task earlier and it can end up before another, unchanged predecessor. That is
+  reported as `link-violated`, not fixed.
+
+## Reserved values
+
+`scheduling.propagation: 'push-forward'` is not available yet. The value is accepted, it reports
+an `unsupported-option` issue (`path: 'scheduling.propagation'`, `suggested: 'preserve-lag'`), and
+the chart behaves as `'preserve-lag'`. Any other value that is not `'preserve-lag'` or `'none'` is
+an `invalid-option` issue, and the default is used. See [Issues](../issues/).
+
+```ts
+const issues = gantt.setOptions({ scheduling: { propagation: 'push-forward' } });
+// [{ code: 'unsupported-option', severity: 'error', path: 'scheduling.propagation',
+//    value: 'push-forward', suggested: 'preserve-lag', message: '...' }]
+```
+
+## A drag, from preview to commit
+
+While the pointer is down, each new snapped position runs the propagation again and the chart shows
+the result as a **draft** over your data: the bar and its successors move live, and the tooltip
+shows the previewed dates. `getTask(id)` still returns the committed values, and
+`getBarRect(id)` returns where the bar is drawn. Nothing is emitted, and no hook runs.
+
+On release the computation runs once more at the final position. The result is re-validated
+(aligned, conflicts computed), shown to `onBeforeTaskChange`, and, if allowed, committed as one
+change. `Escape` during the drag cancels it and nothing is committed.
+
+`updateTask` takes the same path with two differences. Its values are exact: no snapping to the
+view mode's step and no rolling onto working days. And it has no preview, since nothing is being
+dragged.
+
+## Turning propagation off
+
+For plain moves, where only the dragged task changes, switch off both the links and the children:
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  scheduling: { propagation: 'none' },
+  hierarchy: { moveChildren: 'none' },
+});
+
+// It can be changed at any time, without recreating the chart.
+gantt.setOptions({ scheduling: { propagation: 'preserve-lag' } });
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { Gantt } from '@ganttlane/react';
+
+export function Plan() {
+  return (
+    <Gantt
+      style={{ height: 420 }}
+      defaultTasks={tasks}
+      defaultLinks={links}
+      scheduling={{ propagation: 'none' }}
+      hierarchy={{ moveChildren: 'none' }}
+    />
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+With `propagation: 'none'` the links are still drawn, and a move that breaks one reports a
+`link-violated` conflict.
+
+<Aside type="caution" title="Children still follow their parent">
+  `scheduling.propagation` is about links only. Children keep following a moved parent until you
+  also set `hierarchy.moveChildren: 'none'`.
+</Aside>
+
+To decide per gesture instead of globally, let the hook keep only the edited task. The replacement
+is re-validated like any other, and the conflicts are recomputed for it:
+
+```ts
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  onBeforeTaskChange: ({ changeSet }) => ({
+    ...changeSet,
+    changes: changeSet.changes.filter((change) => change.cause === 'direct'),
+  }),
+});
+```
+
+To pin one task in place, set `locked: true` on it. Then it cannot be edited either.
+
+## Traps
+
+- **Predecessors are not pushed.** Dragging a successor earlier than its predecessor ends is
+  allowed and reported as a conflict, not prevented. Cancel it in the hook if you want a hard rule.
+- **A locked task cuts the chain.** Tasks behind a locked one do not move for an edit before it,
+  even though they are linked.
+- **A cycle in the data takes its links out of propagation.** They are drawn in the conflict
+  colour and reported as a `cycle` issue. A link the user draws that would close a cycle is
+  refused.
+- **`editing: false` does not stop propagation.** It turns off gestures from the UI. `updateTask`
+  still propagates.
+- **The check is per edit.** Conflicts that your data already has, and that the edit did not
+  touch, are not in the ChangeSet. Read them from `TaskRecord.conflicts`.
+
+## Related
+
+- Examples: the [propagation example](../../../examples/propagation/), the
+  [link types example](../../../examples/link-types/), the
+  [hierarchy example](../../../examples/hierarchy/) and the
+  [before-hooks example](../../../examples/before-hooks/).
+- Concepts: [Links and types](../links-and-types/), [Hierarchy](../hierarchy/),
+  [Work calendar](../work-calendar/) and [Change sets and before-hooks](../change-sets-and-hooks/).
+- API: [`propagate`](../../../api/ganttlane/core/functions/propagate/),
+  [`ChangeSet`](../../../api/ganttlane/core/interfaces/changeset/) and
+  [`Conflict`](../../../api/ganttlane/core/type-aliases/conflict/).

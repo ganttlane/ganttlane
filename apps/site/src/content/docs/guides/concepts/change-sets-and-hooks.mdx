@@ -1,0 +1,461 @@
+---
+title: Change sets and before-hooks
+description: The ChangeSet of every action, when it is delivered, and the before-hooks that can allow, cancel or rewrite it.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Every change to the schedule, a drag or an API call, is described by one **`ChangeSet`**: the tasks
+it changed, their values before and after, and the conflicts of the result. This page covers its
+shape, when it is delivered, and the two **before-hooks**, `onBeforeTaskChange` and
+`onBeforeLinkCreate`, which let your code allow, cancel or rewrite a change before it is committed.
+
+## The ChangeSet
+
+```ts
+interface ChangeSet {
+  readonly reason: ChangeReason; // what produced it
+  readonly changes: readonly Change[]; // the edited task first, then the others
+  readonly conflicts: readonly Conflict[]; // see Propagation and conflicts
+}
+
+interface Change {
+  readonly id: TaskId;
+  readonly before: TaskPatch; // from the model, before the edit
+  readonly after: TaskPatch; // always different from `before`
+  readonly cause: 'direct' | 'link' | 'parent'; // why this task changed
+  readonly via?: TaskId; // the predecessor or parent that placed it; absent for 'direct'
+}
+
+interface TaskPatch {
+  readonly start: DateTimeMs;
+  readonly endExclusive: DateTimeMs; // the first moment after the bar
+  readonly progress: number; // percent, 0 to 100
+  readonly precision?: 'day' | 'time'; // only in a change that alters it
+}
+```
+
+Two fields say where a change comes from:
+
+- **`reason`** says what produced the whole change set.
+- **`cause`** says why each task is in it.
+
+| `reason`                         | Produced by                                                       |
+| -------------------------------- | ----------------------------------------------------------------- |
+| `'move'`                         | Dragging the whole bar                                            |
+| `'resize-start'`, `'resize-end'` | Dragging an edge                                                  |
+| `'progress'`                     | Dragging the progress handle                                      |
+| `'api'`                          | `updateTask`                                                      |
+| `'undo'`, `'redo'`               | `undo()` and `redo()`                                             |
+| `'session'`                      | The aggregate of an edit session (`SessionChanges`)               |
+| `'rollback'`                     | The inverse that a rolled-back session reverts (`SessionChanges`) |
+
+| `cause`    | Meaning                                                           |
+| ---------- | ----------------------------------------------------------------- |
+| `'direct'` | The task was edited. Every change set has one, and it is first.   |
+| `'link'`   | A predecessor moved it through a link. `via` is that predecessor. |
+| `'parent'` | Its parent moved it. `via` is the parent.                         |
+
+The values are the core's **floating numbers**: milliseconds counted as if the wall-clock time
+were UTC. A change set can be handed back to the core (a hook's answer, `patchTasks`) without
+conversion. To read one as a `Date` use `toDate` from `@ganttlane/core`, which gives the wall-clock
+time as a local `Date`:
+
+```ts
+import { toDate } from '@ganttlane/core';
+
+for (const { id, before, after, cause } of changeSet.changes) {
+  console.log(id, cause, toDate(before.start), '->', toDate(after.start), `${after.progress}%`);
+}
+```
+
+Dates in a change set are always multiples of `scheduling.granularity`, and whole days for
+day-precision tasks. A change set is deeply frozen: copy what you want to change.
+
+`precision` appears only when a change turns a day-precision task into a timed one, which
+`scheduling.keepDayPrecision: false` allows. Then `before.precision` is `'day'` and
+`after.precision` is `'time'`, and an undo swaps them.
+
+### SessionChanges
+
+`SessionChanges` is a `ChangeSet` with one more field, `links`, and it comes from an
+[edit session](../edit-sessions-and-history/): the net difference between the data at `begin()`
+and now. Its `reason` is `'session'` (from `commit()` and `getChanges()`) or `'rollback'` (the
+inverse, from `rollback()` and `onEditRollback`), every `cause` is `'direct'`, and a task that was
+changed and changed back is not listed.
+
+```ts
+interface SessionChanges extends ChangeSet {
+  readonly reason: 'session' | 'rollback';
+  readonly links: {
+    readonly added: readonly LinkModel[]; // links now present that were not at the start
+    readonly removed: readonly LinkModel[]; // links present at the start that are gone or changed
+  };
+}
+```
+
+A link model has an `id`, a `source`, a `target`, a `type`, an optional `lag`, and `link`, your own
+`Link` object (absent for a link that came from `task.dependencies`).
+
+## When a ChangeSet is produced
+
+One user action makes one change set, with every task it touched. One drag that moves a task and
+five followers is one change set with six entries.
+
+| Operation                        | `reason`                             | Runs `onBeforeTaskChange` | What you receive                                |
+| -------------------------------- | ------------------------------------ | ------------------------- | ----------------------------------------------- |
+| Drag of a bar, an edge, progress | `'move'`, `'resize-*'`, `'progress'` | Yes                       | `tasksChange`, once                             |
+| `updateTask(id, update)`         | `'api'`                              | Yes                       | `tasksChange`, once; the result has `changeSet` |
+| `undo()`, `redo()`               | `'undo'`, `'redo'`                   | No                        | `tasksChange`, once                             |
+| `edit.commit()`                  | `'session'`                          | No                        | Returned as `changes`, not emitted              |
+| `edit.rollback()`                | `'rollback'`                         | No                        | `editRollback`, once, instead of `tasksChange`  |
+| `setTasks`, `setLinks`           |                                      | No                        | No `tasksChange`: replacing data is not an edit |
+
+Link changes have no change set. Creating a link runs `onBeforeLinkCreate` and emits
+`linkCreate(link, id)`. Removing a link runs no hook and emits `linkDelete(record)`.
+
+For a committed change the events come in this order:
+
+1. `dirtyChange` and `historyChange`, when those flags flipped.
+2. `issues` with `source: 'change-set'`, when re-validation corrected or dropped something.
+3. **`tasksChange`**, exactly once.
+4. For every change in it, `taskDatesChange` when `start` or `endExclusive` changed and
+   `taskProgressChange` when `progress` changed. They carry the `TaskRecord` and `Date`s.
+
+A change that turns out to be empty, because a hook removed every change or the values are already
+the current ones, emits no `tasksChange`, and the call resolves `{ status: 'unchanged' }`. If a
+listener starts another change, the new change is applied at once, but its events wait until all
+the events of the running one have been emitted.
+
+```ts
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  onTasksChange: (changeSet) => {
+    console.log(
+      changeSet.reason,
+      changeSet.changes.map((change) => change.id),
+    );
+  },
+});
+
+const result = await gantt.updateTask('design', { progress: 50 });
+if (result.status === 'committed') console.log(result.changeSet.changes.length);
+```
+
+In React `onTasksChange` is a prop of `<Gantt>` with the same argument.
+
+## Before-hooks
+
+A before-hook is a function you pass as an option (a prop in React). The chart calls it after it
+has computed a change and before it commits it. There is one function per hook; `setOptions` swaps
+it. A hook sees the world as it is going to be, and answers.
+
+### `onBeforeTaskChange`
+
+It receives one frozen argument, a `BeforeTaskChangeContext`:
+
+| Field       | Meaning                                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `changeSet` | The change set about to be committed, already re-validated: every value is aligned to the granularity.                        |
+| `reason`    | `changeSet.reason`, for convenience.                                                                                          |
+| `conflicts` | `changeSet.conflicts`: what the change would cause, see [Propagation and conflicts](../propagation-and-conflicts/#conflicts). |
+
+It answers with a `BeforeTaskChangeResult`, or a promise of one:
+
+| Answer                                       | Effect                                                                                                                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| nothing, `undefined` or `true`               | Allow. The change is committed.                                                                                                                                                 |
+| `false`                                      | Cancel. Nothing changes and no `tasksChange` fires. `updateTask` resolves `{ status: 'cancelled', reason: 'hook' }`; a drag snaps back.                                         |
+| a `ChangeSet`                                | Rewrite. It replaces the change set and is re-validated like any other (aligned, unknown and locked tasks dropped, conflicts recomputed). A missing `reason` keeps the old one. |
+| a `Promise` of any of the above              | The same, after it settles.                                                                                                                                                     |
+| it throws, rejects, or answers anything else | Cancel with an error. `updateTask` resolves `{ status: 'cancelled', reason: 'error', error }` and the chart emits `error` with `source: 'hook'` and `name: 'beforeTaskChange'`. |
+
+"Anything else" is a string, a number, `null` or an object that is not a change set. The error is
+a `TypeError` that names what the hook answered.
+
+<Aside type="caution" title="Listen to onError">
+  A hook that throws cancels the change. The error is emitted on `error` (`onError`), and with no
+  listener nothing else reports it. `updateTask` carries it in its result, but a drag has no result,
+  so the bars snap back and the page stays silent. Add `onError` while you develop hooks.
+</Aside>
+
+A **rewrite** replaces the whole change set, including the propagated tasks. If you change one
+task's dates and keep the other entries as they are, the successors still stand where the original
+propagation put them. To get a consistent result, either cancel, filter the entries (keeping only
+`cause === 'direct'` turns propagation off for that gesture), or compute a new change set with
+`propagate`, as the clamp example below does. The re-validation drops a change whose `after`
+equals the current values, takes `before` from the model whatever you wrote, and reports what it
+corrected as `issues` (`misaligned`, `end-before-start`, `locked-task`, `unknown-task`, …). They are
+in the result's `issues` and in the `issues` event with `source: 'change-set'`.
+
+### `onBeforeLinkCreate`
+
+It receives a frozen `BeforeLinkCreateContext`:
+
+| Field              | Meaning                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `link`             | The link to create, as given (or a copy with a free `id`, when its default id is taken). |
+| `id`               | Its id: `link.id`, the default `source:type:target`, or the first free `...#2`.          |
+| `wouldCreateCycle` | `true` when the link would close a cycle of links.                                       |
+
+It answers `false` to cancel, or nothing or `true` to allow, also as a promise. A link that would
+close a cycle is rejected whatever the hook answers; the hook is told so that it can explain why.
+A throw or rejection cancels the link and emits `error` with `name: 'beforeLinkCreate'`. The calls
+`addLink` and the link handle of the UI both run this hook. `addLink` resolves with the status
+`'created'`, `'cancelled'` (with `reason: 'hook'`) or `'rejected'` (with a `reason`).
+
+### Which operations run hooks
+
+| Operation                                              | Hook                 |
+| ------------------------------------------------------ | -------------------- |
+| A drag (move, resize, progress), `updateTask`          | `onBeforeTaskChange` |
+| Drawing a link, `addLink`                              | `onBeforeLinkCreate` |
+| `removeLink`, the link menu's remove action            | none                 |
+| `undo()`, `redo()`, `edit.commit()`, `edit.rollback()` | none                 |
+| `setTasks`, `setLinks`, `setOptions`                   | none                 |
+
+Undo and redo restore a state the hooks already accepted, and a veto would leave the history out
+of step with the data. A rollback is a cancel, and a cancel is never vetoed. `editing: false` does
+not matter here: it stops gestures, while hooks run for every drag that does happen and for
+`updateTask`.
+
+### While an asynchronous hook is pending
+
+A hook that returns a promise keeps the chart waiting for as long as the promise does. There is no
+timeout. Meanwhile:
+
+- The change being confirmed is shown as the draft: the dropped bar and its followers stay where
+  the user left them.
+- The chart is **busy**. `getSnapshot().busy` is `true`; a new drag is refused (`onEditRefused`,
+  `reason: 'busy'`); `updateTask`, `addLink` and `removeLink` resolve `{ status: 'busy' }`;
+  `edit.begin()`, `commit()` and `rollback()` and the history return `{ status: 'busy' }`.
+- When the promise settles: allowed, the change is committed and the busy flag clears; refused,
+  the draft is removed and the bars snap back.
+- `destroy()` ends the wait. The call resolves `{ status: 'cancelled', reason: 'disposed' }` and
+  a late answer is ignored.
+
+A hook that never settles leaves the chart busy for good. If the answer comes from a person or a
+network, race it against a timer:
+
+```ts
+const timeout = (ms: number) => new Promise<false>((resolve) => setTimeout(resolve, ms, false));
+
+onBeforeTaskChange: (context) => Promise.race([askUser(context), timeout(30_000)]),
+```
+
+A synchronous hook is not pending at all: the whole commit happens inside the call.
+
+### Hooks and edit sessions
+
+Inside an [edit session](../edit-sessions-and-history/) every drag and every `updateTask` still
+runs the hook, as it does outside one. A change a hook cancels never reaches the session. The
+session's own `commit()` and `rollback()` do not run hooks. A hook that is pending makes `begin()`,
+`commit()` and `rollback()` return `{ status: 'busy' }`.
+
+## Examples
+
+### Veto a move onto a day off
+
+The conflicts say what the change would cause. Cancel when a bar would start or end on a
+non-working day. A progress drag does not move the bar, so let it through.
+
+```ts
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  onBeforeTaskChange: ({ reason, conflicts }) => {
+    if (reason === 'progress') return true;
+    const onDayOff = conflicts.some(
+      (conflict) => conflict.type === 'non-working-start' || conflict.type === 'non-working-end',
+    );
+    if (onDayOff) showToast('That would land on a day off.'); // your UI
+    return !onDayOff; // false cancels
+  },
+  onError: ({ error }) => console.error(error), // a throwing hook is cancelled silently otherwise
+});
+```
+
+In React the same function is the `onBeforeTaskChange` prop of `<Gantt>`, and `onError` is a prop
+too. A handler may close over state: it is never stale.
+
+### Clamp a duration
+
+Resizing the end of a task must not make it longer than two weeks. Rewriting one entry would leave
+the successors where the longer edit put them, so run the propagation again with the clamped end:
+
+```ts
+import { propagate } from '@ganttlane/core';
+import type { DateTimeMs } from '@ganttlane/core';
+import { createGantt, type Gantt } from '@ganttlane/dom';
+
+const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
+
+const gantt: Gantt = createGantt(container, {
+  tasks,
+  links,
+  onBeforeTaskChange: ({ changeSet }) => {
+    if (changeSet.reason !== 'resize-end') return true;
+    const edited = changeSet.changes[0]; // the edited task is always first
+    if (edited === undefined) return true;
+    const latest = edited.after.start + TWO_WEEKS;
+    if (edited.after.endExclusive <= latest) return true; // short enough: allow
+
+    const { state } = gantt.core.getSnapshot();
+    return propagate(
+      { kind: 'resize-end', id: edited.id, endExclusive: latest as DateTimeMs },
+      { ...state.derived, options: state.settings.propagation },
+    );
+  },
+});
+```
+
+The answer is a full change set with the successors recomputed. Dates inside the core are branded
+numbers, hence the cast. `updateTask` with `reason: 'api'` would need the same check if you want
+the rule to hold for code too.
+
+### Confirm with a dialog
+
+Ask the user before a change that leaves conflicts. The hook returns a promise, and the chart waits
+with the bars where the user dropped them.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+function ask(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    const text = document.createElement('p');
+    text.textContent = message;
+    const keep = document.createElement('button');
+    keep.textContent = 'Keep';
+    const discard = document.createElement('button');
+    discard.textContent = 'Discard';
+    dialog.append(text, keep, discard);
+    const done = (answer: boolean): void => {
+      dialog.remove();
+      resolve(answer);
+    };
+    keep.addEventListener('click', () => done(true));
+    discard.addEventListener('click', () => done(false));
+    dialog.addEventListener('cancel', () => done(false)); // Escape
+    document.body.append(dialog);
+    dialog.showModal();
+  });
+}
+
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  onBeforeTaskChange: async ({ conflicts }) => {
+    if (conflicts.length === 0) return true;
+    return ask(`This change leaves ${conflicts.length} conflict(s). Keep it?`);
+  },
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { useState } from 'react';
+import { Gantt } from '@ganttlane/react';
+
+export function Plan() {
+  const [question, setQuestion] = useState<{
+    text: string;
+    answer: (keep: boolean) => void;
+  }>();
+
+  const ask = (text: string) =>
+    new Promise<boolean>((resolve) => {
+      setQuestion({
+        text,
+        answer: (keep) => {
+          setQuestion(undefined);
+          resolve(keep);
+        },
+      });
+    });
+
+  return (
+    <>
+      <Gantt
+        style={{ height: 420 }}
+        defaultTasks={tasks}
+        defaultLinks={links}
+        onBeforeTaskChange={async ({ conflicts }) => {
+          if (conflicts.length === 0) return true;
+          return ask(`This change leaves ${conflicts.length} conflict(s). Keep it?`);
+        }}
+      />
+      {question && (
+        <dialog open>
+          <p>{question.text}</p>
+          <button onClick={() => question.answer(true)}>Keep</button>
+          <button onClick={() => question.answer(false)}>Discard</button>
+        </dialog>
+      )}
+    </>
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+### Refuse a link
+
+`onBeforeLinkCreate` sees the link before it exists. Here only tasks of the same team may be
+linked, read from the `data` payload of the tasks:
+
+```ts
+interface Meta {
+  team: string;
+}
+
+const gantt: Gantt<Meta> = createGantt<Meta>(container, {
+  tasks,
+  links,
+  onBeforeLinkCreate: ({ link }) => {
+    const from = gantt.getTask(link.source)?.task.data?.team;
+    const to = gantt.getTask(link.target)?.task.data?.team;
+    return from === to;
+  },
+});
+
+const result = await gantt.addLink({ source: 'design', target: 'build' });
+// { status: 'created', ... } or { status: 'cancelled', reason: 'hook' }
+```
+
+## Traps
+
+- **Do not start a change from inside a hook.** The chart is pending while the hook runs, so
+  `updateTask` returns `{ status: 'busy' }`. Answer with a rewritten change set instead.
+- **Do not mutate the context.** The change set is frozen. Build a new object.
+- **Conflicts are about the changed tasks.** `conflicts` lists what the edit can have caused,
+  including conflicts that were already on a task it moved. A progress drag on a bar that already
+  starts on a Saturday carries that conflict.
+- **A replacement must stand alone.** It is the whole change set. Keep the propagated entries, or
+  recompute with `propagate`.
+- **A hook does not guard code that skips it.** `setTasks` and history steps pass no hook. Put a
+  rule that must hold everywhere in your data layer as well.
+
+## Related
+
+- Examples: the [before-hooks example](../../../examples/before-hooks/), the
+  [working calendar](../../../examples/working-calendar-hourly/) (a hook that asks before a bar
+  lands on a day off), the [events log](../../../examples/events-log/) and
+  [programmatic updates](../../../examples/programmatic-updates/).
+- Concepts: [Propagation and conflicts](../propagation-and-conflicts/),
+  [Who owns the data](../data-ownership/) and
+  [Edit sessions and history](../edit-sessions-and-history/).
+- API: [`ChangeSet`](../../../api/ganttlane/core/interfaces/changeset/),
+  [`BeforeTaskChangeContext`](../../../api/ganttlane/core/interfaces/beforetaskchangecontext/),
+  [`BeforeLinkCreateContext`](../../../api/ganttlane/core/interfaces/beforelinkcreatecontext/),
+  [`propagate`](../../../api/ganttlane/core/functions/propagate/) and
+  [`SessionChanges`](../../../api/ganttlane/core/interfaces/sessionchanges/).

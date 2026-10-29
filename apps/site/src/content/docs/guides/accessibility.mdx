@@ -1,0 +1,148 @@
+---
+title: Accessibility and browser support
+description: What the chart does for keyboard and assistive-technology users today, what it does not do yet, how to cover the gap, and which browsers, runtimes and tools are supported.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page says plainly what accessibility support the chart has now, what is missing, and how to
+serve users who need more in the meantime. It then lists the browsers, runtimes and tools the
+library supports, and how that support is tested.
+
+## Accessibility
+
+### What the chart does today
+
+- **The scroller is a named, focusable region.** It has `role="region"`, `tabindex="0"` and an
+  `aria-label` taken from `strings.chartLabel` (default `'Gantt chart'`). Translate it with
+  [the `strings` option](../options/#locale-and-strings). Once the region has focus, the browser's
+  own keyboard scrolling works on it (the arrow keys, Page Up, Page Down, Home and End).
+- **A visible focus ring.** The focus indicator is drawn with `:focus-visible`, and its colour and
+  width are the tokens `--gantt-focus-ring-color` and `--gantt-focus-ring-width`
+  ([theming](../theming/)).
+- **Tooltips are described to assistive technology.** A tooltip is `role="tooltip"`, and the bar it
+  describes gets `aria-describedby` pointing at it, for as long as it is shown.
+- **The link menu is a menu.** It is `role="menu"` with `role="menuitem"` buttons. Opening it moves
+  the focus to its first item, Tab moves between the items, and `Escape` closes it and gives the
+  focus back to where it was.
+- **Motion respects the user.** Under `prefers-reduced-motion: reduce` every transition is off.
+- **Colour comes from tokens, in a light and a dark theme.** With `theme: 'auto'` the chart
+  follows `prefers-color-scheme`. Every colour is a `--gantt-*` custom property, so a
+  high-contrast theme of your own is a matter of overriding tokens (see
+  [Theming](../theming/)).
+- **What the chart draws is also data.** The core carries what an accessible renderer needs:
+  stable task and link ids, row order and depth, the expanded state, the selection, per-task
+  permissions, the names and dates of every `TaskRecord`, and issues without UI strings. A renderer
+  of your own can build on them ([Custom renderers](../custom-renderers/)).
+
+### What it does not do yet
+
+These are not available in this version:
+
+- **Bars, links and handles are not focusable and have no roles.** A screen reader reads the chart
+  as an unlabelled graphic apart from its region and its tooltips.
+- **Dragging has no keyboard equivalent.** Moving, resizing and linking need a pointer; there are
+  no arrow-key moves, and no keyboard or context-menu way to draw a link.
+- **Changes are not announced** to assistive technology.
+- **The contrast of the default themes has not been audited** against WCAG AA. Check the tokens
+  you use, and override them where they fall short.
+- **Clicking a bar does not select it,** and there are no undo and redo hotkeys. Selection and
+  history are available from code (`select()`, `undo()`, `redo()`).
+
+### Covering the gap
+
+If your users rely on assistive technology or a keyboard, give them the same plan in a form that
+works for them, next to the chart, and let them edit it there:
+
+- **A table or a list** of the tasks (name, start, end, progress, predecessors), built from the
+  same data you give the chart. For an uncontrolled chart, read it from `getTask(id)` and the
+  `onTasksChange` event; for a controlled one the data is already yours.
+- **Edit forms.** A dialog that edits a task through `updateTask(id, patch)` gives a
+  keyboard-and-screen-reader path to every change that dragging makes. Connect it to the chart
+  with the click event of a task (`onTaskClick`), or to a button in your own list. The
+  [programmatic updates example](../../examples/programmatic-updates/) and the
+  [edit session example](../../examples/edit-session/) show the calls.
+- **Links by form.** `addLink` and `removeLink` do what drawing and removing a link do, without a
+  pointer.
+
+Both the table and the chart then show one source of truth, and any change in either shows in the
+other.
+
+### With React
+
+The chart is the vanilla chart, so its accessibility is the same. What React adds:
+
+- `id`, `aria-*` and `data-*` props go to the container `div`, so you can label the whole widget.
+- The content you draw through the slots (the tooltip, the link menu, the bar label) is your
+  React, so its semantics, labels and focus behaviour are yours. A tooltip or menu that holds
+  buttons or inputs is interactive: it takes pointer events, a link menu also moves the focus to
+  its first button, and `Escape` or a press outside closes it. See [React](../react/).
+
+### Testing your own use
+
+Tab to the chart and check that the focus ring shows and that the name is announced; switch the
+OS to a high-contrast or dark colour scheme and check each theme you ship; turn on
+`prefers-reduced-motion` and check that nothing animates; open the tooltip and the link menu with
+a keyboard-only session and a screen reader.
+
+## Browser support
+
+The chart supports **the last two versions of Chrome, Edge, Firefox and Safari, and iOS Safari 16.4
+or newer**.
+
+| Feature the chart uses                               | Where                 | Needs                                                         |
+| ---------------------------------------------------- | --------------------- | ------------------------------------------------------------- |
+| Pointer Events, `ResizeObserver`, SVG                | the renderer          | every supported browser                                       |
+| Cascade layers (`@layer`), `:is()`, `overflow: clip` | the stylesheet        | every supported browser                                       |
+| `color-mix()`                                        | the stylesheet        | Chrome and Edge 111, Firefox 113, Safari and iOS Safari 16.2  |
+| A regular expression with a lookbehind               | the core's JavaScript | iOS Safari 16.4, the oldest iOS Safari that can load the core |
+
+The progress colour has a fallback for the one thing in the list that is newest (`color-mix()`),
+and every browser above has all four stylesheet features.
+
+### How it is tested
+
+The end-to-end suite runs in Chromium, Firefox and WebKit through Playwright, in a production build
+of the playground: scrolling, pointer events and layout differ between engines, and that is what a
+chart is made of. Real touch input is tested in Chromium only, and iOS momentum scrolling is not
+tested automatically. The React bindings are run in a production build, in a development build
+(StrictMode) and on React 18.3.
+
+### Not supported
+
+- **Left to right only.** `.gantt` sets `direction: ltr` whatever the page says, and
+  `direction: 'rtl'` is reported as unsupported.
+- **A browser is needed for the chart.** `createGantt` draws into a DOM element: on a server, import
+  types only, or use `@ganttlane/core`. There is no server-rendered markup of the vanilla chart.
+  `@ganttlane/react` renders its container on the server and draws the chart after hydration.
+- **A closed shadow root.** A chart in an **open** shadow root works if you adopt the stylesheet
+  into the root; a closed one is not supported.
+- **Clipping ancestors with automatic height.** With `layout.height: 'auto'`, no ancestor between
+  the chart and what scrolls it may clip with `overflow: hidden`.
+
+## Runtimes and tools
+
+| Piece             | Support                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@ganttlane/core` | Node 20 or newer; the same browsers as above. Standard ECMAScript and `Intl` only. No DOM, no timers, no window or document. It runs in a worker as it is                                        |
+| `@ganttlane/dom`  | A browser with a DOM                                                                                                                                                                             |
+| React             | `@ganttlane/react` for React 18.3 and 19 (`react` and `react-dom` are peer dependencies, `^18.3.0 \|\| ^19.0.0`). The whole unit-test suite runs against both                                    |
+| Module format     | ESM only, with TypeScript declarations. TypeScript must resolve package `exports`: `moduleResolution` of `bundler`, `node16` or `nodenext`                                                       |
+| Bundlers          | Anything that understands ESM, package `exports` and CSS imports. The packages mark CSS as a side effect (`sideEffects: ["**/*.css"]`)                                                           |
+| TypeScript        | Typed throughout; TypeScript 6 works. The stylesheet subpath ships a declaration file, so `import '@ganttlane/dom/styles.css'` type-checks (see the [FAQ](../faq/#typescript-6-and-css-imports)) |
+
+The core reads the system clock only for "now" (replace it with the [`now` option](../options/#clock-and-direction)),
+so it is deterministic in tests, and it starts no timers of its own.
+
+React 18.3 differs from 19 in a few ways the [React guide](../react/) lists: how StrictMode reuses
+state on the first render, the absence of `<Activity>` (19.2 only), a warning about
+`useLayoutEffect` that a server render _with a `document`_ (a jsdom test) provokes, and the type of
+a `useRef<GanttHandle>(null)`.
+
+## Related
+
+- [Theming](../theming/): colour tokens, the focus ring and dark mode.
+- [Options](../options/#locale-and-strings): `strings.chartLabel` and the other strings.
+- [FAQ](../faq/): the stylesheet, strict pnpm and TypeScript 6.
+- Examples: [locale and strings](../../examples/locale-and-strings/),
+  [selection](../../examples/selection/), [read-only](../../examples/read-only/).
