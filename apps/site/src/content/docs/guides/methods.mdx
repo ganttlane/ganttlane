@@ -1,0 +1,19 @@
+---
+title: Methods
+description: What you can call on a chart after it is created.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Coming soon">
+  This guide is not written yet. The methods are listed in the references:
+  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#methods),
+  [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#methods)
+  and
+  [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#methods).
+</Aside>
+
+All of them are on the object `createGantt` returns (in React: the `ref` of `<Gantt>`, or the
+instance of `useGantt`) and need no `this`. The [basic chart](../../examples/basic/) calls
+`setViewMode` and `scrollToTask`; the [edit session](../../examples/edit-session/) uses
+`edit.begin()`, `commit()` and `rollback()`.

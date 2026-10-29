@@ -1,0 +1,30 @@
+---
+/**
+ * One page per example folder, generated: the README (its text, and its front matter for the
+ * title), the live demo with the code, then the rest of the README. See `Demo.astro`.
+ */
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
+
+import Demo from '../../components/Demo.astro';
+import { readmeHtml, splitIntro } from '../../lib/readme';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('examples');
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { intro, rest } = splitIntro(
+  readmeHtml(entry.rendered?.html ?? '', entry.id, import.meta.env.BASE_URL),
+);
+---
+
+<StarlightPage
+  frontmatter={{ title: entry.data.title, description: entry.data.description }}
+  headings={entry.rendered?.metadata?.headings ?? []}
+>
+  <Fragment set:html={intro} />
+  <Demo slug={entry.id} height={entry.data.height ?? 480} />
+  <Fragment set:html={rest} />
+</StarlightPage>

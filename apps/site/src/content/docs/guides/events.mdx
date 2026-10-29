@@ -1,0 +1,19 @@
+---
+title: Events
+description: What a chart reports, and the hooks that can cancel or rewrite a change.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Coming soon">
+  This guide is not written yet. The events are listed with their arguments in the references:
+  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#events),
+  [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#events)
+  and
+  [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#events).
+</Aside>
+
+Every event has an `on<Event>` option and a listener added with `gantt.on(name, handler)`, which
+returns a function that removes it. `onBeforeTaskChange` and `onBeforeLinkCreate` run before a
+change is committed and can cancel or rewrite it. The [basic chart](../../examples/basic/) logs two
+events, and [the working calendar](../../examples/working-calendar-hourly/) uses a before-hook.

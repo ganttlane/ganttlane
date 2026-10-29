@@ -1,0 +1,102 @@
+---
+title: Quick start
+description: A first chart with the vanilla renderer and with React, then events and methods.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+The container needs a height: the chart fills it and scrolls inside it.
+
+```html
+<div id="chart" style="height: 420px"></div>
+```
+
+```ts
+import '@ganttlane/dom/styles.css';
+import { createGantt } from '@ganttlane/dom';
+
+const container = document.querySelector<HTMLElement>('#chart');
+if (!container) throw new Error('#chart not found');
+
+const gantt = createGantt(container, {
+  tasks: [
+    { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06', progress: 60 },
+    { id: 'build', name: 'Build', start: '2026-03-09', end: '2026-03-20' },
+  ],
+  links: [{ source: 'design', target: 'build' }],
+  viewMode: 'week',
+  scroll: { initial: 'first-task' },
+  onTasksChange: (changeSet) => console.log(changeSet),
+});
+
+// Later, without recreating the chart: options, view, scrolling, data, events.
+gantt.setOptions({ theme: 'dark' });
+gantt.setViewMode('month');
+gantt.scrollToTask('build');
+
+// When the page is done with the chart: removes every node, listener and timer it added.
+gantt.destroy();
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import '@ganttlane/react/styles.css';
+import { Gantt } from '@ganttlane/react';
+
+export function Plan() {
+  return (
+    <Gantt
+      style={{ height: 420 }}
+      defaultTasks={[
+        { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06', progress: 60 },
+        { id: 'build', name: 'Build', start: '2026-03-09', end: '2026-03-20' },
+      ]}
+      defaultLinks={[{ source: 'design', target: 'build' }]}
+      defaultViewMode="week"
+      scroll={{ initial: 'first-task' }}
+      onTasksChange={(changeSet) => console.log(changeSet)}
+    />
+  );
+}
+```
+
+`<Gantt>` renders one `div`; give it a height with `style` or `className`. `defaultTasks` and
+`defaultLinks` are where an **uncontrolled** chart starts: it owns the data and the handlers tell
+you what happened. To keep the tasks in your own state, pass `tasks` instead (see
+[Controlled data](../../examples/controlled-data/)).
+
+</TabItem>
+
+</Tabs>
+
+<Aside type="tip" title="Open on your plan">
+  `scroll: { initial: 'first-task' }` opens the chart on the plan. The default is `'today'`, so a
+  chart whose data is elsewhere in time opens at the nearest end of its range.
+</Aside>
+
+## What just happened
+
+- **Tasks and links.** A task has an `id`, a `name`, a `start` and an `end` (or a `duration`); a
+  link joins a `source` to a `target`. `'2026-03-02'` is a day and its end is inclusive.
+- **Dates are floating wall-clock time.** There are no time zones: `'2026-03-02T09:30'` is 09:30 for
+  every viewer. Strings with `Z` or an offset are rejected.
+- **Nothing is mutated.** Your options, tasks and links are never changed. A bad value never
+  throws: it is reported as an _issue_ and its default is used.
+- **One event per change.** A drag moves its task and the tasks that follow it along the links, and
+  `onTasksChange` gets one `ChangeSet` with all of them.
+
+## Next
+
+- Try a [basic chart](../../examples/basic/) and read its code, vanilla and React.
+- Keep the data in your own state: [controlled data](../../examples/controlled-data/) and an
+  [edit session with Save and Cancel](../../examples/edit-session/).
+- The full references are the package READMEs:
+  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md) and
+  [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md).

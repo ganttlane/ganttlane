@@ -1,0 +1,21 @@
+---
+title: Options
+description: Every option of a chart, by domain.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Coming soon">
+  This guide is not written yet. The options are listed with their types and defaults in the
+  references:
+  [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#options)
+  (data, calendar, scheduling, view, scroll, layout, editing),
+  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#options)
+  (theme, strings, display, tooltips) and
+  [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#props)
+  (the same, as props).
+</Aside>
+
+`createGantt(container, options)` takes one flat object, and `gantt.setOptions(patch)` changes any
+of it later without recreating the chart. Every [example](../../examples/) has a table of the
+options it uses.

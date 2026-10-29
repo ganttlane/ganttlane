@@ -1,0 +1,20 @@
+{
+  // The examples are browser code written the way an application would write it (strict, like the
+  // packages), plus the little Node-side tooling (`discover.ts`, `resolve.ts`) and the test.
+  // `@ganttlane/*` resolve to the packages' sources through the `@ganttlane/source` condition of
+  // `tsconfig.base.json`. No `@types/node`: the packages' browser code would not type-check with
+  // it (see `node-modules.d.ts`).
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    // `vite/client`: `import.meta.glob` and the `*.css` side-effect imports (which also covers
+    // `@ganttlane/react/styles.css`, whose declarations exist only in a build).
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "declaration": false,
+    "isolatedDeclarations": false,
+    // The Node-run config files import `resolve.ts` and `discover.ts`, and write `.ts` in imports.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

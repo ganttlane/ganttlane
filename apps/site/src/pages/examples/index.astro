@@ -1,0 +1,46 @@
+---
+/**
+ * The gallery: every example folder as a card, grouped by the `category` of its README.
+ */
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { getCollection } from 'astro:content';
+
+import { groupByCategory, sortExamples } from '../../../../../examples/meta';
+
+const entries = await getCollection('examples');
+const groups = groupByCategory(
+  sortExamples(entries.map((entry) => ({ ...entry.data, slug: entry.id }))),
+);
+const base = import.meta.env.BASE_URL;
+---
+
+<StarlightPage
+  frontmatter={{
+    title: 'Examples',
+    description: 'Live demos of ganttlane, vanilla and React, with the code that runs them.',
+  }}
+>
+  <p>
+    Every example runs on this page, in vanilla JavaScript and in React, and shows the files that
+    make it up: the data, the options and the code. They are the files of the
+    <a href="https://github.com/ganttlane/ganttlane/tree/main/examples"><code>examples/</code></a> folder of the
+    repository, copy them into a project.
+  </p>
+  {
+    groups.map(({ category, examples }) => (
+      <>
+        <h2 id={category.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}>{category}</h2>
+        <CardGrid>
+          {examples.map((example) => (
+            <LinkCard
+              title={example.title}
+              description={example.description}
+              href={`${base}examples/${example.slug}/`}
+            />
+          ))}
+        </CardGrid>
+      </>
+    ))
+  }
+</StarlightPage>

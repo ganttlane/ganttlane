@@ -3,6 +3,13 @@ import { defineConfig, devices } from '@playwright/test';
 // Override to run several suites side by side (each builds and serves its own playground).
 const PORT = Number(process.env.GANTTLANE_E2E_PORT ?? 4173);
 const isCI = Boolean(process.env.CI);
+// The documentation site (`apps/site`) has a suite of its own, `e2e/site/`, which `pnpm test:e2e:site`
+// runs (`GANTTLANE_E2E_SITE=1`) against the built site: the examples are drawn in both modes, and
+// the charts follow the site's theme. It is not part of the engine matrix below, and does not build
+// the playground (nor does the matrix build the site).
+const SITE = process.env.GANTTLANE_E2E_SITE === '1';
+const SITE_PORT = Number(process.env.GANTTLANE_E2E_SITE_PORT ?? 4321);
+const SITE_URL = `http://localhost:${SITE_PORT}/ganttlane/`;
 // A server that already answers on the port is reused (a `vite preview` you left running keeps
 // the runs short). `pnpm bench` sets this: a stale build must never be what it measures.
 const reuseExistingServer = !isCI && process.env.GANTTLANE_E2E_NO_REUSE !== '1';
@@ -56,19 +63,30 @@ export default defineConfig({
   // `github`: annotations on the pull request; `dot`: the log; `html`: the report a failed job uploads.
   reporter: isCI ? [['github'], ['dot'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: `http://localhost:${PORT}`,
+    baseURL: SITE ? SITE_URL : `http://localhost:${PORT}`,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-  ],
-  webServer: {
-    command: `pnpm --filter playground build && pnpm --filter playground preview --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}`,
-    reuseExistingServer,
-    timeout: 120_000,
-  },
+  projects: SITE
+    ? [{ name: 'site', testMatch: 'site/**/*.spec.ts', use: { ...devices['Desktop Chrome'] } }]
+    : [
+        { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+        { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+        { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+      ].map((project) => ({ ...project, testIgnore: 'site/**' })),
+  webServer: SITE
+    ? {
+        // `--ignore-lock`: `astro preview` otherwise detaches itself when it sees a coding agent
+        // (and keeps a lock file), which Playwright reads as a server that exited.
+        command: `pnpm site:build && pnpm --filter site preview --port ${SITE_PORT} --ignore-lock`,
+        url: SITE_URL,
+        reuseExistingServer,
+        timeout: 180_000,
+      }
+    : {
+        command: `pnpm --filter playground build && pnpm --filter playground preview --port ${PORT} --strictPort`,
+        url: `http://localhost:${PORT}`,
+        reuseExistingServer,
+        timeout: 120_000,
+      },
 });

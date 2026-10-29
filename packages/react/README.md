@@ -366,7 +366,7 @@ is part of the snapshot (`state.session`), so
 `useGanttState(gantt, (snapshot) => snapshot.state.session !== undefined)` re-renders the buttons.
 The `ref` handle is a source of snapshots like the instance of `useGantt`. The full recipe, with a
 Save that sends the plan to a server and puts the last saved plan back when that fails, is in
-[`examples/react-controlled.md`](https://github.com/ganttlane/ganttlane/blob/main/examples/react-controlled.md). A restored link is the `link` of
+[`examples/edit-session`](https://github.com/ganttlane/ganttlane/tree/main/examples/edit-session). A restored link is the `link` of
 the model the session kept (`model.link`, your own `Link`; none for a link that came from
 `task.dependencies`). The playground page `/react/`
 ([`apps/playground/src/react-app.tsx`](https://github.com/ganttlane/ganttlane/blob/main/apps/playground/src/react-app.tsx)) is this recipe in
@@ -826,10 +826,12 @@ Limits you should know about today:
 
 ## Examples
 
-[`examples/`](https://github.com/ganttlane/ganttlane/blob/main/examples/README.md) has [React basic](https://github.com/ganttlane/ganttlane/blob/main/examples/react-basic.md),
-[controlled data with Save and Cancel](https://github.com/ganttlane/ganttlane/blob/main/examples/react-controlled.md),
-[a custom tooltip](https://github.com/ganttlane/ganttlane/blob/main/examples/custom-tooltip.md#react) and
-[a release plan](https://github.com/ganttlane/ganttlane/blob/main/examples/project-plan.md). The playground page `/react/`
+[`examples/`](https://github.com/ganttlane/ganttlane/tree/main/examples) has [a basic chart](https://github.com/ganttlane/ganttlane/tree/main/examples/basic),
+[controlled data](https://github.com/ganttlane/ganttlane/tree/main/examples/controlled-data),
+[an edit session with Save and Cancel](https://github.com/ganttlane/ganttlane/tree/main/examples/edit-session),
+[a custom tooltip](https://github.com/ganttlane/ganttlane/tree/main/examples/custom-tooltip) and
+[a release plan](https://github.com/ganttlane/ganttlane/tree/main/examples/release-plan), each with a `react.tsx`. They run live on the
+[documentation site](https://ganttlane.github.io/ganttlane/examples/), next to their code. The playground page `/react/`
 ([`apps/playground/src/react-app.tsx`](https://github.com/ganttlane/ganttlane/blob/main/apps/playground/src/react-app.tsx)) is the whole
 library in one page: view and edit mode, Save and Cancel with a changes panel, theme and locale as
 props, the `ReactNode` slots and an event log; run it with `pnpm dev` in the repository.

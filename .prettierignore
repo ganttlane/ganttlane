@@ -1,10 +1,11 @@
 # Hand-written docs (Ukrainian) and agent instructions; formatting is curated by hand.
-docs/
+/docs/
 CLAUDE.md
 
 # Generated / installed (node_modules and .gitignore entries are skipped by Prettier already)
 pnpm-lock.yaml
 **/dist/
+.astro/
 coverage/
 test-results/
 playwright-report/

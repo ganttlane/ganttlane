@@ -1,0 +1,78 @@
+---
+title: Introduction
+description: What ganttlane is, what is in it, and where to go next.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+ganttlane is an interactive Gantt chart library for the web: a framework-agnostic TypeScript core, a
+vanilla DOM renderer with a themable stylesheet, and React bindings. Plans with thousands of tasks
+stay smooth (only what is on screen is drawn), the schedule follows your work calendar, and a drag
+is one `ChangeSet` you can veto, confirm, save or cancel.
+
+<Aside type="caution" title="Pre-release">
+  The packages are `0.0.0` and not on npm yet. The API may still change before `0.1.0`. Until they
+  are published under the `@ganttlane` scope, clone the
+  [repository](https://github.com/ganttlane/ganttlane) and run `pnpm dev` for the playground, or
+  `pnpm site:dev` for this site.
+</Aside>
+
+## What is in it
+
+| Package                                                                               | What it is                                                                         |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/tree/main/packages/core)   | Headless core: dates, work calendar, time scale, scheduling, layout, state. No DOM |
+| [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/tree/main/packages/dom)     | Vanilla DOM renderer, `createGantt`, and the default CSS theme                     |
+| [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/tree/main/packages/react) | React components and hooks over the vanilla renderer (React 18.3 and 19)           |
+
+Install the one you import from: `@ganttlane/dom` brings `@ganttlane/core` with it, and
+`@ganttlane/react` brings both. Use `@ganttlane/core` on its own to write a renderer, to schedule on
+a server, or to test rules without a browser. All three are released together, on the same version.
+
+## What it does
+
+- **Time.** A linear time scale with real month and year lengths, seven view-mode presets (hour to
+  year) you can override or extend, minute-level scheduling with drag snapping, and a data
+  **granularity** that keeps every date a multiple of your step (`'1d'`, `'1h'`, `'15min'`).
+- **Work calendar.** Weekends, named holidays, working-day exceptions and custom rules, with
+  durations counted in working days or working time.
+- **Dependencies.** Finish-to-start, start-to-start, finish-to-finish and start-to-finish links with
+  lags and leads, cycle detection, and propagation of an edit along links and to pinned children.
+- **Hierarchy.** Parent and child rows, expand and collapse, children pinned to their parent's
+  edges, milestones and rows without a bar.
+- **Editing.** Drag to move, resize and set progress; draw links by dragging or click-click; edit
+  sessions with Save and Cancel; undo and redo (opt in with `history: true`); async before-hooks
+  that confirm or rewrite a change; controlled and uncontrolled data.
+- **Scrolling.** An infinite timeline that extends without a visible jump, programmatic scrolling
+  to a date, today or a task, and automatic or fixed height with a sticky header.
+- **Presentation.** Light and dark themes through `--gantt-*` custom properties in `@layer gantt`,
+  an unstyled contract of stable classes and `data-*` attributes, tooltips and link menus with safe
+  content types, localisable strings, and `ReactNode` slots in React.
+- **Engineering.** Typed everywhere (`TData` flows from `task.data` to every handler), the caller's
+  data is never mutated, bad data and options are issues (never a throw), every instance cleans up
+  after itself, and React server rendering and StrictMode are supported.
+
+## Where to go next
+
+<CardGrid>
+  <LinkCard
+    title="Installation"
+    description="Pick a package, install it, import the stylesheet."
+    href="../installation/"
+  />
+  <LinkCard
+    title="Quick start"
+    description="A first chart in vanilla JavaScript and in React."
+    href="../quick-start/"
+  />
+  <LinkCard
+    title="Examples"
+    description="Live demos with the code that runs them, vanilla and React."
+    href="../../examples/"
+  />
+</CardGrid>
+
+## Browser and runtime support
+
+The last two versions of Chrome, Edge, Firefox and Safari, and iOS Safari 16.4 or newer. Node 20 or
+newer for `@ganttlane/core`. React 18.3 and 19. ESM only.

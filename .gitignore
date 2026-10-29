@@ -6,6 +6,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .vite/
+# Astro (apps/site): generated types and the content cache
+.astro/
 
 # tests & tooling
 coverage/
@@ -37,5 +39,5 @@ packages/*/NOTICE
 .claude/worktrees/
 
 # local only: internal design docs and agent instructions
-docs/
+/docs/
 CLAUDE.md

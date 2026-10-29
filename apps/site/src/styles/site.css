@@ -1,0 +1,119 @@
+/*
+ * The look of the live demos (`src/components/Demo.astro`). The examples are plain user code and
+ * bring no styles of their own: their toolbars, buttons and status lines are styled here, from
+ * the colours of Starlight, so they follow its light and dark themes. The charts themselves are
+ * styled by `@ganttlane/dom/styles.css`, which each example imports.
+ */
+
+.demo {
+  margin-block: 1.5rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  background: var(--sl-color-bg);
+  overflow: hidden;
+}
+
+.demo__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--sl-color-gray-5);
+  background: var(--sl-color-bg-nav);
+  font-size: var(--sl-text-sm);
+}
+
+.demo__modes {
+  display: inline-flex;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.demo__mode {
+  padding: 0.25rem 0.875rem;
+  border: 0;
+  background: transparent;
+  color: var(--sl-color-gray-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.demo__mode + .demo__mode {
+  border-inline-start: 1px solid var(--sl-color-gray-5);
+}
+
+.demo__mode[aria-selected='true'] {
+  background: var(--sl-color-accent);
+  color: var(--sl-color-text-invert);
+}
+
+.demo__mode:focus-visible,
+.demo__stage button:focus-visible {
+  outline: 2px solid var(--sl-color-accent-high);
+  outline-offset: 2px;
+}
+
+.demo__only {
+  color: var(--sl-color-gray-3);
+}
+
+.demo__github {
+  color: var(--sl-color-text-accent);
+  text-decoration: none;
+}
+
+.demo__github:hover {
+  text-decoration: underline;
+}
+
+/* The height is fixed, so the page does not jump while the chart loads. */
+.demo__stage {
+  box-sizing: border-box;
+  height: var(--demo-height, 480px);
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.demo__pane[hidden] {
+  display: none;
+}
+
+/* What the examples build around a chart: a toolbar of buttons and a line of status. */
+.demo__stage [role='toolbar'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: 0.5rem;
+  font-size: var(--sl-text-sm);
+}
+
+.demo__stage button {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--sl-color-gray-4);
+  border-radius: 0.375rem;
+  background: var(--sl-color-gray-6);
+  color: var(--sl-color-text);
+  font: inherit;
+  font-size: var(--sl-text-sm);
+  cursor: pointer;
+}
+
+.demo__stage button:hover:not(:disabled) {
+  border-color: var(--sl-color-accent);
+}
+
+.demo__stage button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.demo__stage p {
+  margin: 0.5rem 0 0;
+  min-height: 1.5em;
+  color: var(--sl-color-gray-2);
+  font-size: var(--sl-text-sm);
+}

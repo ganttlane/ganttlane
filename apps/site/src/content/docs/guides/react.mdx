@@ -1,0 +1,21 @@
+---
+title: React
+description: The component, the hooks, controlled data, slots and server rendering.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Coming soon">
+  This guide is not written yet. The reference is the [`@ganttlane/react`
+  README](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md):
+  [props](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#props),
+  [controlled and uncontrolled
+  data](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#controlled-and-uncontrolled),
+  [hooks](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#hooks) and
+  [slots](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#slots-tooltip-link-menu-and-bar-label-as-reactnode).
+</Aside>
+
+`<Gantt>` is a `div` that the vanilla renderer draws into, with the options as props; `useGantt` is
+the same without the `div`. Every [example](../../examples/) has a `react.tsx` next to its
+`vanilla.ts`: the [custom tooltip](../../examples/custom-tooltip/) is a React component, and the
+[edit session](../../examples/edit-session/) uses `useGantt` and `useGanttState`.

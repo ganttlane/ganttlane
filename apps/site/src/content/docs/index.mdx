@@ -1,0 +1,69 @@
+---
+title: ganttlane
+description: An interactive Gantt chart library for the web. A framework-agnostic TypeScript core, a vanilla DOM renderer with a themable stylesheet, and React bindings.
+template: splash
+hero:
+  tagline: An interactive Gantt chart for the web. Plans with thousands of tasks stay smooth, the schedule follows your work calendar, and a drag is one ChangeSet you can veto, confirm, save or cancel.
+  actions:
+    - text: Get started
+      link: getting-started/introduction/
+      icon: right-arrow
+    - text: Live examples
+      link: examples/
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/ganttlane/ganttlane
+      variant: minimal
+      attrs:
+        rel: noopener
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Time" icon="clock">
+    A linear time scale with real month and year lengths, seven view-mode presets (hour to year),
+    and a data **granularity** (`'1d'`, `'1h'`, `'15min'`) that keeps every date a multiple of your
+    step.
+  </Card>
+  <Card title="Work calendar" icon="list-format">
+    Weekends, named holidays, working-day exceptions and custom rules, with durations counted in
+    working days or working time.
+  </Card>
+  <Card title="Dependencies and hierarchy" icon="code-branch">
+    Four link types with lags and leads, cycle detection, propagation along links and to pinned
+    children, parents, milestones and rows without a bar.
+  </Card>
+  <Card title="Editing" icon="pencil">
+    Drag to move, resize and set progress; draw links; edit sessions with Save and Cancel; undo and
+    redo; async before-hooks; controlled and uncontrolled data.
+  </Card>
+  <Card title="Scrolling" icon="random">
+    An infinite timeline that extends without a visible jump, scrolling to a date, today or a task,
+    and a sticky header.
+  </Card>
+  <Card title="Presentation" icon="puzzle">
+    Light and dark themes through `--gantt-*` custom properties in `@layer gantt`, safe tooltip
+    content, localisable strings, and `ReactNode` slots in React.
+  </Card>
+</CardGrid>
+
+## Packages
+
+<CardGrid>
+  <LinkCard
+    title="@ganttlane/core"
+    description="Headless core: dates, work calendar, time scale, scheduling, layout, state. No DOM."
+    href="getting-started/installation/#packages"
+  />
+  <LinkCard
+    title="@ganttlane/dom"
+    description="Vanilla DOM renderer, createGantt, and the default CSS theme."
+    href="getting-started/quick-start/#vanilla"
+  />
+  <LinkCard
+    title="@ganttlane/react"
+    description="React components and hooks over the vanilla renderer (React 18.3 and 19)."
+    href="getting-started/quick-start/#react"
+  />
+</CardGrid>

@@ -1,0 +1,102 @@
+---
+title: Installation
+description: Install the package you import from, and import the stylesheet once.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Pre-release">
+  `0.0.0`: not published to npm yet. The commands below are what the install will be; until then
+  clone the [repository](https://github.com/ganttlane/ganttlane) and use the playground (`pnpm dev`)
+  or this site (`pnpm site:dev`).
+</Aside>
+
+## Packages
+
+Install the package you import from. `@ganttlane/dom` brings `@ganttlane/core` with it, and
+`@ganttlane/react` brings both.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```sh
+pnpm add @ganttlane/dom
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```sh
+pnpm add @ganttlane/react react react-dom
+```
+
+An app that already has `react` and `react-dom` needs only `pnpm add @ganttlane/react`.
+
+</TabItem>
+
+<TabItem label="Core only">
+
+```sh
+pnpm add @ganttlane/core
+```
+
+For a renderer of your own, scheduling on a server, or testing rules without a browser.
+
+</TabItem>
+
+</Tabs>
+
+`npm install` and `yarn add` work the same way.
+
+## Requirements
+
+- **ESM only**, with TypeScript declarations. TypeScript must resolve package `exports`:
+  `moduleResolution` of `bundler`, `node16` or `nodenext`.
+- **Browsers.** The last two versions of Chrome, Edge, Firefox and Safari, and iOS Safari 16.4 or
+  newer.
+- **React.** 18.3 or 19; `react` and `react-dom` are peer dependencies (`^18.3.0 || ^19.0.0`).
+- **Node.** 20 or newer for `@ganttlane/core` (a chart itself needs a DOM).
+
+## The stylesheet
+
+The stylesheet is a separate import, once per page. The JavaScript never imports it, so bundlers,
+CSS-in-JS setups and plain `<link>` tags all work.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import '@ganttlane/dom/styles.css';
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```ts
+import '@ganttlane/react/styles.css';
+```
+
+It is a copy of the stylesheet of `@ganttlane/dom`, so an app that installed only
+`@ganttlane/react` can import it. Import one of the two, not both.
+
+</TabItem>
+
+</Tabs>
+
+The CSS is in `@layer gantt`, so any style of your own wins without `!important`. Have it in effect
+before you mount: the chart measures its container when it is created.
+
+## Strict pnpm
+
+Strict pnpm lets you import only what your own `package.json` lists. `@ganttlane/dom` and
+`@ganttlane/react` re-export the **types** you meet around a chart (`Task`, `Link`, `TaskRecord`,
+`ChangeSet`, …), and `@ganttlane/react` also re-exports `patchTasks`. For a runtime value of the
+core in a vanilla app (`patchTasks`, `createGanttCore`), add `@ganttlane/core` on the same version.
+
+## Next
+
+Draw your [first chart](../quick-start/), or open an [example](../../examples/).

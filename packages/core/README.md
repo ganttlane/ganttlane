@@ -770,7 +770,7 @@ Limits you should know about today:
 
 Planned for 1.0 (P1): zoom gestures and `zoomToFit`, selection and keyboard navigation, undo and
 redo hotkeys, `push-forward` propagation, week-start and weekend defaults from the locale, RTL,
-exported validation schemas, a task list, compound React components, a documentation site. Beyond
+exported validation schemas, a task list, compound React components, a generated API reference. Beyond
 that (P2): zoned dates, working hours, baselines, critical path, rollup of parent dates.
 
 ## License

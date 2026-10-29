@@ -1,0 +1,30 @@
+---
+title: Concepts
+description: The data model, the scheduling rules and the edit flow.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Coming soon">
+  This guide is not written yet. Until it is, the references have the whole story: the concepts of
+  [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#concepts)
+  and the short version in
+  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#concepts).
+</Aside>
+
+## In short
+
+- **Tasks and links.** A task has an `id`, a `name`, a `start` and an `end` (or a `duration`); a
+  link joins a `source` to a `target` with a type (`FS`, `SS`, `FF`, `SF`) and a lag. Tasks nest
+  through `parentId`. The computed form of a task is a `TaskRecord`.
+- **Dates are floating wall-clock time.** There are no time zones.
+- **Granularity.** `scheduling.granularity` is the data step: every date, duration and lag is a
+  multiple of it.
+- **Work calendar.** `calendar` decides which days work; `durationMode: 'working'` counts durations
+  in working time.
+- **Propagation.** An edit moves the tasks linked to it, keeping their lags. The result is one
+  `ChangeSet`.
+- **Controlled and uncontrolled data.** The chart owns the tasks, or you do.
+- **Edit sessions.** `begin()`, `commit()` and `rollback()` are the "Edit, Save, Cancel" flow.
+
+See them at work in the [examples](../../examples/).

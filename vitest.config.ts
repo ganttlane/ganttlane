@@ -5,6 +5,8 @@ import type { Alias } from 'vite';
 import { defaultClientConditions, defaultServerConditions } from 'vite';
 import { configDefaults, defineConfig } from 'vitest/config';
 
+import { exampleAliases } from './examples/resolve.ts';
+
 // Performance budgets (`*.perf.test.ts`) only run in `pnpm test:perf`: under coverage
 // instrumentation, in six time zones or next to other heavy jobs their timings are noise.
 const PERF = process.env.GANTTLANE_PERF === '1';
@@ -108,6 +110,18 @@ export default defineConfig({
           ...files,
           root: 'internal/fixtures',
           environment: 'node',
+        },
+      },
+      {
+        // Every folder of `examples/`: mounts its vanilla code, renders its React code, and checks
+        // that its data and options give no issues (`examples/examples.test.tsx`).
+        extends: true,
+        resolve: { alias: exampleAliases() },
+        test: {
+          name: 'examples',
+          ...files,
+          root: 'examples',
+          environment: 'happy-dom',
         },
       },
     ],

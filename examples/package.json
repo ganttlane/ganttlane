@@ -1,0 +1,23 @@
+{
+  "name": "@ganttlane/examples",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable examples of ganttlane, one folder each: data, options, vanilla and React code, and a README. The documentation site renders these very files. Never published.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ganttlane/core": "workspace:*",
+    "@ganttlane/dom": "workspace:*",
+    "@ganttlane/react": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "vite": "catalog:"
+  }
+}

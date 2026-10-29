@@ -122,3 +122,68 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 14
+
+  # The documentation site (apps/site, built from the packages' sources and the examples/ folders)
+  # is a job of its own: `pnpm check` stays about code quality and does not build it. The build
+  # fails on a broken example, a malformed README front matter or a dead import; the browser suite
+  # (`pnpm test:e2e:site`, e2e/site/) then opens the built site and checks that every example is
+  # drawn in vanilla and in React, and that the charts follow the site's theme. pages.yml deploys
+  # the same build from main.
+  site:
+    name: site (build and browser check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the site
+        run: pnpm site:build
+
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}-chromium
+
+      - name: Install chromium and its system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install system dependencies of chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      # Builds the site again and serves it with `astro preview` (see playwright.config.ts).
+      - name: Check the built site in a browser
+        run: pnpm test:e2e:site
+
+      - name: Upload Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-site
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14

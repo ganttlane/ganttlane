@@ -1,0 +1,19 @@
+---
+title: Theming
+description: Light and dark themes, custom properties, and the unstyled contract.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Coming soon">
+  This guide is not written yet. The theme is documented in
+  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#theme)
+  (the `--gantt-*` custom properties) and its [unstyled
+  contract](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#unstyled-contract)
+  (the stable classes and `data-*` attributes).
+</Aside>
+
+The `theme` option is `'auto'` (follow `prefers-color-scheme`, the default), `'light'` or `'dark'`.
+The stylesheet is in `@layer gantt`, so any style of your own wins without `!important`: the
+[release plan](../../examples/release-plan/) colours its bars by status with one custom property per
+class. The charts on this site follow the theme of the site.

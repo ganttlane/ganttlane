@@ -1,0 +1,16 @@
+{
+  // The TypeScript of the site: the content config, the library code and the React island. `.astro`
+  // files are checked by `astro build`, not by `tsc`. `astro sync` writes `.astro/types.d.ts`
+  // (`astro:content`), which `pnpm typecheck` runs first. `astro.config.ts` is part of the root
+  // tooling project (`tsconfig.json` there).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["astro/client"],
+    "jsx": "react-jsx",
+    "declaration": false,
+    "isolatedDeclarations": false
+  },
+  "include": ["src", ".astro/types.d.ts"],
+  "exclude": ["dist"]
+}

@@ -1,0 +1,98 @@
+---
+/**
+ * The live demo of one example folder (`examples/<slug>/`) and the code that runs it.
+ *
+ * - A toggle between Vanilla and React (when the example has both) over a stage of a fixed height,
+ *   so that the page does not jump while the chart loads. Both examples are mounted in the browser
+ *   only: `vanilla.ts` by `src/lib/demo-client.ts`, `react.tsx` by the island `ReactDemo.tsx`.
+ * - Below it, one tab per file of the folder (`data.ts`, `options.ts`, `vanilla.ts`, `react.tsx`,
+ *   then the others), read with Vite's `?raw` and highlighted by Starlight's `Code`.
+ * - A link to the folder on GitHub.
+ *
+ * `<Demo slug="basic" />`; `height` is the stage's, in px; `code={false}` leaves the tabs out.
+ */
+import { Code, TabItem, Tabs } from '@astrojs/starlight/components';
+
+import { sortFiles } from '../../../../examples/meta';
+import ReactDemo from './ReactDemo';
+
+interface Props {
+  slug: string;
+  height?: number;
+  code?: boolean;
+}
+
+const { slug, height = 480, code = true } = Astro.props;
+
+// Every file of every example folder, as text. The paths are `…/examples/<slug>/<file>`.
+const sources = import.meta.glob<string>('../../../../examples/*/*.{ts,tsx,css}', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+
+const prefix = `../../../../examples/${slug}/`;
+const files = sortFiles(
+  Object.keys(sources)
+    .filter((path) => path.startsWith(prefix))
+    .map((path) => path.slice(prefix.length)),
+);
+
+const hasVanilla = files.includes('vanilla.ts');
+const hasReact = files.includes('react.tsx');
+const firstMode = hasVanilla ? 'vanilla' : 'react';
+const language = (file: string): string => (file.endsWith('.tsx') ? 'tsx' : file.endsWith('.css') ? 'css' : 'ts');
+const github = `https://github.com/ganttlane/ganttlane/tree/main/examples/${slug}`;
+---
+
+<section
+  class="demo not-content"
+  data-demo
+  data-slug={slug}
+  data-mode={firstMode}
+  style={`--demo-height: ${height}px`}
+>
+  <div class="demo__bar">
+    {
+      hasVanilla && hasReact ? (
+        <div class="demo__modes" role="group" aria-label="Show the example in">
+          <button type="button" class="demo__mode" data-mode-button="vanilla" aria-selected="true">
+            Vanilla
+          </button>
+          <button type="button" class="demo__mode" data-mode-button="react" aria-selected="false">
+            React
+          </button>
+        </div>
+      ) : (
+        <span class="demo__only">{hasVanilla ? 'Vanilla only' : 'React only'}</span>
+      )
+    }
+    <a class="demo__github" href={github} target="_blank" rel="noopener">View on GitHub</a>
+  </div>
+  <div class="demo__stage">
+    {hasVanilla && <div class="demo__pane" data-pane="vanilla" hidden={firstMode !== 'vanilla'} />}
+    {
+      hasReact && (
+        <div class="demo__pane" data-pane="react" hidden={firstMode !== 'react'}>
+          <ReactDemo slug={slug} client:only="react" />
+        </div>
+      )
+    }
+  </div>
+</section>
+
+{
+  code && (
+    <Tabs syncKey="example-file">
+      {files.map((file) => (
+        <TabItem label={file}>
+          <Code code={sources[`${prefix}${file}`] ?? ''} lang={language(file)} title={file} />
+        </TabItem>
+      ))}
+    </Tabs>
+  )
+}
+
+<script>
+  import '../lib/demo-client';
+</script>

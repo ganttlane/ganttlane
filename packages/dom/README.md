@@ -146,9 +146,10 @@ gantt.destroy();
 - **Your options, tasks and links are never mutated**, and a value that cannot be used never throws:
   it is an [issue](#issues) and its default is used.
 
-More complete, runnable examples (vanilla and React, controlled data in both, working days at
-hourly granularity, a custom tooltip, a release plan) are in
-[`examples/`](https://github.com/ganttlane/ganttlane/blob/main/examples/README.md); the playground (`pnpm dev`, see
+More complete, runnable examples (basic, controlled data, an edit session with Save and Cancel,
+working days at hourly granularity, a custom tooltip, a release plan; each in vanilla and in React)
+are in [`examples/`](https://github.com/ganttlane/ganttlane/tree/main/examples), one folder each, and run live, next to their code, on the
+[documentation site](https://ganttlane.github.io/ganttlane/examples/); the playground (`pnpm dev`, see
 [the root README](https://github.com/ganttlane/ganttlane/blob/main/README.md#the-playground)) is the demo of everything.
 
 ## Concepts
@@ -178,7 +179,7 @@ the details are in [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/bl
   reported, shown as a draft, and applied when you pass the new tasks back with `setTasks`;
   `patchTasks(tasks, changeSet, gantt.core.getSnapshot().state.derived.model)` from
   `@ganttlane/core` writes a change set into your own tasks in their own shape (a short
-  [example](https://github.com/ganttlane/ganttlane/blob/main/examples/vanilla-controlled.md) has the whole loop). With React the `tasks` /
+  [example](https://github.com/ganttlane/ganttlane/tree/main/examples/controlled-data) has the whole loop). With React the `tasks` /
   `defaultTasks` props make the choice, see
   [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#controlled-and-uncontrolled).
 - **Edit sessions and history.** `gantt.edit.begin()`, `commit()` and `rollback()` are the
@@ -1275,13 +1276,15 @@ Planned for 1.0 (P1): zoom gestures and a toolbar, selection and keyboard naviga
 and keyboard editing, undo and redo hotkeys, a task list, markers, sticky labels and the
 expected-progress marker, right-to-left charts, week-start and weekend defaults from the locale,
 the `push-forward` propagation policy, a context menu, dev-time hints for old option names with a
-frappe-gantt option adapter, and a documentation site.
+frappe-gantt option adapter, and a generated API reference (the
+[documentation site](https://ganttlane.github.io/ganttlane/) has the guides and live examples).
 
 ## Examples
 
-[`examples/`](https://github.com/ganttlane/ganttlane/blob/main/examples/README.md) has short, copy-pasteable examples: a vanilla chart, vanilla
-controlled data, a React chart, controlled React data with Save and Cancel, working days at hourly
-granularity, a custom tooltip and a release plan. The playground is the runnable demo: `pnpm dev`
+[`examples/`](https://github.com/ganttlane/ganttlane/tree/main/examples) has copy-pasteable examples, one folder each, with the data, the options, the
+vanilla code and the React code: a basic chart, controlled data, an edit session with Save and
+Cancel, working days at hourly granularity, a custom tooltip and a release plan. They run live on the
+[documentation site](https://ganttlane.github.io/ganttlane/examples/), next to the code that runs them. The playground is the demo of everything: `pnpm dev`
 in the repository, then `/vanilla/`, `/edit/`, `/scroll/`, `/bench/`, `/react/`, `/react-edit/` and
 `/react-ssr/` (the root README says [what each page shows](https://github.com/ganttlane/ganttlane/blob/main/README.md#the-playground)).
 

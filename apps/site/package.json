@@ -1,0 +1,24 @@
+{
+  "name": "site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro sync && tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@astrojs/react": "^7.1.1",
+    "@astrojs/starlight": "^0.42.7",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "astro": "^7.4.2",
+    "vite": "catalog:"
+  }
+}

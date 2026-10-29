@@ -1,0 +1,14 @@
+/*
+ * Your own stylesheet: any stylesheet of the page, loaded after the library's. Status colours are
+ * one custom property per class. `task.className` is added to the bar's own element, so a CSS
+ * variable set on it reaches the bar and its progress.
+ */
+.gantt__bar.is-done {
+  --gantt-bar-color: #2f9e44;
+}
+.gantt__bar.is-active {
+  --gantt-bar-color: #3f6fd1;
+}
+.gantt__bar.is-late {
+  --gantt-bar-color: #d9480f;
+}

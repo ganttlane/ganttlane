@@ -69,9 +69,10 @@ export const Plan = () => (
 
 The container of a chart needs a height. `scroll: { initial: 'first-task' }` opens the chart on the
 plan: the default is `'today'`, so a chart whose data is elsewhere in time opens at the nearest end
-of its range. More examples (controlled data in vanilla and in React, with Save and Cancel, working
-days at hourly granularity, a custom tooltip, a release plan) are in
-[`examples/`](examples/README.md).
+of its range. More examples (controlled data, an edit session with Save and Cancel, working days at
+hourly granularity, a custom tooltip, a release plan, each in vanilla and in React) are in
+[`examples/`](examples/README.md), one folder each. They run live, next to the code that runs them, on
+the [documentation site](https://ganttlane.github.io/ganttlane/).
 
 ## Features
 
@@ -101,9 +102,12 @@ right-to-left) is listed in each package's "Limits and roadmap".
 
 ## Documentation
 
+- The [documentation site](https://ganttlane.github.io/ganttlane/): getting started, guides and live
+  examples (the API reference is coming). `pnpm site:dev` serves it from this repository.
 - [`packages/core`](packages/core/README.md), [`packages/dom`](packages/dom/README.md) and
   [`packages/react`](packages/react/README.md): the references.
-- [`examples/`](examples/README.md): short, copy-pasteable examples.
+- [`examples/`](examples/README.md): copy-pasteable examples, one folder each (data, options, vanilla
+  and React code), which the site renders and the tests run.
 - [`MIGRATION.md`](MIGRATION.md): moving from frappe-gantt, or from a modified fork of it.
 
 ### The playground
@@ -138,9 +142,11 @@ Requires Node 24 (see `.tool-versions` / `.nvmrc`; Node 22 is supported too) and
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm dev`         | The playground (Vite) on package sources; its [pages](#the-playground) are `/vanilla/`, `/edit/`, `/scroll/`, `/bench/`, `/react/`, `/react-edit/` and `/react-ssr/` |
 | `pnpm check`       | Everything CI runs: format, lint, dependency rules, types, tests with coverage, time-zone and performance tests, build, size. Must be green before a change is done  |
-| `pnpm test`        | Unit tests (Vitest): `core` in Node, `dom` and `react` in happy-dom, `react-18` against React 18.3                                                                   |
+| `pnpm test`        | Unit tests (Vitest): `core` in Node, `dom` and `react` in happy-dom, `react-18` against React 18.3, `examples` (every example mounts, in vanilla and in React)       |
 | `pnpm test:watch`  | The same, watching                                                                                                                                                   |
 | `pnpm test:e2e`    | End-to-end tests (Playwright: Chromium, Firefox, WebKit) against a build of the playground. Run `pnpm test:e2e:install` once for the browsers                        |
+| `pnpm site:dev`    | The documentation site (Astro Starlight, `apps/site`) with live examples, on package sources                                                                         |
+| `pnpm site:build`  | Builds the site to `apps/site/dist` (what the Pages workflow deploys); `pnpm test:e2e:site` checks the build in a browser                                            |
 | `pnpm size`        | Checks the min + gzip size of each entry against its budget (`.size-limit.ts`; build first)                                                                          |
 | `pnpm size:report` | Breaks a build down by module and dependency (`--dev`, `--import createGanttCore`, `--package dom`, `--files`)                                                       |
 | `pnpm lint:deps`   | dependency-cruiser: package boundaries and the module map of the core                                                                                                |
@@ -149,8 +155,9 @@ Requires Node 24 (see `.tool-versions` / `.nvmrc`; Node 22 is supported too) and
 | `pnpm changeset`   | Adds a changeset for a user-facing change (see Releasing)                                                                                                            |
 
 Layout: `packages/{core,dom,react}` are the published packages, `apps/playground` the demo and the
-subject of the end-to-end tests (`e2e/`), `internal/fixtures` the test data shared by tests and the
-playground, and `examples/` the examples.
+subject of the end-to-end tests (`e2e/`), `apps/site` the documentation site, `internal/fixtures` the
+test data shared by tests and the playground, and `examples/` the examples (a private workspace
+package, `@ganttlane/examples`).
 
 ### Development and production builds of `@ganttlane/core`
 
