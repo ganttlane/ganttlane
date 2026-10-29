@@ -1,0 +1,787 @@
+/*
+ * @ganttlane/dom default theme (FR-THEME-1 .. FR-THEME-6).
+ *
+ * - Everything lives in `@layer gantt`, so any application style (unlayered) wins without
+ *   `!important`, and no rule is more specific than a class plus `data-*` / pseudo-class.
+ * - The look is driven by `--gantt-*` tokens declared on `.gantt` (documented in README.md).
+ *   `data-theme="light"` is the default, `"dark"` swaps the token values, and `"auto"` swaps
+ *   them under `prefers-color-scheme: dark`. Rules never change between themes, only tokens do.
+ * - CSP-safe: no `url()`, no `@import`; the renderer only sets custom properties (CSSOM) and
+ *   attributes, never `style` text.
+ * - The class names and `data-*` attributes below are the "unstyled contract" (README.md):
+ *   a stylesheet that replaces this one targets the same names.
+ */
+@layer gantt {
+  /*
+   * STRUCTURE (plan step 4.1): the rules below make the skeleton scroll and stick. The renderer
+   * sets `--gantt-content-width`, `--gantt-header-height` and `--gantt-body-height` on the root
+   * (CSSOM, so a strict `style-src` CSP is fine); a stylesheet that replaces this one must size
+   * `.gantt__header` and `.gantt__body` from them. The chart fills its container, or is
+   * `--gantt-height` tall when the `height` option is a number. It is left to right whatever the
+   * page is: an RTL scroller counts `scrollLeft` down from zero, and the renderer's arithmetic
+   * is not made for that (a mirrored scale is the P1 `direction` option).
+   */
+  .gantt {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: var(--gantt-height, 100%);
+    direction: ltr;
+  }
+
+  /*
+   * The single scroll container, both axes. Position is written by the renderer only: the
+   * infinite timeline compensates `scrollLeft` itself (so no scroll anchoring), and its writes
+   * must be instant whatever `scroll-behavior` the application sets (requests pass `behavior`).
+   */
+  .gantt__scroller {
+    position: relative;
+    overflow: auto;
+    width: 100%;
+    height: 100%;
+    overflow-anchor: none;
+    scroll-behavior: auto;
+  }
+
+  .gantt__header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    width: var(--gantt-content-width, 0);
+    height: var(--gantt-header-height, 0);
+  }
+
+  .gantt__body {
+    display: block;
+    width: var(--gantt-content-width, 0);
+    height: var(--gantt-body-height, 0);
+  }
+
+  /* Popovers and tooltips: above the scroller, never clipped or scrolled away. */
+  .gantt__layer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /*
+   * SCROLLING AND HEIGHT (plan step 4.9, FR-SCROLL-3). With `height: 'auto'` the renderer sets
+   * `data-height="auto"` on the root: the chart is as tall as its rows and the page (or the
+   * nearest ancestor that scrolls) scrolls it, so the scroller scrolls sideways only and a
+   * header inside it could never stick. The header moves into `.gantt__pin`, in front of the
+   * scroller and sticky against that host; the pin is a scroll container of its own that the
+   * renderer scrolls sideways with the scroller, and the scroller keeps the header's place as
+   * padding under it, so its box is the header and the rows, as in a fixed height.
+   */
+  .gantt[data-height='auto'] {
+    height: auto;
+  }
+
+  .gantt[data-height='auto'] .gantt__scroller {
+    height: auto;
+    margin-block-start: calc(var(--gantt-header-height, 0px) * -1);
+    padding-block-start: var(--gantt-header-height, 0);
+    overflow-y: hidden;
+  }
+
+  .gantt__pin {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-sizing: border-box;
+    width: 100%;
+    height: var(--gantt-header-height, 0);
+    overflow: hidden;
+    scroll-behavior: auto;
+    touch-action: pan-y;
+  }
+
+  /*
+   * TOKENS, light (the default). Colours first, then sizes. `--gantt-bar-color` and
+   * `--gantt-highlight-color` are also written per element by the renderer (a task's `color`,
+   * a highlight's `color`); an element without its own value inherits the theme's.
+   */
+  .gantt {
+    color-scheme: light;
+
+    --gantt-font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --gantt-font-size: 12px;
+    --gantt-transition-duration: 120ms;
+
+    --gantt-background-color: #fff;
+    --gantt-foreground-color: #1b2230;
+    --gantt-border-color: #d3d9e1;
+    --gantt-border-width: 1px;
+
+    --gantt-header-background-color: #f5f6f8;
+    --gantt-header-text-color: #465163;
+    --gantt-header-current-color: rgb(229 72 77 / 10%);
+    --gantt-header-range-color: rgb(37 99 235 / 14%);
+
+    --gantt-grid-line-color: #e7eaef;
+    --gantt-grid-line-width: 1px;
+    --gantt-grid-major-line-color: #c8cfd9;
+    --gantt-grid-major-line-width: 1px;
+    --gantt-grid-minor-line-color: #eff1f4;
+    --gantt-row-stripe-color: rgb(15 23 42 / 3.5%);
+    --gantt-row-invalid-color: rgb(229 72 77 / 8%);
+    --gantt-row-placeholder-color: rgb(100 116 139 / 8%);
+    --gantt-nonworking-color: rgb(100 116 139 / 10%);
+    --gantt-nonworking-stripe-color: rgb(100 116 139 / 30%);
+    --gantt-highlight-color: #f5b301;
+    --gantt-highlight-opacity: 0.2;
+    --gantt-today-color: #e5484d;
+    --gantt-today-width: 1.5px;
+
+    --gantt-popover-background-color: #fff;
+    --gantt-popover-foreground-color: #1b2230;
+    --gantt-popover-border-color: #d3d9e1;
+    --gantt-popover-shadow-color: rgb(15 23 42 / 18%);
+    --gantt-popover-radius: 6px;
+    --gantt-popover-max-width: 320px;
+
+    --gantt-bar-color: #3f6fd1;
+    --gantt-bar-progress-shade-color: #000;
+    --gantt-bar-progress-shade: 30%;
+    --gantt-bar-label-color: #fff;
+    --gantt-bar-label-outside-color: #1b2230;
+    --gantt-bar-selected-color: #111827;
+    --gantt-bar-selected-width: 2px;
+    --gantt-bar-conflict-color: #e5484d;
+    --gantt-bar-invalid-color: #d97706;
+    --gantt-handle-color: rgb(255 255 255 / 55%);
+
+    --gantt-link-color: #7a8699;
+    --gantt-link-width: 1.5px;
+    --gantt-link-selected-color: #2563eb;
+    --gantt-link-selected-width: 2.5px;
+    --gantt-link-conflict-color: #e5484d;
+    --gantt-link-hit-width: 12px;
+
+    --gantt-focus-ring-color: #2563eb;
+    --gantt-focus-ring-width: 2px;
+  }
+
+  /* TOKENS, dark: only the values that differ; sizes and widths stay. */
+  .gantt[data-theme='dark'] {
+    color-scheme: dark;
+
+    --gantt-background-color: #15171c;
+    --gantt-foreground-color: #e4e8ef;
+    --gantt-border-color: #333a46;
+
+    --gantt-header-background-color: #1c1f26;
+    --gantt-header-text-color: #a9b3c3;
+    --gantt-header-current-color: rgb(255 99 105 / 16%);
+    --gantt-header-range-color: rgb(110 160 255 / 20%);
+
+    --gantt-grid-line-color: #242932;
+    --gantt-grid-major-line-color: #3a4252;
+    --gantt-grid-minor-line-color: #1e222a;
+    --gantt-row-stripe-color: rgb(255 255 255 / 3.5%);
+    --gantt-row-invalid-color: rgb(255 99 105 / 12%);
+    --gantt-row-placeholder-color: rgb(148 163 184 / 8%);
+    --gantt-nonworking-color: rgb(148 163 184 / 9%);
+    --gantt-nonworking-stripe-color: rgb(148 163 184 / 26%);
+    --gantt-highlight-color: #f5b301;
+    --gantt-highlight-opacity: 0.16;
+    --gantt-today-color: #ff6369;
+
+    --gantt-popover-background-color: #222731;
+    --gantt-popover-foreground-color: #e4e8ef;
+    --gantt-popover-border-color: #3a4252;
+    --gantt-popover-shadow-color: rgb(0 0 0 / 55%);
+
+    --gantt-bar-color: #4170d3;
+    --gantt-bar-progress-shade-color: #000;
+    --gantt-bar-progress-shade: 35%;
+    --gantt-bar-label-color: #fff;
+    --gantt-bar-label-outside-color: #e4e8ef;
+    --gantt-bar-selected-color: #f3f4f6;
+    --gantt-bar-conflict-color: #ff6369;
+    --gantt-bar-invalid-color: #f0a43a;
+    --gantt-handle-color: rgb(255 255 255 / 50%);
+
+    --gantt-link-color: #8794a8;
+    --gantt-link-selected-color: #6ea0ff;
+    --gantt-link-conflict-color: #ff6369;
+
+    --gantt-focus-ring-color: #7aa7ff;
+  }
+
+  /* TOKENS, auto: the same values as `dark`, applied only while the system prefers dark. */
+  @media (prefers-color-scheme: dark) {
+    .gantt[data-theme='auto'] {
+      color-scheme: dark;
+
+      --gantt-background-color: #15171c;
+      --gantt-foreground-color: #e4e8ef;
+      --gantt-border-color: #333a46;
+
+      --gantt-header-background-color: #1c1f26;
+      --gantt-header-text-color: #a9b3c3;
+      --gantt-header-current-color: rgb(255 99 105 / 16%);
+      --gantt-header-range-color: rgb(110 160 255 / 20%);
+
+      --gantt-grid-line-color: #242932;
+      --gantt-grid-major-line-color: #3a4252;
+      --gantt-grid-minor-line-color: #1e222a;
+      --gantt-row-stripe-color: rgb(255 255 255 / 3.5%);
+      --gantt-row-invalid-color: rgb(255 99 105 / 12%);
+      --gantt-row-placeholder-color: rgb(148 163 184 / 8%);
+      --gantt-nonworking-color: rgb(148 163 184 / 9%);
+      --gantt-nonworking-stripe-color: rgb(148 163 184 / 26%);
+      --gantt-highlight-color: #f5b301;
+      --gantt-highlight-opacity: 0.16;
+      --gantt-today-color: #ff6369;
+
+      --gantt-popover-background-color: #222731;
+      --gantt-popover-foreground-color: #e4e8ef;
+      --gantt-popover-border-color: #3a4252;
+      --gantt-popover-shadow-color: rgb(0 0 0 / 55%);
+
+      --gantt-bar-color: #4170d3;
+      --gantt-bar-progress-shade-color: #000;
+      --gantt-bar-progress-shade: 35%;
+      --gantt-bar-label-color: #fff;
+      --gantt-bar-label-outside-color: #e4e8ef;
+      --gantt-bar-selected-color: #f3f4f6;
+      --gantt-bar-conflict-color: #ff6369;
+      --gantt-bar-invalid-color: #f0a43a;
+      --gantt-handle-color: rgb(255 255 255 / 50%);
+
+      --gantt-link-color: #8794a8;
+      --gantt-link-selected-color: #6ea0ff;
+      --gantt-link-conflict-color: #ff6369;
+
+      --gantt-focus-ring-color: #7aa7ff;
+    }
+  }
+
+  /* BASE: paint, type, and no text selection while dragging. */
+  .gantt {
+    background: var(--gantt-background-color);
+    color: var(--gantt-foreground-color);
+    font-family: var(--gantt-font-family);
+    font-size: var(--gantt-font-size);
+  }
+
+  /* `display` below would win over the UA's `[hidden]`, so say it again. */
+  .gantt [hidden] {
+    display: none;
+  }
+
+  .gantt__scroller {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /*
+   * HEADER (HTML). Rows stack inside the sticky header; the renderer places a row's cells (and
+   * the range and today marker) by `left` / `width` or `transform`. Cells clip with `clip`, not
+   * `hidden`: `hidden` would make them the scroll container a sticky label sticks to.
+   */
+  .gantt__header {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: clip;
+    background: var(--gantt-header-background-color);
+    color: var(--gantt-header-text-color);
+    border-block-end: var(--gantt-border-width) solid var(--gantt-border-color);
+  }
+
+  .gantt__header-row {
+    position: relative;
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .gantt__header-row + .gantt__header-row {
+    border-block-start: var(--gantt-border-width) solid var(--gantt-border-color);
+  }
+
+  .gantt__header-cell {
+    position: absolute;
+    inset-block: 0;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    padding-inline: 6px;
+    overflow: clip;
+    white-space: nowrap;
+    border-inline-start: var(--gantt-border-width) solid var(--gantt-border-color);
+  }
+
+  .gantt__header-cell[data-major] {
+    border-inline-start-color: var(--gantt-grid-major-line-color);
+  }
+
+  .gantt__header-cell[data-current] {
+    background: var(--gantt-header-current-color);
+    color: var(--gantt-foreground-color);
+    font-weight: 600;
+  }
+
+  .gantt__header-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* A label that stays in view while its cell is partly scrolled out (FR-SCALE-5). */
+  .gantt__header-label[data-sticky] {
+    position: sticky;
+    inset-inline-start: 6px;
+  }
+
+  /* The hovered bar's range (FR-BAR-4): a tint over the cells, never a hit target. */
+  .gantt__header-range {
+    position: absolute;
+    inset-block: 0;
+    background: var(--gantt-header-range-color);
+    pointer-events: none;
+  }
+
+  /* A dot on the header's lower edge; centred with a margin so `left` and `transform` both work. */
+  .gantt__today-marker {
+    position: absolute;
+    inset-block-end: 2px;
+    width: 10px;
+    height: 10px;
+    margin-inline-start: -5px;
+    border-radius: 50%;
+    background: var(--gantt-today-color);
+    pointer-events: none;
+  }
+
+  /* GRID (SVG). */
+  .gantt__row {
+    fill: transparent;
+  }
+
+  .gantt__row[data-stripe] {
+    fill: var(--gantt-row-stripe-color);
+  }
+
+  .gantt__row[data-placeholder] {
+    fill: var(--gantt-row-placeholder-color);
+  }
+
+  .gantt__row[data-invalid] {
+    fill: var(--gantt-row-invalid-color);
+  }
+
+  /* The fill of a stripes-mode day is a pattern reference the renderer sets; only fill mode is CSS. */
+  .gantt__nonworking {
+    pointer-events: none;
+  }
+
+  .gantt__nonworking[data-mode='fill'] > .gantt__nonworking-day {
+    fill: var(--gantt-nonworking-color);
+  }
+
+  .gantt__stripes-line {
+    stroke: var(--gantt-nonworking-stripe-color);
+  }
+
+  /* Any colour works here: the opacity keeps rows and lines readable under it. */
+  .gantt__highlight {
+    fill: var(--gantt-highlight-color);
+    fill-opacity: var(--gantt-highlight-opacity);
+  }
+
+  .gantt__gridline {
+    stroke: var(--gantt-grid-line-color);
+    stroke-width: var(--gantt-grid-line-width);
+    shape-rendering: crispedges;
+    pointer-events: none;
+  }
+
+  .gantt__gridline[data-major] {
+    stroke: var(--gantt-grid-major-line-color);
+    stroke-width: var(--gantt-grid-major-line-width);
+  }
+
+  /* Minor lines (the snap steps inside a column, FR-SNAP-9) are fainter and dotted. */
+  .gantt__gridline[data-minor] {
+    stroke: var(--gantt-grid-minor-line-color);
+    stroke-dasharray: 2 3;
+  }
+
+  .gantt__today {
+    stroke: var(--gantt-today-color);
+    stroke-width: var(--gantt-today-width);
+    pointer-events: none;
+  }
+
+  /*
+   * BARS (SVG). State lives on the bar's group as `stroke` / `opacity`; the track and the
+   * milestone inherit the outline, the progress and the label opt out.
+   */
+  .gantt__bar {
+    cursor: grab;
+  }
+
+  .gantt__bar:is([data-readonly], [data-locked]) {
+    cursor: pointer;
+  }
+
+  .gantt__bar-track,
+  .gantt__bar-milestone {
+    fill: var(--gantt-bar-color);
+  }
+
+  /* The progress is the bar's colour mixed towards the shade; without color-mix() an overlay of the shade. */
+  .gantt__bar-progress {
+    fill: var(--gantt-bar-progress-color, var(--gantt-bar-progress-shade-color));
+    fill-opacity: var(--gantt-bar-progress-shade);
+    stroke: none;
+  }
+
+  @supports (color: color-mix(in srgb, red, blue)) {
+    .gantt__bar-progress {
+      fill: var(
+        --gantt-bar-progress-color,
+        color-mix(
+          in srgb,
+          var(--gantt-bar-color),
+          var(--gantt-bar-progress-shade-color) var(--gantt-bar-progress-shade)
+        )
+      );
+      fill-opacity: 1;
+    }
+  }
+
+  /* A label is SVG text or HTML in a foreignObject, so it sets both `fill` and `color`. */
+  .gantt__bar-label {
+    fill: var(--gantt-bar-label-color);
+    color: var(--gantt-bar-label-color);
+    stroke: none;
+    white-space: nowrap;
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .gantt__bar-label[data-placement='outside'] {
+    fill: var(--gantt-bar-label-outside-color);
+    color: var(--gantt-bar-label-outside-color);
+  }
+
+  /*
+   * The HTML node of a custom label (`renderBarLabel`) in the foreignObject: one line, centred in
+   * the box the renderer sizes (the bar's, inside, which clips what does not fit). Outside, the
+   * box is only as wide as the estimate, so the node starts at its edge and may overflow it.
+   */
+  .gantt__bar-label-content {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .gantt__bar-label[data-placement='outside'] .gantt__bar-label-content {
+    justify-content: flex-start;
+    overflow: visible;
+  }
+
+  .gantt__bar:is([data-hovered], :hover) {
+    stroke: color-mix(in srgb, var(--gantt-bar-color), var(--gantt-bar-progress-shade-color) 45%);
+    stroke-width: var(--gantt-border-width);
+  }
+
+  .gantt__bar[data-invalid] {
+    stroke: var(--gantt-bar-invalid-color);
+    stroke-width: var(--gantt-bar-selected-width);
+    stroke-dasharray: 4 3;
+    opacity: 0.7;
+  }
+
+  .gantt__bar[data-conflict] {
+    stroke: var(--gantt-bar-conflict-color);
+    stroke-width: var(--gantt-bar-selected-width);
+  }
+
+  /* After invalid and conflict, which it must beat. */
+  .gantt__bar[data-selected] {
+    stroke: var(--gantt-bar-selected-color);
+    stroke-width: var(--gantt-bar-selected-width);
+  }
+
+  .gantt__bar:is([data-dragging], [data-resizing]) {
+    opacity: 0.85;
+  }
+
+  .gantt__bar[data-dragging] {
+    cursor: grabbing;
+  }
+
+  .gantt__bar[data-resizing] {
+    cursor: ew-resize;
+  }
+
+  /* Handles are in the DOM always and visible while their bar is hovered, selected or dragged. */
+  .gantt__handle,
+  .gantt__link-handle {
+    opacity: 0;
+    touch-action: none;
+    transition: opacity var(--gantt-transition-duration) ease;
+  }
+
+  .gantt__handle {
+    fill: var(--gantt-handle-color);
+    stroke: none;
+  }
+
+  .gantt__handle[data-handle^='resize'] {
+    cursor: ew-resize;
+  }
+
+  .gantt__handle[data-handle='progress'] {
+    cursor: col-resize;
+  }
+
+  /* No `r`: the renderer draws it (`interaction.handles.link`). */
+  .gantt__link-handle {
+    fill: var(--gantt-background-color);
+    stroke: var(--gantt-link-selected-color);
+    stroke-width: var(--gantt-bar-selected-width);
+    cursor: crosshair;
+  }
+
+  .gantt__bar:is([data-hovered], [data-selected], [data-dragging], [data-resizing], :hover)
+    :is(.gantt__handle, .gantt__link-handle) {
+    opacity: 1;
+  }
+
+  /*
+   * LINKS (SVG). The group carries the colour (`color`) and width (`stroke-width`) of its state;
+   * the path and the arrow inherit them. Only the wide, transparent hit path takes pointer events.
+   */
+  .gantt__link {
+    color: var(--gantt-link-color);
+    stroke-width: var(--gantt-link-width);
+  }
+
+  .gantt__link:hover {
+    color: var(--gantt-link-selected-color);
+  }
+
+  .gantt__link[data-selected] {
+    color: var(--gantt-link-selected-color);
+    stroke-width: var(--gantt-link-selected-width);
+  }
+
+  .gantt__link:is([data-conflict], [data-cycle]) {
+    color: var(--gantt-link-conflict-color);
+  }
+
+  .gantt__link-path {
+    fill: none;
+    stroke: currentcolor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+
+  .gantt__link[data-cycle] .gantt__link-path {
+    stroke-dasharray: 5 4;
+  }
+
+  .gantt__link-arrow {
+    fill: currentcolor;
+    stroke: currentcolor;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+
+  .gantt__link-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: var(--gantt-link-hit-width);
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+
+  /* popovers */
+
+  /*
+   * POPOVERS (plan step 4.8): one at a time inside `.gantt__layer`. The renderer places a popover
+   * with `--gantt-popover-x` / `--gantt-popover-y` (px, from the top left of the layer): a
+   * transform, so following the cursor costs no layout. Only a popover with actions takes
+   * pointer events; a tooltip never gets in the way of the chart.
+   */
+  .gantt__popover {
+    position: absolute;
+    inset: 0 auto auto 0;
+    box-sizing: border-box;
+    width: max-content;
+    max-width: min(var(--gantt-popover-max-width), 100%);
+    padding: 6px 10px;
+    overflow-wrap: anywhere;
+    background: var(--gantt-popover-background-color);
+    color: var(--gantt-popover-foreground-color);
+    border: var(--gantt-border-width) solid var(--gantt-popover-border-color);
+    border-radius: var(--gantt-popover-radius);
+    box-shadow: 0 2px 8px var(--gantt-popover-shadow-color);
+    transform: translate(var(--gantt-popover-x, 0), var(--gantt-popover-y, 0));
+  }
+
+  .gantt__popover[data-interactive] {
+    pointer-events: auto;
+  }
+
+  .gantt__popover-title {
+    font-weight: 600;
+  }
+
+  .gantt__popover-subtitle,
+  .gantt__popover-details {
+    color: var(--gantt-header-text-color);
+  }
+
+  .gantt__popover-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-block-start: 6px;
+  }
+
+  /* A link menu is a column of items. */
+  .gantt__popover[data-kind='link'] .gantt__popover-actions {
+    flex-direction: column;
+  }
+
+  .gantt__popover-action {
+    padding: 2px 8px;
+    font: inherit;
+    text-align: start;
+    color: var(--gantt-link-selected-color);
+    background: transparent;
+    border: var(--gantt-border-width) solid var(--gantt-popover-border-color);
+    border-radius: calc(var(--gantt-popover-radius) / 2);
+    cursor: pointer;
+  }
+
+  .gantt__popover-action:is(:hover, :focus-visible) {
+    background: var(--gantt-header-background-color);
+  }
+
+  .gantt__popover-action:focus-visible {
+    outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
+    outline-offset: 1px;
+  }
+
+  /* OVERLAY (SVG): previews never take pointer events. */
+  .gantt__overlay {
+    pointer-events: none;
+  }
+
+  .gantt__link-preview {
+    fill: none;
+    stroke: var(--gantt-link-conflict-color);
+    stroke-width: var(--gantt-link-selected-width);
+    stroke-dasharray: 5 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .gantt__link-preview[data-valid]:not([data-valid='false']) {
+    stroke: var(--gantt-link-selected-color);
+  }
+
+  /* FOCUS (P1: bars, links and handles become focusable; the scroller already can be). */
+  .gantt__scroller:focus-visible {
+    outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
+    outline-offset: calc(var(--gantt-focus-ring-width) * -1);
+  }
+
+  .gantt__bar:focus-visible,
+  .gantt__link:focus-visible,
+  .gantt__handle:focus-visible,
+  .gantt__link-handle:focus-visible {
+    outline: none;
+  }
+
+  .gantt__bar:focus-visible {
+    stroke: var(--gantt-focus-ring-color);
+    stroke-width: var(--gantt-focus-ring-width);
+  }
+
+  .gantt__link:focus-visible {
+    color: var(--gantt-focus-ring-color);
+    stroke-width: var(--gantt-link-selected-width);
+  }
+
+  .gantt__handle:focus-visible,
+  .gantt__link-handle:focus-visible {
+    opacity: 1;
+    stroke: var(--gantt-focus-ring-color);
+    stroke-width: var(--gantt-focus-ring-width);
+  }
+
+  /* INTERACTION (plan step 4.7): pointer gestures. */
+
+  /*
+   * Touch drags bars instead of scrolling the chart: a bar that may be moved (`data-movable`) and,
+   * above, every handle take the whole touch for themselves. The body of any other bar (one that
+   * can only be resized, or not edited at all) stays scrollable. Chromium does not apply
+   * `touch-action` to SVG elements: there the renderer also cancels the `touchstart` of such a
+   * touch.
+   */
+  .gantt__bar[data-movable] {
+    touch-action: none;
+  }
+
+  /*
+   * The cursor of a gesture. The scroller captures a pressed pointer, and browsers differ in
+   * whose cursor a captured pointer shows, the capturing element's or the one under it. So the
+   * renderer mirrors the interaction machine's cursor to `data-cursor` on the root for as long as
+   * a gesture lasts (a press, a drag, a link waiting for its target) and removes it afterwards,
+   * and every descendant inherits it, which wins over the cursors of the bars and handles above:
+   * a drag keeps its cursor from one bar to the next, in every browser.
+   */
+  .gantt[data-cursor] * {
+    cursor: inherit;
+  }
+
+  .gantt[data-cursor='default'] {
+    cursor: default;
+  }
+
+  .gantt[data-cursor='pointer'] {
+    cursor: pointer;
+  }
+
+  .gantt[data-cursor='grabbing'] {
+    cursor: grabbing;
+  }
+
+  .gantt[data-cursor='ew-resize'] {
+    cursor: ew-resize;
+  }
+
+  .gantt[data-cursor='crosshair'] {
+    cursor: crosshair;
+  }
+
+  .gantt[data-cursor='not-allowed'] {
+    cursor: not-allowed;
+  }
+
+  /* MOTION: the last rule of the sheet, so it beats every transition above. */
+  @media (prefers-reduced-motion: reduce) {
+    .gantt * {
+      transition: none;
+      animation: none;
+    }
+  }
+}

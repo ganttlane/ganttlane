@@ -1,0 +1,311 @@
+import js from '@eslint/js';
+import { defineConfig, globalIgnores } from 'eslint/config';
+import prettier from 'eslint-config-prettier/flat';
+import jsxA11y from 'eslint-plugin-jsx-a11y-x';
+import reactHooks from 'eslint-plugin-react-hooks';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
+import tseslint from 'typescript-eslint';
+
+interface RestrictedSyntax {
+  selector: string;
+  message: string;
+}
+interface RestrictedProperty {
+  property: string;
+  message: string;
+}
+
+/** Library sources (tests included); config files next to them are not part of a package. */
+const PACKAGE_SOURCES = ['packages/*/src/**/*.{ts,tsx}'];
+const CORE_SOURCES = ['packages/core/src/**/*.ts'];
+const DOM_SOURCES = ['packages/dom/src/**/*.ts'];
+const REACT_SOURCES = ['packages/react/src/**/*.{ts,tsx}', 'apps/playground/src/**/*.tsx'];
+/** Private workspace packages (shared fixtures). Imported by package tests, so same export style. */
+const INTERNAL_SOURCES = ['internal/*/src/**/*.ts'];
+const TESTS = ['**/*.test.{ts,tsx}', 'e2e/**/*.ts'];
+
+/** Public API is named exports only (tree-shaking, stable re-exports, no `default` interop). */
+const namedExportsOnly: RestrictedSyntax[] = [
+  {
+    selector: 'ExportDefaultDeclaration',
+    message: 'Packages use named exports only (no default exports).',
+  },
+  {
+    selector: 'ExportSpecifier[exported.name="default"]',
+    message: 'Packages use named exports only (no default exports).',
+  },
+];
+
+/** NFR-SEC-1: data is never inserted as HTML; build nodes or set `textContent` instead. */
+const htmlSinkSyntax: RestrictedSyntax[] = [
+  {
+    selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]',
+    message: 'NFR-SEC-1: never render data as HTML. Render nodes/text instead.',
+  },
+];
+const htmlSinkProperties: RestrictedProperty[] = [
+  'innerHTML',
+  'outerHTML',
+  'insertAdjacentHTML',
+  'setHTMLUnsafe',
+  'parseHTMLUnsafe',
+  'createContextualFragment',
+].map((property) => ({
+  property,
+  message: `NFR-SEC-1: \`${property}\` parses HTML. Build nodes or set \`textContent\` instead.`,
+}));
+
+/**
+ * NFR-ARCH-1, second line of defence after `packages/core/tsconfig.json` (no DOM lib, no
+ * `@types/*`): core is host-agnostic, so browser, Node and timer globals are off limits.
+ * Hosts inject what core needs (clock, scheduler, locale) through options and adapters.
+ */
+const coreRestrictedGlobals = [
+  // Browser globals and DOM constructors.
+  'window',
+  'self',
+  'document',
+  'navigator',
+  'location',
+  'history',
+  'screen',
+  'localStorage',
+  'sessionStorage',
+  'indexedDB',
+  'fetch',
+  'XMLHttpRequest',
+  'WebSocket',
+  'requestAnimationFrame',
+  'cancelAnimationFrame',
+  'requestIdleCallback',
+  'cancelIdleCallback',
+  'matchMedia',
+  'getComputedStyle',
+  'getSelection',
+  'alert',
+  'confirm',
+  'prompt',
+  'ResizeObserver',
+  'IntersectionObserver',
+  'MutationObserver',
+  'DOMParser',
+  'Node',
+  'Element',
+  'HTMLElement',
+  'SVGElement',
+  'Document',
+  'Event',
+  'EventTarget',
+  'CustomEvent',
+  'PointerEvent',
+  'MouseEvent',
+  'KeyboardEvent',
+  // Node.js globals.
+  'process',
+  'Buffer',
+  'global',
+  'require',
+  'module',
+  '__dirname',
+  '__filename',
+  'setImmediate',
+  // Host scheduling and logging (not part of the ES library core is compiled against).
+  'globalThis',
+  'setTimeout',
+  'clearTimeout',
+  'setInterval',
+  'clearInterval',
+  'queueMicrotask',
+  'console',
+].map((name) => ({
+  name,
+  message: `NFR-ARCH-1: @ganttlane/core must not use the host global \`${name}\`. Inject it via options/adapters, report problems as Issues/events.`,
+}));
+
+/** DOM types in signatures would leak the host into core even without runtime access. */
+const coreHostTypeSyntax: RestrictedSyntax[] = [
+  {
+    selector:
+      'TSTypeReference[typeName.name=/^(Window|Document|DocumentFragment|ShadowRoot|Element|HTML[A-Za-z]*Element|SVG[A-Za-z]*Element|PointerEvent|MouseEvent|KeyboardEvent|WheelEvent|TouchEvent|FocusEvent|DOMRect|CSSStyleDeclaration)$/]',
+    message: 'NFR-ARCH-1: @ganttlane/core must not reference DOM types.',
+  },
+];
+
+const RENDERER_OR_REACT =
+  '^(@ganttlane/dom|@ganttlane/react|react|react-dom|react-aria|react-aria-components)(/.*)?$';
+const REACT_ONLY = '^(@ganttlane/react|react|react-dom|react-aria|react-aria-components)(/.*)?$';
+
+export default defineConfig(
+  globalIgnores([
+    '**/dist/',
+    'coverage/',
+    'test-results/',
+    'playwright-report/',
+    'blob-report/',
+    // temporary git worktrees of agents and local Claude files
+    '.claude/',
+  ]),
+
+  js.configs.recommended,
+  tseslint.configs.strictTypeChecked,
+  tseslint.configs.stylisticTypeChecked,
+  {
+    name: 'gantt/base',
+    linterOptions: {
+      reportUnusedDisableDirectives: 'error',
+    },
+    languageOptions: {
+      parserOptions: {
+        // Every TS file belongs to a tsconfig: packages/*, apps/playground, e2e, or the root one
+        // (config files).
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    plugins: {
+      'simple-import-sort': simpleImportSort,
+    },
+    rules: {
+      eqeqeq: ['error', 'smart'],
+      'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
+
+      // Type-only imports/exports are explicit and erased (pairs with `verbatimModuleSyntax`).
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'separate-type-imports' },
+      ],
+      '@typescript-eslint/consistent-type-exports': 'error',
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+
+      // Commands, FSM states and view modes are discriminated unions: make `switch` exhaustive.
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+
+      // Tuned: a renderer builds lots of geometry strings (`${x}px`, `translate(${x} ${y})`);
+      // numbers stringify predictably, everything else stays forbidden as in `strict`.
+      '@typescript-eslint/restrict-template-expressions': [
+        'error',
+        {
+          allowAny: false,
+          allowBoolean: false,
+          allowNever: false,
+          allowNullish: false,
+          allowNumber: true,
+          allowRegExp: false,
+        },
+      ],
+      // Off: with `isolatedDeclarations`, an explicit annotation on an exported const is how a
+      // literal is widened on purpose (`export const VERSION: string = '0.0.0'`).
+      '@typescript-eslint/no-inferrable-types': 'off',
+      // Tuned: `onClick={() => doSomething()}` and `() => void` callbacks are idiomatic.
+      '@typescript-eslint/no-confusing-void-expression': ['error', { ignoreArrowShorthand: true }],
+      // Tuned: `_`-prefixed params mark intentionally unused ones; rest siblings implement
+      // "omit a field without mutating the input".
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'gantt/packages',
+    files: PACKAGE_SOURCES,
+    rules: {
+      'no-console': ['error', { allow: ['warn', 'error'] }],
+      'no-restricted-syntax': ['error', ...namedExportsOnly, ...htmlSinkSyntax],
+      'no-restricted-properties': ['error', ...htmlSinkProperties],
+    },
+  },
+
+  {
+    name: 'gantt/internal',
+    files: INTERNAL_SOURCES,
+    rules: {
+      'no-restricted-syntax': ['error', ...namedExportsOnly],
+    },
+  },
+
+  {
+    name: 'gantt/core-guard',
+    files: CORE_SOURCES,
+    rules: {
+      'no-restricted-globals': ['error', ...coreRestrictedGlobals],
+      // Repeats the package-wide entries: a later config replaces a rule's options wholesale.
+      'no-restricted-syntax': [
+        'error',
+        ...namedExportsOnly,
+        ...htmlSinkSyntax,
+        ...coreHostTypeSyntax,
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: RENDERER_OR_REACT,
+              message: 'NFR-ARCH-1: @ganttlane/core must not depend on renderers or React.',
+            },
+            {
+              regex: '^node:',
+              message: 'NFR-ARCH-1: @ganttlane/core is platform-neutral (no Node built-ins).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'gantt/dom-guard',
+    files: DOM_SOURCES,
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: REACT_ONLY,
+              message: 'NFR-ARCH-1: @ganttlane/dom must not depend on React or @ganttlane/react.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'gantt/react',
+    files: REACT_SOURCES,
+    // `eslint-plugin-jsx-a11y-x` is the ESLint 10-compatible fork of `eslint-plugin-jsx-a11y`.
+    extends: [reactHooks.configs.flat.recommended, jsxA11y.configs.recommended],
+  },
+
+  {
+    name: 'gantt/tests',
+    files: TESTS,
+    rules: {
+      // Tests assert on values they just created; `!` keeps them readable.
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      // `expect(obj.method).toHaveBeenCalled()` passes methods around unbound on purpose.
+      '@typescript-eslint/unbound-method': 'off',
+      // Stubs and no-op callbacks.
+      '@typescript-eslint/no-empty-function': 'off',
+    },
+  },
+
+  {
+    name: 'gantt/js',
+    files: ['**/*.{js,mjs,cjs}'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+
+  // Must stay last: turns off stylistic rules that Prettier owns.
+  prettier,
+);

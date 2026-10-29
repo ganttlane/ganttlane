@@ -1,0 +1,64 @@
+{
+  "name": "@ganttlane/core",
+  "version": "0.0.0",
+  "description": "Headless gantt-chart core: dates, work calendar, time scale, scheduling, layout and state. No DOM.",
+  "license": "MIT",
+  "keywords": [
+    "gantt",
+    "gantt-chart",
+    "timeline",
+    "scheduling",
+    "work-calendar",
+    "headless"
+  ],
+  "homepage": "https://github.com/ganttlane/ganttlane/tree/main/packages/core#readme",
+  "bugs": {
+    "url": "https://github.com/ganttlane/ganttlane/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ganttlane/ganttlane.git",
+    "directory": "packages/core"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "@ganttlane/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "development": "./dist/index.development.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "prepack": "node ../../scripts/pack-hooks.mjs prepack",
+    "postpack": "node ../../scripts/pack-hooks.mjs postpack"
+  },
+  "dependencies": {
+    "@internationalized/date": "^3.12.4",
+    "valibot": "^1.5.0"
+  },
+  "devDependencies": {
+    "@ganttlane/fixtures": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "development": "./dist/index.development.js",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+This project is a from-scratch rewrite inspired by frappe-gantt
+(https://github.com/frappe/gantt) and by a modified fork of it.
+Ideas and parts of the domain logic originate from that project.
+
+frappe-gantt is licensed under the MIT License:
+Copyright (c) 2024 Frappe Technologies Pvt. Ltd.

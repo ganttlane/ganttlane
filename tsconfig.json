@@ -1,0 +1,20 @@
+{
+  // Tooling project: config files that run in Node (eslint, vitest, playwright, tsdown, vite,
+  // dependency-cruiser, size-limit). Package sources are checked by each package's own
+  // tsconfig.json (`pnpm -r typecheck`), e2e specs by e2e/tsconfig.json.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "declaration": false,
+    "isolatedDeclarations": false,
+    // Config files run in Node's own TypeScript support, which needs `.ts` in relative imports.
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "*.config.ts",
+    ".dependency-cruiser.ts",
+    ".size-limit.ts",
+    "packages/*/*.config.ts",
+    "apps/*/*.config.ts"
+  ]
+}

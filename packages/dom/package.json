@@ -1,0 +1,90 @@
+{
+  "name": "@ganttlane/dom",
+  "version": "0.0.0",
+  "description": "Interactive gantt chart: vanilla DOM renderer and default CSS theme on top of @ganttlane/core.",
+  "license": "MIT",
+  "keywords": [
+    "gantt",
+    "gantt-chart",
+    "timeline",
+    "scheduling",
+    "vanilla",
+    "dom"
+  ],
+  "homepage": "https://github.com/ganttlane/ganttlane/tree/main/packages/dom#readme",
+  "bugs": {
+    "url": "https://github.com/ganttlane/ganttlane/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ganttlane/ganttlane.git",
+    "directory": "packages/dom"
+  },
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "@ganttlane/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./dom-utils": {
+      "@ganttlane/source": "./src/dom-utils/index.ts",
+      "types": "./dist/dom-utils.d.ts",
+      "default": "./dist/dom-utils.js"
+    },
+    "./facade": {
+      "@ganttlane/source": "./src/facade.ts",
+      "types": "./dist/facade.d.ts",
+      "default": "./dist/facade.js"
+    },
+    "./styles.css": {
+      "@ganttlane/source": "./src/styles.css",
+      "types": "./dist/styles.css.d.ts",
+      "default": "./dist/styles.css"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "prepack": "node ../../scripts/pack-hooks.mjs prepack",
+    "postpack": "node ../../scripts/pack-hooks.mjs postpack"
+  },
+  "dependencies": {
+    "@ganttlane/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@ganttlane/fixtures": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./dom-utils": {
+        "types": "./dist/dom-utils.d.ts",
+        "default": "./dist/dom-utils.js"
+      },
+      "./facade": {
+        "types": "./dist/facade.d.ts",
+        "default": "./dist/facade.js"
+      },
+      "./styles.css": {
+        "types": "./dist/styles.css.d.ts",
+        "default": "./dist/styles.css"
+      },
+      "./package.json": "./package.json"
+    }
+  }
+}

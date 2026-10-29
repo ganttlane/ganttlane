@@ -1,0 +1,15 @@
+{
+  // The package and its tests against the types of React 18.3 (`@types/react@18`), which is what
+  // an application on React 18 type-checks the published declarations with (NFR-COMPAT-1). The
+  // types come from `internal/react-18`; `paths` also applies to the `react` that `@types/react-dom`
+  // imports, so there is one React in the program.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "react": ["../../internal/react-18/node_modules/@types/react"],
+      "react/*": ["../../internal/react-18/node_modules/@types/react/*"],
+      "react-dom": ["../../internal/react-18/node_modules/@types/react-dom"],
+      "react-dom/*": ["../../internal/react-18/node_modules/@types/react-dom/*"]
+    }
+  }
+}

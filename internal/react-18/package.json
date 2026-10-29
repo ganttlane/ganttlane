@@ -1,0 +1,16 @@
+{
+  "name": "@ganttlane/react-18",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React 18.3 and its types, for the `react-18` Vitest project, the type check of @ganttlane/react and the React 18.3 build of the playground (NFR-COMPAT-1). Never published, never imported.",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7"
+  }
+}

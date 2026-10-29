@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+*.tsbuildinfo
+.vite/
+
+# tests & tooling
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.size-limit-cache/
+
+# env & logs
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors & OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# pack-hooks copies of root legal files (prepack/postpack)
+packages/*/LICENSE
+packages/*/NOTICE
+
+# temporary git worktrees of agents
+.claude/worktrees/
+
+# local only: internal design docs and agent instructions
+docs/
+CLAUDE.md

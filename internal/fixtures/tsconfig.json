@@ -1,0 +1,10 @@
+{
+  // Plain data and pure helpers: no DOM lib and no ambient @types, so core tests can import the
+  // fixtures without pulling host globals in (same constraints as packages/core).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src"]
+}

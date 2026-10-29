@@ -1,0 +1,14 @@
+packages:
+  - packages/*
+  - apps/*
+  # Private, never-published helpers (shared test fixtures).
+  - internal/*
+
+# Shared versions, referenced as `catalog:` from package.json files.
+catalog:
+  '@types/react': ^19.3.0
+  '@types/react-dom': ^19.3.0
+  react: ^19.3.1
+  react-dom: ^19.3.1
+  typescript: ~6.0.3
+  vite: ^8.3.5

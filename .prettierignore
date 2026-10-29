@@ -1,0 +1,14 @@
+# Hand-written docs (Ukrainian) and agent instructions; formatting is curated by hand.
+docs/
+CLAUDE.md
+
+# Generated / installed (node_modules and .gitignore entries are skipped by Prettier already)
+pnpm-lock.yaml
+**/dist/
+coverage/
+test-results/
+playwright-report/
+blob-report/
+
+# agent worktrees and local Claude files
+.claude/

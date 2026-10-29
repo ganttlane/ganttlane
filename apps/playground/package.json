@@ -1,0 +1,32 @@
+{
+  "name": "playground",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/build.mjs",
+    "build:production": "node scripts/build.mjs production",
+    "build:development": "node scripts/build.mjs development",
+    "build:server": "node scripts/build.mjs server",
+    "build:react-18": "node scripts/build.mjs react-18-client react-18-server",
+    "build:react-18-client": "node scripts/build.mjs react-18-client",
+    "build:react-18-server": "node scripts/build.mjs react-18-server",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ganttlane/fixtures": "workspace:*",
+    "@ganttlane/dom": "workspace:*",
+    "@ganttlane/core": "workspace:*",
+    "@ganttlane/react": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "catalog:"
+  }
+}

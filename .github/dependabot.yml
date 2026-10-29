@@ -1,0 +1,16 @@
+# GitHub Actions only. npm dependencies are bumped by hand for now: pnpm's `minimumReleaseAge`
+# policy and the catalog in pnpm-workspace.yaml are easier to respect manually.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # Same idea as pnpm's minimumReleaseAge: let fresh releases settle first.
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
