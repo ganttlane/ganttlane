@@ -38,8 +38,15 @@ each one shows).
 
 ### Editing
 
-| Example | Package | Shows |
-| ------- | ------- | ----- |
+| Example                                                | Package | Shows                                                                                                     |
+| ------------------------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------- |
+| [Read-only and partial editing](read-only/README.md)   | both    | `editing: false` and per-kind flags, `locked`, `linkable: false`, refusals from `onEditRefused`           |
+| [Link editing](link-editing/README.md)                 | both    | Drawing links by drag and by click-click, the link menu, `editing.links`, `onLinkCreate` / `onLinkDelete` |
+| [Selection](selection/README.md)                       | both    | `select()`, `selectedKeys`, `onSelectionChange`, a selected link, a side panel from `getTask()`           |
+| [Programmatic updates](programmatic-updates/README.md) | both    | `updateTask`, `addLink`, `removeLink`, `setTasks` and the results they resolve to                         |
+| [Before-hooks](before-hooks/README.md)                 | both    | `onBeforeTaskChange` (veto, rewrite, ask later) and `onBeforeLinkCreate`, and the `busy` state            |
+| [Undo and redo](undo-redo/README.md)                   | both    | `history` and its limit, `undo()` / `redo()`, `canUndo` / `canRedo`, keyboard shortcuts of your own       |
+| [Events log](events-log/README.md)                     | both    | Every public event logged live, with a filter, and what makes each one fire                               |
 
 ### Customization
 
