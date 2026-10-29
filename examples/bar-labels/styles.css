@@ -1,0 +1,66 @@
+/*
+ * The content of a custom label: an avatar and a name. A label that is a DOM node (or a React
+ * element) lives in `div.gantt__bar-label-content`, a flex box inside the bar that centres it and
+ * clips what does not fit. The colour of the text is the chart's (`color` of `.gantt__bar-label`:
+ * white inside the bar, dark outside), so the node only sets what is its own.
+ */
+.bar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.bar-label__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Inside, the box is the bar's, so a name that does not fit is cut with an ellipsis. Outside, the
+ * box is only as wide as the chart's estimate of the text and the label may overflow it
+ * (`overflow: visible` on the foreignObject): the root of the label says which one it is, with
+ * `data-placement`.
+ */
+.gantt__bar-label[data-placement='outside'] .bar-label {
+  min-width: auto;
+}
+
+.gantt__bar-label[data-placement='outside'] .bar-label__name {
+  overflow: visible;
+}
+
+/* The initial is generated from `data-initial`, so the node has no text of its own for it. */
+.bar-label__avatar {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--avatar, #cbd5e1);
+  color: #1b2230;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.bar-label__avatar::before {
+  content: attr(data-initial);
+}
+
+.bar-label__avatar[data-owner='Ann'] {
+  --avatar: #fbbf24;
+}
+
+.bar-label__avatar[data-owner='Bo'] {
+  --avatar: #f9a8d4;
+}
+
+.bar-label__avatar[data-owner='Cy'] {
+  --avatar: #86efac;
+}
+
+.bar-label__avatar[data-owner='Di'] {
+  --avatar: #c4b5fd;
+}

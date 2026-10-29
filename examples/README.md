@@ -43,9 +43,16 @@ each one shows).
 
 ### Customization
 
-| Example                                    | Package | Shows                                                                    |
-| ------------------------------------------ | ------- | ------------------------------------------------------------------------ |
-| [Custom tooltip](custom-tooltip/README.md) | both    | `tooltip.render` (text sections, a DOM node) and `renderTooltip` (React) |
+| Example                                                       | Package | Shows                                                                                                              |
+| ------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| [Theming](theming/README.md)                                  | both    | `theme` (light, dark, auto), and a palette and density from `--gantt-*` custom properties: three presets           |
+| [Unstyled](unstyled/README.md)                                | both    | No default stylesheet: a chart styled from scratch with the documented classes, `data-*` attributes and properties |
+| [Task colours and classes](task-colors-and-classes/README.md) | both    | `task.className`, `task.rowClassName`, `task.color`, `task.progressColor` and `display.rowStripes`                 |
+| [Bar labels](bar-labels/README.md)                            | both    | `display.barLabel` (inside, outside, auto, none) and `display.renderBarLabel`: text, a node, a disposable node     |
+| [Custom tooltip](custom-tooltip/README.md)                    | both    | `tooltip.render` (text sections, a DOM node) and `renderTooltip` (React)                                           |
+| [Link menu](link-menu/README.md)                              | both    | `linkMenu.render` with your own actions (type, lag, remove), `linkMenu.onRemove`, `renderLinkMenu` (React)         |
+| [Locale and strings](locale-and-strings/README.md)            | both    | `locale` (header, dates, numbers) and `strings` (tooltip, link menu, `aria-label`), with a full Ukrainian set      |
+| [Grid and today](grid-and-today/README.md)                    | both    | `display.gridLines`, the today line, days off, major lines per view mode, hover and selection tokens               |
 
 ### React
 

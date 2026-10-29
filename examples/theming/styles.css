@@ -1,0 +1,137 @@
+/*
+ * Presets: custom properties for one chart, chosen by the `data-preset` attribute of its
+ * container (`<div data-preset="brand">` holds the `div.gantt` the chart draws).
+ *
+ * Why `[data-preset] .gantt` and not `[data-preset]` alone: the library declares every
+ * `--gantt-*` token on `.gantt` itself, so a token set on the container (a parent) is never
+ * inherited by it. These rules are not in a cascade layer, and the library's are in `@layer gantt`,
+ * so they win without `!important`, whatever the order of the two stylesheets.
+ *
+ * A theme is a set of token values, so a preset has to say what it looks like in `dark` too: the
+ * library's dark values would otherwise be replaced by the light ones of the preset, because an
+ * unlayered rule beats a layered one. The presets below keep their palette in a few variables of
+ * their own (`--brand-*`, `--hc-*`) and derive the `--gantt-*` tokens from them once, so a theme
+ * only has to give the variables new values. `auto` repeats the dark values under
+ * `prefers-color-scheme`, as the library's own sheet does.
+ */
+
+/* ---- Brand: teal bars and links, an amber today line, a tinted header ---- */
+
+[data-preset='brand'] .gantt {
+  --brand-bar: #0f766e;
+  --brand-accent: #0f766e;
+  --brand-tint: #f0fdfa;
+  --brand-ink: #115e59;
+  --brand-line: #99d6cf;
+  --brand-warm: #b45309;
+
+  --gantt-bar-color: var(--brand-bar);
+  --gantt-bar-selected-color: var(--brand-accent);
+  --gantt-link-color: var(--brand-ink);
+  --gantt-link-selected-color: var(--brand-accent);
+  --gantt-header-background-color: var(--brand-tint);
+  --gantt-header-text-color: var(--brand-ink);
+  --gantt-header-current-color: color-mix(in srgb, var(--brand-warm) 16%, transparent);
+  --gantt-header-range-color: color-mix(in srgb, var(--brand-accent) 18%, transparent);
+  --gantt-grid-major-line-color: var(--brand-line);
+  --gantt-today-color: var(--brand-warm);
+  --gantt-highlight-color: var(--brand-warm);
+  --gantt-focus-ring-color: var(--brand-accent);
+  --gantt-popover-border-color: var(--brand-line);
+  --gantt-popover-radius: 10px;
+}
+
+[data-preset='brand'] .gantt[data-theme='dark'] {
+  --brand-bar: #0e8f81;
+  --brand-accent: #2dd4bf;
+  --brand-tint: #10262a;
+  --brand-ink: #9fe2da;
+  --brand-line: #1f5b57;
+  --brand-warm: #fbbf24;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-preset='brand'] .gantt[data-theme='auto'] {
+    --brand-bar: #0e8f81;
+    --brand-accent: #2dd4bf;
+    --brand-tint: #10262a;
+    --brand-ink: #9fe2da;
+    --brand-line: #1f5b57;
+    --brand-warm: #fbbf24;
+  }
+}
+
+/* ---- Compact: smaller type and thinner lines (the sizes of rows and bars are the `layout` option) ---- */
+
+[data-preset='compact'] .gantt {
+  --gantt-font-size: 11px;
+  --gantt-link-width: 1px;
+  --gantt-link-selected-width: 2px;
+  --gantt-today-width: 1px;
+  --gantt-bar-selected-width: 1.5px;
+  --gantt-popover-radius: 3px;
+  --gantt-popover-max-width: 240px;
+}
+
+/* ---- High contrast: black on white and white on black, heavy lines ---- */
+
+[data-preset='contrast'] .gantt {
+  --hc-bg: #fff;
+  --hc-fg: #000;
+  --hc-grid: #595959;
+  --hc-bar: #0033a0;
+  --hc-bar-label: #fff;
+  --hc-alert: #c00000;
+
+  --gantt-background-color: var(--hc-bg);
+  --gantt-foreground-color: var(--hc-fg);
+  --gantt-border-color: var(--hc-fg);
+  --gantt-border-width: 2px;
+  --gantt-header-background-color: var(--hc-bg);
+  --gantt-header-text-color: var(--hc-fg);
+  --gantt-header-current-color: color-mix(in srgb, var(--hc-alert) 24%, transparent);
+  --gantt-header-range-color: color-mix(in srgb, var(--hc-fg) 18%, transparent);
+  --gantt-grid-line-color: var(--hc-grid);
+  --gantt-grid-major-line-color: var(--hc-fg);
+  --gantt-grid-major-line-width: 2px;
+  --gantt-row-stripe-color: color-mix(in srgb, var(--hc-fg) 10%, transparent);
+  --gantt-nonworking-color: color-mix(in srgb, var(--hc-fg) 18%, transparent);
+  --gantt-highlight-color: var(--hc-alert);
+  --gantt-highlight-opacity: 0.3;
+  --gantt-today-color: var(--hc-alert);
+  --gantt-today-width: 3px;
+  --gantt-bar-color: var(--hc-bar);
+  --gantt-bar-label-color: var(--hc-bar-label);
+  --gantt-bar-label-outside-color: var(--hc-fg);
+  --gantt-bar-selected-color: var(--hc-fg);
+  --gantt-bar-selected-width: 3px;
+  --gantt-link-color: var(--hc-fg);
+  --gantt-link-width: 2px;
+  --gantt-link-selected-color: var(--hc-alert);
+  --gantt-link-selected-width: 3px;
+  --gantt-focus-ring-color: var(--hc-fg);
+  --gantt-popover-background-color: var(--hc-bg);
+  --gantt-popover-foreground-color: var(--hc-fg);
+  --gantt-popover-border-color: var(--hc-fg);
+  --gantt-popover-shadow-color: transparent;
+}
+
+[data-preset='contrast'] .gantt[data-theme='dark'] {
+  --hc-bg: #000;
+  --hc-fg: #fff;
+  --hc-grid: #a6a6a6;
+  --hc-bar: #ffd60a;
+  --hc-bar-label: #000;
+  --hc-alert: #ff6b6b;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-preset='contrast'] .gantt[data-theme='auto'] {
+    --hc-bg: #000;
+    --hc-fg: #fff;
+    --hc-grid: #a6a6a6;
+    --hc-bar: #ffd60a;
+    --hc-bar-label: #000;
+    --hc-alert: #ff6b6b;
+  }
+}

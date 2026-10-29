@@ -1,0 +1,44 @@
+/*
+ * The menu of the React example. The vanilla example returns text sections and lets the chart draw
+ * them; a React menu is your own markup, so it brings the few rules it needs. It lives inside
+ * `div.gantt__popover`, which the chart styles with the popover tokens, and these rules use the
+ * same ones, so the menu follows the theme.
+ */
+.gantt__popover .link-menu {
+  min-width: 190px;
+}
+
+.gantt__popover .link-menu__title {
+  font-weight: 600;
+}
+
+.gantt__popover .link-menu__details {
+  color: var(--gantt-header-text-color);
+}
+
+.gantt__popover .link-menu__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-block-start: 6px;
+}
+
+.gantt__popover .link-menu__action {
+  padding: 2px 8px;
+  font: inherit;
+  text-align: start;
+  color: var(--gantt-link-selected-color);
+  background: transparent;
+  border: var(--gantt-border-width) solid var(--gantt-popover-border-color);
+  border-radius: calc(var(--gantt-popover-radius) / 2);
+  cursor: pointer;
+}
+
+.gantt__popover .link-menu__action:is(:hover, :focus-visible) {
+  background: var(--gantt-header-background-color);
+}
+
+.gantt__popover .link-menu__action:focus-visible {
+  outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
+  outline-offset: 1px;
+}

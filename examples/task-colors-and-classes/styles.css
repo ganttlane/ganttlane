@@ -1,0 +1,97 @@
+/*
+ * Statuses as classes. `task.className` is added to the bar's own element (`g.gantt__bar`) and
+ * `task.rowClassName` to its row (`rect.gantt__row`). The library's CSS is in `@layer gantt`, so
+ * these rules, which are not, win without `!important`.
+ *
+ * A bar takes its colour from `--gantt-bar-color` and the colour of its progress is derived from
+ * that one (the library mixes it towards black), so a status needs one custom property, not two
+ * rules. `.statuses` is a class on the example's wrapper: it holds the palette and keeps the
+ * rules away from every other chart on the page.
+ */
+
+.statuses {
+  --status-done: #2f9e44;
+  --status-active: #3f6fd1;
+  --status-late: #d9480f;
+  --status-blocked: #6b7280;
+  --status-review: #7c3aed;
+}
+
+.statuses .gantt__bar.is-done {
+  --gantt-bar-color: var(--status-done);
+}
+
+.statuses .gantt__bar.is-active {
+  --gantt-bar-color: var(--status-active);
+}
+
+.statuses .gantt__bar.is-late {
+  --gantt-bar-color: var(--status-late);
+}
+
+.statuses .gantt__bar.is-blocked {
+  --gantt-bar-color: var(--status-blocked);
+}
+
+.statuses .gantt__bar.is-review {
+  --gantt-bar-color: var(--status-review);
+}
+
+/* A phase: the same colour, with a much darker progress, so that it reads as a summary bar. */
+.statuses .gantt__bar.is-phase {
+  --gantt-bar-progress-shade: 55%;
+}
+
+/* Rows: a tint over the whole row, with an alpha so that the stripes and grid show through. */
+.statuses .gantt__row.row-late {
+  fill: rgb(217 72 15 / 10%);
+}
+
+.statuses .gantt__row.row-blocked {
+  fill: rgb(107 114 128 / 18%);
+}
+
+/* The legend above the chart. */
+.statuses .legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+
+.statuses .legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.statuses .legend li::before {
+  content: '';
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  background: var(--swatch);
+}
+
+.statuses .legend [data-status='done'] {
+  --swatch: var(--status-done);
+}
+
+.statuses .legend [data-status='active'] {
+  --swatch: var(--status-active);
+}
+
+.statuses .legend [data-status='late'] {
+  --swatch: var(--status-late);
+}
+
+.statuses .legend [data-status='blocked'] {
+  --swatch: var(--status-blocked);
+}
+
+.statuses .legend [data-status='review'] {
+  --swatch: var(--status-review);
+}
