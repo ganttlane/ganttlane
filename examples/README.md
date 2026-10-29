@@ -12,14 +12,51 @@ library is the playground: `pnpm dev`, then open `/vanilla/`, `/edit/`, `/scroll
 `/react/`, `/react-edit/` or `/react-ssr/` (the root [README](../README.md#the-playground) says what
 each one shows).
 
-| Example                                                                   | Package                              | Shows                                                                                         |
-| ------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------- |
-| [Basic chart](basic/README.md)                                            | `@ganttlane/dom`, `@ganttlane/react` | `createGantt` and `<Gantt>` with tasks, links and events; methods; clean-up                   |
-| [Controlled data](controlled-data/README.md)                              | both                                 | Your state owns the tasks: `dataMode: 'controlled'`, `patchTasks`, `setTasks`, a refused save |
-| [Edit session, Save and Cancel](edit-session/README.md)                   | both                                 | An edit session between Edit, Save and Cancel (`edit.begin`, `commit`, `rollback`)            |
-| [Working days at one-hour granularity](working-calendar-hourly/README.md) | both                                 | A Monday-to-Friday calendar with holidays, tasks timed to the hour, a lag, a before-hook      |
-| [Custom tooltip](custom-tooltip/README.md)                                | both                                 | `tooltip.render` (text sections, a DOM node) and `renderTooltip` (React)                      |
-| [A release plan](release-plan/README.md)                                  | both                                 | Phases with children pinned to them, milestones, locked work, links with lags, status styles  |
+### Basics
+
+| Example                        | Package                              | Shows                                                                       |
+| ------------------------------ | ------------------------------------ | --------------------------------------------------------------------------- |
+| [Basic chart](basic/README.md) | `@ganttlane/dom`, `@ganttlane/react` | `createGantt` and `<Gantt>` with tasks, links and events; methods; clean-up |
+
+### Time scale
+
+| Example | Package | Shows |
+| ------- | ------- | ----- |
+
+### Scheduling
+
+| Example                                                                   | Package | Shows                                                                                    |
+| ------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------- |
+| [Working days at one-hour granularity](working-calendar-hourly/README.md) | both    | A Monday-to-Friday calendar with holidays, tasks timed to the hour, a lag, a before-hook |
+
+### Data
+
+| Example                                                 | Package | Shows                                                                                         |
+| ------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| [Controlled data](controlled-data/README.md)            | both    | Your state owns the tasks: `dataMode: 'controlled'`, `patchTasks`, `setTasks`, a refused save |
+| [Edit session, Save and Cancel](edit-session/README.md) | both    | An edit session between Edit, Save and Cancel (`edit.begin`, `commit`, `rollback`)            |
+
+### Editing
+
+| Example | Package | Shows |
+| ------- | ------- | ----- |
+
+### Customization
+
+| Example                                    | Package | Shows                                                                    |
+| ------------------------------------------ | ------- | ------------------------------------------------------------------------ |
+| [Custom tooltip](custom-tooltip/README.md) | both    | `tooltip.render` (text sections, a DOM node) and `renderTooltip` (React) |
+
+### React
+
+| Example | Package | Shows |
+| ------- | ------- | ----- |
+
+### Plans
+
+| Example                                  | Package | Shows                                                                                        |
+| ---------------------------------------- | ------- | -------------------------------------------------------------------------------------------- |
+| [A release plan](release-plan/README.md) | both    | Phases with children pinned to them, milestones, locked work, links with lags, status styles |
 
 Two things are the same in every example: the stylesheet (`@ganttlane/dom/styles.css`, or
 `@ganttlane/react/styles.css` for React) is a separate import, and the container of a chart needs a

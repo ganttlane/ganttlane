@@ -2,7 +2,7 @@
 title: Controlled data
 description: Your own state owns the tasks and the links; the chart reports every change and waits for your answer, a save that can be refused.
 category: Data
-order: 20
+order: 300
 ---
 
 # Controlled data

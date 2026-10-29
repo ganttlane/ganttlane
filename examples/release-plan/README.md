@@ -2,7 +2,7 @@
 title: A release plan
 description: Phases with children pinned to them, a milestone, locked work, links with leads and lags, a work calendar, and status colours from your own CSS.
 category: Plans
-order: 50
+order: 700
 height: 520
 ---
 

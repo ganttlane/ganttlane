@@ -2,7 +2,7 @@
 title: Working days at one-hour granularity
 description: A Monday-to-Friday calendar with a named holiday, tasks timed to the hour, a lag, and a before-hook that asks before a bar lands on a day off.
 category: Scheduling
-order: 30
+order: 230
 ---
 
 # Working days at one-hour granularity

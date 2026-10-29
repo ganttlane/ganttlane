@@ -2,7 +2,7 @@
 title: Edit session, Save and Cancel
 description: Your state owns the plan; an edit session wraps a spell of editing between Edit, Save and Cancel, with a save that can be refused.
 category: Data
-order: 21
+order: 310
 ---
 
 # Edit session, Save and Cancel
