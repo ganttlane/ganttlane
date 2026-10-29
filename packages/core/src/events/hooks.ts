@@ -9,8 +9,10 @@ import type { ChangeReason, ChangeSet, Conflict } from '../schedule';
 import type { Unsubscribe } from './emitter';
 
 /**
- * A value or a promise of it. `Awaitable<void>` lets a hook be any function returning nothing,
- * also one declared `(…): void` or `async (…): Promise<void>`.
+ * A value or a promise of it. `Awaitable<T | void>` lets a hook be any function returning an
+ * answer or nothing, also one declared `(…): void`, `async (…): Promise<void>` or
+ * `(…): Promise<boolean | void>` (what `confirm().then((ok) => ok)` is when `confirm` may
+ * resolve to nothing).
  */
 export type Awaitable<T> = T | PromiseLike<T>;
 
@@ -35,8 +37,10 @@ export type BeforeTaskChangeResult = boolean | ChangeSet | undefined;
 
 /**
  * A `beforeTaskChange` hook (FR-TX-2): confirms, cancels or modifies a change set before it is
- * committed, synchronously or asynchronously (e.g. after asking the user). Throwing or rejecting
- * cancels the commit and reports the error on the `error` channel.
+ * committed, synchronously or asynchronously (e.g. after asking the user). It answers a
+ * {@link BeforeTaskChangeResult}, a promise of one, or nothing (`void`, also as the value of the
+ * promise: `Promise<boolean | void>` fits). Throwing or rejecting cancels the commit and reports
+ * the error on the `error` channel.
  *
  * @example
  * ```ts
@@ -51,7 +55,11 @@ export type BeforeTaskChangeResult = boolean | ChangeSet | undefined;
  */
 export type BeforeTaskChangeHook = (
   context: BeforeTaskChangeContext,
-) => Awaitable<BeforeTaskChangeResult> | Awaitable<void>;
+  // `void` in the union is deliberate: `Promise<boolean | void>` (what `confirm().then((ok) => ok)`
+  // is when `confirm` may resolve to nothing) must fit, and it fits neither `Promise<answer>`
+  // nor `Promise<void>`.
+  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+) => Awaitable<BeforeTaskChangeResult | void>;
 
 /** What a `beforeLinkCreate` hook receives (`onBeforeLinkCreate`, FR-LINK-6). Frozen. */
 export interface BeforeLinkCreateContext {
@@ -71,11 +79,17 @@ export type BeforeLinkCreateResult = boolean | undefined;
 
 /**
  * A `beforeLinkCreate` hook (FR-LINK-6): confirms or cancels a new link, synchronously or
- * asynchronously. Throwing or rejecting cancels and reports the error on the `error` channel.
+ * asynchronously. It answers a {@link BeforeLinkCreateResult}, a promise of one, or nothing
+ * (`void`, also as the value of the promise: `Promise<boolean | void>` fits). Throwing or
+ * rejecting cancels and reports the error on the `error` channel.
  */
 export type BeforeLinkCreateHook = (
   context: BeforeLinkCreateContext,
-) => Awaitable<BeforeLinkCreateResult> | Awaitable<void>;
+  // `void` in the union is deliberate: `Promise<boolean | void>` (what `confirm().then((ok) => ok)`
+  // is when `confirm` may resolve to nothing) must fit, and it fits neither `Promise<answer>`
+  // nor `Promise<void>`.
+  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+) => Awaitable<BeforeLinkCreateResult | void>;
 
 /** The hook chains by name. */
 export interface HookMap {

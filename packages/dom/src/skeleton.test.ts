@@ -127,6 +127,24 @@ describe('createSkeleton', () => {
     expect(skeleton.root.style.getPropertyValue('--gantt-height')).toBe('');
   });
 
+  it('FR-SCROLL-3: the header arrives in the pin at the scroller offset, so its labels still match the bars', () => {
+    // The header only follows the scroller in the pin through `scrollLeft` on the pin, which is a
+    // new element (or one that left the document) and starts at 0: the move has to carry it over.
+    const skeleton = createSkeleton(document, { idPrefix: 'g-9', theme: 'light' });
+    skeleton.scroller.scrollLeft = 560;
+
+    skeleton.setHeight('auto');
+    expect(skeleton.pin.scrollLeft).toBe(560);
+
+    // Out of auto the header is in the scroller again, which scrolls it by itself; a later way
+    // into auto (the pin was out of the document meanwhile) starts from the scroller's offset.
+    skeleton.setHeight(240);
+    skeleton.scroller.scrollLeft = 120;
+    skeleton.pin.scrollLeft = 0;
+    skeleton.setHeight('auto');
+    expect(skeleton.pin.scrollLeft).toBe(120);
+  });
+
   it('FR-SCROLL-3: the same mode twice changes nothing, and an unusable height fills the container', () => {
     const skeleton = createSkeleton(document, { idPrefix: 'g-9', theme: 'light' });
     skeleton.setHeight('auto');

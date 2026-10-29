@@ -306,6 +306,21 @@ describe('createChangeController: before-hooks', () => {
     expect(Object.isFrozen(contexts[0])).toBe(true);
   });
 
+  it('FR-TX-2: a hook that resolves to a boolean or to nothing decides the commit (Promise<boolean | void>)', async () => {
+    // The type of `confirm().then((ok) => ok)` when `confirm` may resolve to nothing: the runtime
+    // reads `undefined` as "let it pass" and `false` as "cancel", whatever the promise is typed as.
+    const answers: (boolean | undefined)[] = [undefined, true, false];
+    for (const answer of answers) {
+      const { store, controller, changeSetOf } = setup();
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+      const confirm = (): Promise<boolean | void> => Promise.resolve(answer);
+      controller.setHandlers({ onBeforeTaskChange: () => confirm().then((ok) => ok) });
+      const result = await controller.commit(changeSetOf(MOVE));
+      expect(result.status, String(answer)).toBe(answer === false ? 'cancelled' : 'committed');
+      expect(store.getSnapshot().tasks === TASKS, String(answer)).toBe(answer === false);
+    }
+  });
+
   it('FR-TX-2: false cancels: the draft is cleared, nothing is committed or emitted', async () => {
     const { store, controller, events, changeSetOf } = setup();
     const later = vi.fn();
@@ -960,6 +975,19 @@ describe('createChangeController: links', () => {
     expect((await controller.createLink(link)).status).toBe('created');
     expect(store.getSnapshot().links).toHaveLength(2);
     expect(events.map(([name]) => name)).toEqual(['linkCreate']);
+  });
+
+  it('FR-LINK-6: a link hook that resolves to a boolean or to nothing decides the link (Promise<boolean | void>)', async () => {
+    const answers: (boolean | undefined)[] = [undefined, true, false];
+    for (const answer of answers) {
+      const { store, controller } = setup();
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+      const confirm = (): Promise<boolean | void> => Promise.resolve(answer);
+      controller.setHandlers({ onBeforeLinkCreate: () => confirm().then((ok) => ok) });
+      const result = await controller.createLink({ source: 'build', target: 'review', type: 'SS' });
+      expect(result.status, String(answer)).toBe(answer === false ? 'cancelled' : 'created');
+      expect(store.getSnapshot().links, String(answer)).toHaveLength(answer === false ? 1 : 2);
+    }
   });
 
   it.each<[string, () => unknown]>([

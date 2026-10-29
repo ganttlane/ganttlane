@@ -283,6 +283,31 @@ describe('createGantt: methods', () => {
     expect(gantt.getVisibleRange().start).toBeInstanceOf(Date);
   });
 
+  it('FR-SCROLL-3: switching a chart scrolled to its first task to an automatic height keeps the header on the bars', () => {
+    const { gantt, container, frames } = create({
+      scroll: { initial: 'first-task' },
+      layout: { height: 300 },
+    });
+    frames.step();
+    const scroller = container.querySelector<HTMLElement>('.gantt__scroller')!;
+    expect(scroller.scrollLeft).toBeGreaterThan(0);
+
+    gantt.setOptions({ layout: { height: 'auto' } });
+
+    const pin = container.querySelector<HTMLElement>('.gantt__pin')!;
+    expect(pin.querySelector('.gantt__header')).not.toBeNull();
+    expect(pin.scrollLeft).toBe(scroller.scrollLeft);
+
+    // And back: the header returns to the scroller, which moves it by itself.
+    gantt.setOptions({ layout: { height: 300 } });
+    expect(container.querySelector('.gantt__pin')).toBeNull();
+    expect(scroller.firstElementChild?.className).toBe('gantt__header');
+    gantt.setOptions({ layout: { height: 'auto' } });
+    expect(container.querySelector<HTMLElement>('.gantt__pin')!.scrollLeft).toBe(
+      scroller.scrollLeft,
+    );
+  });
+
   it('FR-API-3: the data methods change the chart', () => {
     const { gantt } = create();
 
@@ -575,6 +600,24 @@ describe('createGantt: TData', () => {
     // The view methods return nothing: the scroll request is the renderer's business.
     expectTypeOf(gantt.scrollToTask).returns.toBeVoid();
     expectTypeOf(gantt.setViewMode).returns.toBeVoid();
+    gantt.destroy();
+  });
+
+  it('FR-TX-2, FR-LINK-6: a before-hook may answer with a promise of an answer or of nothing, as an option and through setOptions', async () => {
+    // What `confirm().then((ok) => ok)` is when `confirm` may resolve to nothing: it did not
+    // compile when the hook types took only `Promise<answer>` or `Promise<void>`.
+    // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+    const confirm = (): Promise<boolean | void> => Promise.resolve(true);
+    const { gantt } = create({
+      onBeforeTaskChange: () => confirm().then((ok) => ok),
+      onBeforeLinkCreate: () => confirm().then((ok) => ok),
+    });
+    gantt.setOptions({
+      onBeforeTaskChange: () => confirm().then((ok) => ok),
+      onBeforeLinkCreate: () => confirm().then((ok) => ok),
+    });
+
+    expect(await gantt.addLink({ source: 'b', target: 'p' })).toMatchObject({ status: 'created' });
     gantt.destroy();
   });
 

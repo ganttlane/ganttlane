@@ -79,8 +79,9 @@ export interface Skeleton extends LayerSlots {
    * Sets the chart's height (FR-SCROLL-3, {@link HeightOption}): a number is
    * `--gantt-height` on the root, `'auto'` is `data-height="auto"` and moves the header out of
    * the scroller into {@link Skeleton.pin}, so that it can stick to the page, which scrolls the
-   * rows (a header inside a scroller that does not scroll vertically never sticks). Any other
-   * value fills the container. The same mode twice does nothing.
+   * rows (a header inside a scroller that does not scroll vertically never sticks), and scrolls
+   * the pin to the scroller's offset at once (the renderer keeps them together from there on).
+   * Any other value fills the container. The same mode twice does nothing.
    */
   setHeight(height: HeightOption | undefined): void;
   /**
@@ -181,6 +182,11 @@ export function createSkeleton(document: Document, options: SkeletonOptions): Sk
         if (header.parentElement === pin) return;
         pin.append(header);
         root.insertBefore(pin, scroller);
+        // The pin is new (or was out of the document, which forgets a scroll offset) and starts
+        // at 0, while the scroller keeps its offset: the header would show another date than the
+        // bars below it until the next scroll event. `scrollTo`, not the `scrollLeft` setter,
+        // which follows the page's CSS `scroll-behavior` (a smooth catch-up is a visible drift).
+        pin.scrollTo({ left: scroller.scrollLeft, behavior: 'instant' });
       } else if (header.parentElement === pin) {
         pin.remove();
         scroller.prepend(header);

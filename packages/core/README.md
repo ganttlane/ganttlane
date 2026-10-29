@@ -407,6 +407,29 @@ presets:
 | `month`       | 1 month  | 4          | `1d`         | `4mo`   |
 | `year`        | 1 year   | 1          | `1mo`        | `2y`    |
 
+The three hourly presets have 40 px columns, which have room for about two digits, so the hour row
+of their header shows the hour of the 24-hour clock in two digits in every locale (`00`, `06`,
+`12`, `17`): `5 PM` and `17 Uhr` do not fit, and the label would be cut to `5 …`, with noon and
+midnight reading the same in `half-day`. To show the clock of the locale instead, replace the row
+(`headers` is replaced whole) and give the columns the room it needs:
+
+```ts
+createGanttCore({
+  tasks,
+  viewMode: 'quarter-day',
+  viewModes: {
+    // 70 px per 6-hour column.
+    'quarter-day': {
+      pxPerDay: 280,
+      headers: [
+        { unit: 'day', format: { day: 'numeric', month: 'long' } },
+        { unit: 'hour', step: 6, format: { hour: 'numeric' } },
+      ],
+    },
+  },
+});
+```
+
 ```ts
 import { createGanttCore } from '@ganttlane/core';
 
@@ -513,7 +536,8 @@ The handler option names are `onTasksChange`, `onTaskDatesChange`, `onTaskProgre
 `onTaskHoverChange`, `onSelectionChange`, `onViewModeChange`, `onRangeChange`, `onExpandedChange`,
 `onScroll`, `onEditRollback`, `onDirtyChange`, `onHistoryChange`, `onEditRefused`, `onIssues` and
 `onError`. The two **before-hooks**, `onBeforeTaskChange(context)` and `onBeforeLinkCreate(context)`,
-are options only; see [Changes, edit sessions and history](#changes-edit-sessions-and-history).
+are options only (a hook may answer a value, a promise of one, or nothing, so a function that returns
+`Promise<boolean | void>` is a hook); see [Changes, edit sessions and history](#changes-edit-sessions-and-history).
 The payloads are typed by `GanttEventMap<TData>`; pointer events (`event`) are whatever the renderer
 passed to `send`.
 

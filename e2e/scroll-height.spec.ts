@@ -466,9 +466,14 @@ test.describe('scrolling and height (FR-SCROLL-1 … FR-SCROLL-3)', () => {
       await settle(page, 6);
     };
 
+    // Scrolled sideways before the switch (to 2026-03-09), the header must follow at once: its
+    // labels are over the bars, in the pin as they were in the scroller.
+    expect((await pageLayout(page)).scrollerScrollLeft).toBeGreaterThan(100);
     await setHeight('auto');
     const auto = await pageLayout(page);
     expect(auto.headerIn).toBe('pin');
+    expect(Math.abs((auto.pinScrollLeft ?? -1) - auto.scrollerScrollLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(auto.header.left - auto.body.left)).toBeLessThanOrEqual(1);
     expect(auto.root.bottom - auto.root.top).toBeGreaterThan(auto.innerHeight * 5);
     await page.evaluate(() => {
       window.scrollTo({ top: 2500, behavior: 'instant' });
@@ -483,6 +488,7 @@ test.describe('scrolling and height (FR-SCROLL-1 … FR-SCROLL-3)', () => {
     await setHeight(260);
     const fixed = await pageLayout(page);
     expect(fixed.headerIn).toBe('scroller');
+    expect(Math.abs(fixed.header.left - fixed.body.left)).toBeLessThanOrEqual(1);
     expect(Math.round(fixed.root.bottom - fixed.root.top)).toBe(260);
     await page.evaluate(() => {
       window.scrollTo({ top: 0, behavior: 'instant' });
@@ -492,6 +498,13 @@ test.describe('scrolling and height (FR-SCROLL-1 … FR-SCROLL-3)', () => {
     const again = await pageLayout(page);
     expect(again.scrollerScrollTop).toBeGreaterThan(0);
     expect(await barBox(page, id)).toBeDefined();
+
+    // And auto again from wherever the scroller is now: the new pin starts at 0 and has to catch up.
+    await setHeight('auto');
+    const back = await pageLayout(page);
+    expect(back.headerIn).toBe('pin');
+    expect(Math.abs((back.pinScrollLeft ?? -1) - back.scrollerScrollLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(back.header.left - back.body.left)).toBeLessThanOrEqual(1);
     expect(errors).toEqual([]);
   });
 });

@@ -206,11 +206,19 @@ describe('scale/header', () => {
         '2026-03-09/2026-03-09T06:00',
       ]);
       expect(quarters.map((cell) => cell.width)).toEqual([10, 10, 10, 10]);
-      expect(quarters.map((cell) => cell.label)).toEqual(
-        ['2026-03-08T06:00', '2026-03-08T12:00', '2026-03-08T18:00', '2026-03-09'].map((iso) =>
-          intl('en', { hour: 'numeric' }, iso),
-        ),
-      );
+      // The 24-hour clock in two digits: "6 AM" and "12 PM" do not fit in a 40 px column.
+      expect(quarters.map((cell) => cell.label)).toEqual(['06', '12', '18', '00']);
+    });
+
+    it('FR-SCALE-4: half-day cells tell noon from midnight', () => {
+      const halves = cells(row('half-day', 1), '2026-03-08T07:30', '2026-03-09T13:00');
+      expect(halves.map(span)).toEqual([
+        '2026-03-08/2026-03-08T12:00',
+        '2026-03-08T12:00/2026-03-09',
+        '2026-03-09/2026-03-09T12:00',
+        '2026-03-09T12:00/2026-03-10',
+      ]);
+      expect(halves.map((cell) => cell.label)).toEqual(['00', '12', '00', '12']);
     });
 
     it('FR-SCALE-4: hour and minute steps restart at midnight, shortening the last cell', () => {

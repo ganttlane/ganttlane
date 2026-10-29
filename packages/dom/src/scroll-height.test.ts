@@ -384,6 +384,28 @@ describe("height: 'auto' (the page scrolls the chart)", () => {
     expect(fake.scroll).not.toHaveBeenCalled();
   });
 
+  it('FR-SCROLL-3: a chart that is scrolled sideways when its height becomes auto keeps the header on its bars', () => {
+    const { frames, renderer, scroller, container } = setup({ height: 300 });
+    scroller.scrollLeft = 560;
+    scroller.dispatchEvent(new Event('scroll'));
+    frames.step();
+
+    renderer.setHeight('auto');
+    const pin = container.querySelector<HTMLElement>('.gantt__pin')!;
+    expect(pin.querySelector('.gantt__header')).not.toBeNull();
+    // At once, not at the next scroll event: the pin starts at 0 and nothing else moves it.
+    expect(pin.scrollLeft).toBe(scroller.scrollLeft);
+    expect(pin.scrollLeft).toBe(560);
+
+    // Round trip: the pin that left the document comes back at the scroller's offset.
+    renderer.setHeight(260);
+    scroller.scrollLeft = 300;
+    scroller.dispatchEvent(new Event('scroll'));
+    pin.scrollLeft = 0;
+    renderer.setHeight('auto');
+    expect(pin.scrollLeft).toBe(300);
+  });
+
   it('FR-API-4: no listener or observer of the page survives destroy', () => {
     const FakeObserver = installFakeResizeObserver();
     const host = createContainer();
