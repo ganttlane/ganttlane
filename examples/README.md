@@ -76,6 +76,7 @@ each one shows).
 | [Link menu](link-menu/README.md)                              | both    | `linkMenu.render` with your own actions (type, lag, remove), `linkMenu.onRemove`, `renderLinkMenu` (React)         |
 | [Locale and strings](locale-and-strings/README.md)            | both    | `locale` (header, dates, numbers) and `strings` (tooltip, link menu, `aria-label`), with a full Ukrainian set      |
 | [Grid and today](grid-and-today/README.md)                    | both    | `display.gridLines`, the today line, days off, major lines per view mode, hover and selection tokens               |
+| [Task list beside the chart](task-list-sidebar/README.md)     | both    | A sticky list of names and dates whose rows line up with the bars: toggles, scroll, selection, hover, keys         |
 
 ### React
 

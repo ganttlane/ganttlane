@@ -44,7 +44,11 @@ async function load<File extends keyof ExampleModules>(
   )) as ExampleModules[File];
 }
 
-/** happy-dom does no layout, so the chart's scroller would be 0 by 0 and draw no bar. */
+/**
+ * happy-dom does no layout, so the chart's scroller would be 0 by 0 and draw no bar. The page is
+ * given the scroller's height too: a chart of automatic height (`layout.height: 'auto'`) is as tall
+ * as its rows and asks the page, or the ancestor that scrolls, how much of them to draw.
+ */
 function stubScrollerSize(width: number, height: number): void {
   const isScroller = (element: Element): boolean => element.classList.contains('gantt__scroller');
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
@@ -55,7 +59,7 @@ function stubScrollerSize(width: number, height: number): void {
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
     this: HTMLElement,
   ) {
-    return isScroller(this) ? height : 0;
+    return isScroller(this) || this === document.documentElement ? height : 0;
   });
 }
 

@@ -1,0 +1,235 @@
+/*
+ * The task list beside the chart: your own markup, so your own styles.
+ *
+ *   .task-list-demo         the example: a toolbar, the box below, a status line
+ *   .task-list-scroller     the one box that scrolls vertically, and so scrolls both columns
+ *   .task-list-content      the two columns side by side
+ *   .task-list              the list: a sticky header, then the tree of rows
+ *   .task-list-chart        the chart's column; the chart is as tall as its rows (`layout.height`)
+ *
+ * Sizes come from the chart (`--task-list-row-height`, `--task-list-header-height`, set from its
+ * snapshot), never from numbers written here, so the rows line up whatever `layout` says.
+ */
+
+/*
+ * COLOURS. The chart declares its colours on `.gantt` and a sibling cannot inherit them, so the
+ * list has a small palette of its own, with the values of the chart's default theme, and follows
+ * the theme of the chart: `color-scheme` is what `light-dark()` reads, and it comes from the
+ * `data-theme` of the `.gantt` inside (the site and `setOptions({ theme })` set it there).
+ */
+.task-list-demo {
+  container: task-list-demo / inline-size;
+  color-scheme: light;
+}
+
+.task-list-demo:has(.gantt[data-theme='dark']) {
+  color-scheme: dark;
+}
+
+.task-list-demo:has(.gantt[data-theme='auto']) {
+  color-scheme: light dark;
+}
+
+.task-list-demo {
+  --task-list-background: light-dark(#fff, #15171c);
+  --task-list-foreground: light-dark(#1b2230, #e4e8ef);
+  --task-list-muted: light-dark(#465163, #a9b3c3);
+  --task-list-border: light-dark(#d3d9e1, #333a46);
+  --task-list-header-background: light-dark(#f5f6f8, #1c1f26);
+  --task-list-stripe: light-dark(rgb(15 23 42 / 3.5%), rgb(255 255 255 / 3.5%));
+  --task-list-accent: light-dark(#2563eb, #6ea0ff);
+  --task-list-focus: light-dark(#2563eb, #7aa7ff);
+}
+
+/* THE BOX THAT SCROLLS. */
+.task-list-scroller {
+  position: relative;
+  height: 400px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--task-list-border, #d3d9e1);
+  border-radius: 0.375rem;
+  /* The row band (below) and the sticky headers are ordered inside the box, not against the page. */
+  isolation: isolate;
+}
+
+.task-list-content {
+  display: flex;
+  /* Both columns as tall as the taller one, so the list's border runs down beside the chart. */
+  align-items: stretch;
+}
+
+.task-list-chart {
+  position: relative;
+  flex: 1 1 0;
+  /* Without this a flex item is as wide as its content, and the chart would widen the page. */
+  min-width: 0;
+}
+
+/* THE LIST. */
+.task-list {
+  position: sticky;
+  /* Sticky to the left too: the list stays where it is even if the box ever scrolls sideways. */
+  inset-inline-start: 0;
+  z-index: 3;
+  box-sizing: border-box;
+  flex: none;
+  width: 15rem;
+  color: var(--task-list-foreground);
+  background: var(--task-list-background);
+  border-inline-end: 1px solid var(--task-list-border);
+  font:
+    12px / 1.2 system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+.task-list__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* The height of the chart's header rows: the first row of the list starts where the chart's does. */
+  height: var(--task-list-header-height, 0);
+  padding-inline: 8px;
+  color: var(--task-list-muted);
+  background: var(--task-list-header-background);
+  border-block-end: 1px solid var(--task-list-border);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.task-list__header-name {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.task-list__header-dates,
+.task-list__dates {
+  flex: none;
+  width: 5.5rem;
+  text-align: end;
+}
+
+.task-list__row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--task-list-row-height, 0);
+  /* Each level of the tree is indented by the same step. */
+  padding-inline: calc(8px + var(--depth, 0) * 12px) 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  outline: none;
+  /* A row that gets the focus scrolls into view below the sticky header, not under it. */
+  scroll-margin-top: var(--task-list-header-height, 0);
+}
+
+.task-list__row[data-stripe='1'] {
+  background-color: var(--task-list-stripe);
+}
+
+.task-list__row:is([data-hovered], :hover) {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--task-list-accent) 9%, transparent),
+    color-mix(in srgb, var(--task-list-accent) 9%, transparent)
+  );
+}
+
+.task-list__row[aria-selected='true'] {
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--task-list-accent) 18%, transparent),
+    color-mix(in srgb, var(--task-list-accent) 18%, transparent)
+  );
+}
+
+.task-list__row:focus-visible {
+  outline: 2px solid var(--task-list-focus);
+  outline-offset: -2px;
+}
+
+.task-list__row[data-group] .task-list__name {
+  font-weight: 600;
+}
+
+.task-list__name {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-list__dates {
+  color: var(--task-list-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The toggle: a chevron that turns when the group is open. A leaf keeps the room, empty. */
+.task-list__toggle {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.task-list__row[data-group] .task-list__toggle::before {
+  content: '';
+  position: absolute;
+  inset: 3px 4px 3px 2px;
+  border: solid var(--task-list-muted);
+  border-width: 0 2px 2px 0;
+  transform: translate(25%, 0) rotate(-45deg) scale(0.9);
+  transition: transform 120ms ease;
+}
+
+.task-list__row[data-group][aria-expanded='true'] .task-list__toggle::before {
+  transform: translate(0, -25%) rotate(45deg) scale(0.9);
+}
+
+.task-list__row[data-group] .task-list__toggle:hover::before {
+  border-color: var(--task-list-foreground);
+}
+
+/*
+ * The band: the row the pointer is on, drawn across the chart (the list draws its own). It is
+ * placed with `getRowMetrics` and never takes the pointer.
+ */
+.task-list__band {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 1;
+  height: var(--task-list-row-height, 0);
+  background: color-mix(in srgb, var(--task-list-accent, #2563eb) 9%, transparent);
+  transform: translateY(var(--task-list-band-y, 0));
+  pointer-events: none;
+}
+
+.task-list__band[hidden] {
+  display: none;
+}
+
+/* On a narrow page the list is the names only. */
+@container task-list-demo (max-width: 30rem) {
+  .task-list {
+    width: 8.5rem;
+  }
+
+  .task-list__header-dates,
+  .task-list__dates {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-list__toggle::before {
+    transition: none;
+  }
+}
