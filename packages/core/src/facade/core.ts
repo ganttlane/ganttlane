@@ -1,8 +1,8 @@
 /**
- * `createGanttCore`: the headless facade of core (Facade pattern, `docs/architecture.md` §3, §4,
- * §7, §10). It composes the store, the change controller, the history and the edit session, the
- * viewport math and the interaction machine into one instance with the methods of
- * `docs/api.md` §6, the public events of §5 and a memoized snapshot for renderers.
+ * `createGanttCore`: the headless facade of core (Facade pattern). It composes the store, the
+ * change controller, the history and the edit session, the viewport math and the interaction
+ * machine into one instance with the public methods and events and a memoized snapshot for
+ * renderers.
  */
 
 import {
@@ -214,10 +214,6 @@ const DISPOSED: CancelledResult = /* @__PURE__ */ Object.freeze({
   reason: 'disposed',
 });
 const BUSY: BusyResult = /* @__PURE__ */ Object.freeze({ status: 'busy' });
-const NO_TASK: LinkCreateResult = /* @__PURE__ */ Object.freeze({
-  status: 'rejected',
-  reason: 'unknown-task',
-});
 const NO_EFFECTS: readonly RendererEffect[] = /* @__PURE__ */ Object.freeze([]);
 const NO_ISSUES: readonly Issue[] = /* @__PURE__ */ Object.freeze([]);
 /** Cascades of listeners that change the chart again are followed this many rounds at most. */
@@ -228,7 +224,7 @@ const ALIGN_KEYWORDS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(['start', '
 const BEHAVIORS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(['smooth', 'instant', 'auto']);
 
 /**
- * Creates the headless chart (FR-API-1 … FR-API-6): one instance per chart, with no globals and
+ * Creates the headless chart: one instance per chart, with no globals and
  * no state shared between instances. Never throws on bad options or data: problems are issues
  * (`onIssues` / `on('issues')`, `getIssues()`, the result of `setOptions`) and their defaults are
  * used. The caller's options, tasks and links are never mutated.
@@ -241,7 +237,7 @@ const BEHAVIORS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(['smooth', 'inst
  * Option handlers (`onX`) are set with `controller.setHandlers`; `on(name, fn)` subscribes to the
  * same emitter. Both receive the public arguments of {@link GanttEventMap}.
  *
- * **`setOptions` and minimal recomputation (FR-API-2).** Each given key is routed by the
+ * **`setOptions` and minimal recomputation.** Each given key is routed by the
  * invalidation matrix (`OPTION_INVALIDATION`):
  *
  * | Option | What is recomputed |
@@ -267,12 +263,12 @@ const BEHAVIORS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(['smooth', 'inst
  * children exactly like the same drag (`scheduling.propagation`, `hierarchy.moveChildren`), and it
  * **runs the before-hooks** (`onBeforeTaskChange` sees `reason: 'api'` and may pass, veto or
  * modify it), so the app's rules hold for code and users alike. Values are exact: no snapping
- * to the view mode's step and no rolling onto working days (FR-SNAP-11); a value off the
+ * to the view mode's step and no rolling onto working days; a value off the
  * granularity is aligned per `scheduling.alignInput` with a `'misaligned'` issue (`'reject'`
  * refuses the update). A day-precision task's step is a whole day, unless
  * `scheduling.keepDayPrecision: false`: then a value off midnight is aligned to the granularity
- * and makes the task timed, as a drag does (FR-SNAP-7; the change carries `precision`).
- * `end` is read like the task's own `end` (FR-TIME-8) and must come after the start
+ * and makes the task timed, as a drag does (the change carries `precision`).
+ * `end` is read like the task's own `end` and must come after the start
  * (`'end-before-start'` refuses the update). A locked task is reported with `'locked-task'` for
  * dates as for progress (`'unchanged'`). While the chart is busy (`GanttSnapshot.busy`) the
  * update resolves `'busy'` without reading or reporting anything. Undo restores it like any
@@ -286,7 +282,11 @@ const BEHAVIORS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(['smooth', 'inst
  * first width is kept (the latest wins) and performed by the mount instead of `scroll.initial`.
  * The renderer's input methods (`setViewport`, `scroll`, `send`, `refreshNow`) do not throw
  * after they changed the chart: what listeners threw reaches `error` listeners, or the host's
- * unhandled-rejection channel, so that the result the renderer needs is never lost with it.
+ * unhandled-rejection channel, so that the result the renderer needs is never lost with it. A
+ * before-hook that fails during a gesture (a drag, a drawn link) is reported the same way.
+ * `updateTask`, `addLink` and `removeLink` rethrow what listeners threw (a throw, or a rejected
+ * promise) when nobody listens to `error`, and `updateTask` and `addLink` return the error of a
+ * failed before-hook in their result.
  *
  * @param options - Data, options and handlers; keys this type does not know are ignored.
  * @returns The chart.
@@ -540,7 +540,7 @@ export function createGanttCore<TData = unknown>(
     conflicts: state.derived.conflicts,
   });
   /**
-   * Whether no gesture and no `updateTask` may start (FR-EDIT-7, FR-TX-3): a commit or a link
+   * Whether no gesture and no `updateTask` may start: a commit or a link
    * creation awaits a before-hook, or controlled data holds a committed change the owner has not
    * applied yet (`draft.committed`). An edit then would be computed from the owner's old data
    * while the chart shows the commit, and its change set would undo it.
@@ -589,7 +589,7 @@ export function createGanttCore<TData = unknown>(
         const found = record(id);
         if (task === undefined || found === undefined) return undefined;
         const { model } = state.derived;
-        // The precision the change gives the task (FR-SNAP-7), else the model's: controlled data
+        // The precision the change gives the task, else the model's: controlled data
         // shows the owner's task until it applies the change.
         const precision = (p.precision as DatePrecision | undefined) ?? task.precision;
         const start = p.start as DateTimeMs;
@@ -733,7 +733,7 @@ export function createGanttCore<TData = unknown>(
     if (destroyed) return false;
     const state = store.getSnapshot();
     const timelineChanged = syncTimeline(state);
-    // A gesture in progress follows a new timeline, a vertical scroll and new data (FR-EDIT-6):
+    // A gesture in progress follows a new timeline, a vertical scroll and new data:
     // its preview is placed again under the still pointer, on the new model.
     if (
       timeline !== retimed.timeline ||
@@ -797,14 +797,36 @@ export function createGanttCore<TData = unknown>(
     if (!destroyed && depth === 0) flush();
   };
   /**
-   * Follows an operation of the controller: publishes when it settles. `rethrow`: nobody else
-   * holds its promise (a gesture's commit), so a rejection is left unhandled, never swallowed.
+   * Follows an operation of the controller: publishes when it settles. `gesture`: nobody else
+   * holds its promise (a gesture's commit or link), so a rejection is left unhandled, never
+   * swallowed, and neither is a before-hook that failed (the operation resolved as `'cancelled'`
+   * with `reason: 'error'`) when nobody listens to `error`: the API methods return that error in
+   * their result instead.
    */
-  const track = <T>(operation: Promise<T>, rethrow: boolean): void => {
-    void operation.then(settled, (error: unknown) => {
-      settled();
-      if (rethrow) throw error;
-    });
+  const track = <T>(operation: Promise<T>, gesture: boolean): void => {
+    void operation.then(
+      (result) => {
+        try {
+          settled();
+        } finally {
+          if (gesture) reportFailedHook(result);
+        }
+      },
+      (error: unknown) => {
+        settled();
+        if (gesture) throw error;
+      },
+    );
+  };
+
+  /**
+   * Hands the error of a failed before-hook to the host's unhandled-rejection channel, unless
+   * `error` has a listener (the controller emitted it there).
+   */
+  const reportFailedHook = (result: unknown): void => {
+    if (!isRecord(result) || result.status !== 'cancelled' || result.reason !== 'error') return;
+    if (emitter.hasListeners('error')) return;
+    reportLater([result.error], 'a before-hook threw');
   };
 
   // ---- timeline ----
@@ -844,7 +866,7 @@ export function createGanttCore<TData = unknown>(
 
   /**
    * Re-derives the timeline when the data, the view mode, the zoom or the timeline options
-   * changed (FR-TL-1, FR-SCALE-6):
+   * changed:
    * - before the mount nothing is shown: the range is the data's, the scroll is placed by
    *   `mount`;
    * - a fixed range follows the data and the options, the left edge date kept;
@@ -947,10 +969,10 @@ export function createGanttCore<TData = unknown>(
   };
 
   /**
-   * Runs the infinite timeline's policy to rest at the current offset (FR-TL-4): after a
+   * Runs the infinite timeline's policy to rest at the current offset: after a
    * rebase, a new range or a new viewport width, before anything is requested, so the content
    * never exceeds what the policy allows (`maxSpan`, `maxWidth`) and every edge the viewport is
-   * near has grown. Each change keeps the date under the left edge (FR-TL-3).
+   * near has grown. Each change keeps the date under the left edge.
    */
   const settle = (extension: ExtensionPolicy | undefined): void => {
     if (extension === undefined) return;
@@ -1071,7 +1093,7 @@ export function createGanttCore<TData = unknown>(
    * Places the scroll of `scroll.initial` (at mount, or after `setViewMode(…, { keepScroll:
    * false })`) on the timeline: the infinite range grown around the target first. `'start'` and
    * `'end'` are the edges of the data range, not of a range the infinite timeline grew or
-   * trimmed (FR-SCROLL-1). The caller settles and requests. `false` for `'none'`.
+   * trimmed. The caller settles and requests. `false` for `'none'`.
    */
   const placeInitial = (): boolean => {
     const state = store.getSnapshot();
@@ -1091,7 +1113,7 @@ export function createGanttCore<TData = unknown>(
   };
 
   /**
-   * A scroll plan applied: the range grown first (FR-TL-6), then the request. A plan whose
+   * A scroll plan applied: the range grown first, then the request. A plan whose
    * change cut the current view away (`jump`) is scrolled to instantly, without `from`: a
    * smooth scroll would start from an unrelated place, and the extensions and trims on its way
    * could cut the target away.
@@ -1127,7 +1149,7 @@ export function createGanttCore<TData = unknown>(
   };
 
   /**
-   * The viewport width changed after the mount: the infinite timeline settles for it (FR-TL-2),
+   * The viewport width changed after the mount: the infinite timeline settles for it,
    * so a widened chart is never left half blank; an instant request compensates a grown start.
    */
   const resized = (previous: TimelineState): ScrollRequest | undefined => {
@@ -1406,7 +1428,7 @@ export function createGanttCore<TData = unknown>(
     },
     addLink: (link: Link): Promise<LinkCreateResult> => {
       if (destroyed) return Promise.resolve(DISPOSED);
-      if (!isRecord(link)) return Promise.resolve(NO_TASK);
+      // Not an object: the controller's shape check rejects it as `'invalid'`, with the issue.
       return batch(() => {
         const operation = controller.createLink(link);
         track(operation, false);
@@ -1619,7 +1641,7 @@ export function createGanttCore<TData = unknown>(
   };
 
   /**
-   * The first non-zero width (FR-SCROLL-1, FR-TL-2): the initial scroll is placed on the data
+   * The first non-zero width: the initial scroll is placed on the data
    * range as resolved (so `'start'` / `'end'` are the data's edges), then the infinite timeline
    * settles at that offset, and the final picture is requested. `'none'` requests nothing unless
    * settling moved the offset.
@@ -1849,10 +1871,10 @@ function behaviorOf(value: unknown, fallback: ScrollBehaviorOption): ScrollBehav
 }
 
 /**
- * A content key of an issue list, to emit `issues` only when the list changed (`docs/api.md`
- * §5): code, severity, path, the task and link ids, `value` and `suggested` (by content, objects
- * by kind). The message is left out: its text differs between the development and production
- * builds, which must see the same changes, and it says nothing these fields do not.
+ * A content key of an issue list, to emit `issues` only when the list changed: code, severity,
+ * path, the task and link ids, `value` and `suggested` (by content, objects by kind). The message
+ * is left out: its text differs between the development and production builds, which must see the
+ * same changes, and it says nothing these fields do not.
  *
  * @internal
  */
@@ -1920,12 +1942,10 @@ function throwAll(errors: readonly unknown[]): never {
  * Hands errors to the host's unhandled-rejection channel instead of throwing them: one as it is
  * (an `Error`), several, or one that is not an `Error`, as an `AggregateError`.
  */
-function reportLater(errors: readonly unknown[]): void {
+function reportLater(errors: readonly unknown[], what = `${errors.length} listeners threw`): void {
   const [only] = errors;
   void Promise.reject(
-    errors.length === 1 && only instanceof Error
-      ? only
-      : new AggregateError(errors, `${errors.length} listeners threw`),
+    errors.length === 1 && only instanceof Error ? only : new AggregateError(errors, what),
   );
 }
 
@@ -1941,13 +1961,13 @@ interface ReadUpdate {
 }
 
 /**
- * Reads `updateTask`'s values for a task the way `normalizeModel` reads the task's own
- * (FR-TIME-8, FR-SNAP-13): dates parsed; a date-only `end` is the inclusive last day with
+ * Reads `updateTask`'s values for a task the way `normalizeModel` reads the task's own:
+ * dates parsed; a date-only `end` is the inclusive last day with
  * `endInclusive`, unless the task's `precision: 'time'` makes every value a moment; an end that
  * is not after the start (the current start for `end` alone; a milestone may end at its start)
  * is refused with `'end-before-start'`; dates are aligned to the task's step per `alignInput`,
  * with `'misaligned'` issues; progress is checked. The step is a whole day for a day-precision
- * task, unless `keepDayPrecision` is off (FR-SNAP-7): then it is the granularity, and a value off
+ * task, unless `keepDayPrecision` is off: then it is the granularity, and a value off
  * midnight makes the task timed (`propagate` records that in the change), so the suggestion of
  * a misaligned value is written in the precision the task gets.
  */

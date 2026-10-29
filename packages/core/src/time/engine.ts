@@ -1,5 +1,5 @@
 /**
- * Bridge between floating numbers and `@internationalized/date` (ADR-018), the engine behind
+ * Bridge between floating numbers and `@internationalized/date`, the engine behind
  * the calendar arithmetic, ISO parsing and formatting of this module. Internal to `time/`.
  *
  * **The window.** The library covers AD 1 … 9999 only: `add` clamps results to that range,
@@ -36,7 +36,7 @@ import {
  *
  * Annotated as pure: a bundler cannot see that the constructor has no side effects, and without
  * the annotation `new GregorianCalendar()` keeps the whole date library in the bundle of an app
- * that imports one function that never needs it (`parseDuration`; plan step 6.2, ADR-019).
+ * that imports one function that never needs it (`parseDuration`).
  */
 export const GREGORIAN: GregorianCalendar = /* @__PURE__ */ new GregorianCalendar();
 

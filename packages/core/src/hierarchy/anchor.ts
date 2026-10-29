@@ -1,7 +1,7 @@
 /**
- * Normalization of parent anchors (`Task.parentAnchor`, `hierarchy.childAnchor`; FR-SCH-2):
- * which edges of a child are pinned to which edges of its parent. Propagation itself is plan
- * step 2.4.
+ * Normalization of parent anchors (`Task.parentAnchor`, `hierarchy.childAnchor`):
+ * which edges of a child are pinned to which edges of its parent. Propagation itself lives in
+ * `schedule`.
  */
 
 import type { LinkType } from '../model';
@@ -39,8 +39,7 @@ const PAIR: Readonly<Record<`${StartPin}${EndPin}`, readonly LinkType[]>> = {
 };
 
 /**
- * The default `hierarchy.childAnchor`: `['SS']`, the child's start follows the parent's start
- * (legacy `children_default_pinned_to: {start: 'start'}`).
+ * The default `hierarchy.childAnchor`: `['SS']`, the child's start follows the parent's start.
  *
  * @internal
  */

@@ -1,5 +1,5 @@
 /**
- * Edit sessions in the store (FR-TX-4, `docs/architecture.md` §4): the base a session starts
+ * Edit sessions in the store: the base a session starts
  * from, the aggregated diff from it to the current data, its inverse for a rollback, and the
  * committed values of a task. Pure functions over snapshots.
  */
@@ -70,7 +70,7 @@ export function rebaseSession<TData>(
 }
 
 /**
- * A task's committed values (FR-TX-3, FR-TX-4): for controlled data, the `after` of the draft's
+ * A task's committed values: for controlled data, the `after` of the draft's
  * committed layer when it changes the task (a change the owner has not applied yet is part of the
  * data), else the values of the model. Unlike `selectTaskPatch`, the preview layer is ignored.
  * Tasks without a bar have none.
@@ -86,7 +86,7 @@ export function selectCommittedPatch(state: StoreState, id: TaskId): TaskPatch |
 }
 
 /**
- * The aggregated diff of the open edit session (FR-TX-4): from its base to the current data,
+ * The aggregated diff of the open edit session: from its base to the current data,
  * see {@link SessionChanges}. Runs in O(tasks + links) plus the conflict check of the changed
  * tasks.
  *
@@ -103,7 +103,7 @@ export function selectSessionChanges(state: StoreState): SessionChanges | undefi
 }
 
 /**
- * What a rollback of the open edit session reverts (FR-TX-4): the inverse of
+ * What a rollback of the open edit session reverts: the inverse of
  * {@link selectSessionChanges} (`reason: 'rollback'`): each change goes from the current value
  * back to the base value, `links.added` lists the links to restore and `links.removed` the links
  * to drop, `conflicts` are those of the base. This is what controlled data has to apply.
@@ -122,7 +122,7 @@ export function selectSessionRollback(state: StoreState): SessionChanges | undef
 }
 
 /**
- * Whether the open edit session has changes (FR-TX-6): `selectSessionChanges` would list a task
+ * Whether the open edit session has changes: `selectSessionChanges` would list a task
  * or a link. Stops at the first difference; O(1) while the data is the base itself.
  *
  * @param state - A store snapshot.
@@ -165,7 +165,7 @@ function committedPatches(state: StoreState): ReadonlyMap<TaskId, TaskPatch> | u
 /**
  * Tasks whose value differs between the base (with its pending patches) and the state (with
  * `current`), then links added and removed; with `first`, stops at the first difference. A task
- * whose precision differs is changed even with the same dates (FR-SNAP-7): its change carries
+ * whose precision differs is changed even with the same dates: its change carries
  * the precision on both sides (`TaskPatch.precision`), so that its inverse restores it.
  */
 function diffSession(

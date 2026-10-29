@@ -1,7 +1,7 @@
 /**
- * The dependency graph (FR-LINK-1, FR-LINK-2, FR-LINK-7, FR-LINK-8, FR-SCH-5, FR-SCH-9): the
+ * The dependency graph: the
  * normalized links checked against the tasks, with typed anchors, resolved lags, adjacency,
- * cycles and a stable topological order for propagation (plan step 2.4).
+ * cycles and a stable topological order for propagation.
  */
 
 import type {
@@ -31,7 +31,7 @@ export interface LinkAnchors {
 }
 
 /**
- * The lag of a link (FR-LINK-1, FR-LINK-8, FR-SCH-9): the gap from the source anchor to the target
+ * The lag of a link: the gap from the source anchor to the target
  * anchor that propagation keeps. Positive: the target anchor lies later; negative: a lead
  * (overlap).
  */
@@ -40,7 +40,7 @@ export interface LinkLag {
   readonly ms: number;
   /** How it is counted: the successor's `durationMode`. */
   readonly mode: DurationMode;
-  /** `true` when `Link.lag` was omitted and this is the current gap (ADR-007). */
+  /** `true` when `Link.lag` was omitted and this is the current gap. */
   readonly derived: boolean;
   /** `ms` in days (`ms / 1d`, fractional for sub-day lags). */
   readonly days: number;
@@ -56,7 +56,7 @@ export interface LinkRecordBase {
   readonly target: TaskId;
   /** Link type. */
   readonly type: LinkType;
-  /** Whether the link can be deleted from the UI (FR-LINK-9). */
+  /** Whether the UI offers to delete the link; `removeLink()` ignores it, see {@link Link.editable}. */
   readonly editable: boolean;
   /** The normalized link (its caller's `Link`, path and model issues). */
   readonly model: LinkModel;
@@ -68,7 +68,7 @@ export interface LinkRecordBase {
 export interface ActiveLinkRecord extends LinkRecordBase {
   /** Always `true`. */
   readonly active: true;
-  /** `true` when the link is on a cycle (FR-LINK-7): drawn, but ignored by scheduling. */
+  /** `true` when the link is on a cycle: drawn, but ignored by scheduling. */
   readonly inCycle: boolean;
   /** The explicit or derived lag. */
   readonly lag: LinkLag;
@@ -88,7 +88,7 @@ export interface InactiveLinkRecord extends LinkRecordBase {
 }
 
 /**
- * A link checked against the tasks, with its anchors resolved into a lag (FR-LINK-8). Narrow
+ * A link checked against the tasks, with its anchors resolved into a lag. Narrow
  * with `active`. Deeply frozen.
  */
 export type LinkRecord = ActiveLinkRecord | InactiveLinkRecord;
@@ -114,7 +114,7 @@ export interface LinkGraph {
   readonly predecessorsOf: (id: TaskId) => readonly ActiveLinkRecord[];
   /**
    * Every task of the model once, ordered so that each active link that is not on a cycle goes
-   * from an earlier to a later task (FR-SCH-5). Stable: of the tasks whose predecessors are
+   * from an earlier to a later task. Stable: of the tasks whose predecessors are
    * placed, the one first in model order comes first, so unlinked tasks keep their order.
    */
   readonly topologicalOrder: readonly TaskId[];
@@ -130,9 +130,11 @@ const ANCHORS: Readonly<Record<LinkType, LinkAnchors>> = /* @__PURE__ */ Object.
 });
 
 /**
- * The edges a link type connects (FR-LINK-1): `FS` end → start, `SS` start → start, `FF` end →
- * end, `SF` start → end. An `FS` + `FF` pair between the same tasks pins both edges of the
- * successor, which then stretches with the predecessor (FR-LINK-2).
+ * The edges a link type connects: `FS` end → start, `SS` start → start, `FF` end →
+ * end, `SF` start → end. Two links between the same tasks pin both edges of the successor: with
+ * `FS` + `FF` and no lags both pins hang from the predecessor's end, so the successor moves
+ * rigidly; `SS` + `FF` stretches it, as do explicit lags that ask for another length (see
+ * {@link LinkType}).
  *
  * @param type - The link type.
  * @returns Shared, frozen anchors.
@@ -150,8 +152,7 @@ export function linkAnchors(type: LinkType): LinkAnchors {
 }
 
 /**
- * The moment of a bar edge: `start`, or `endExclusive` for `'end'` (the half-open interval,
- * FR-TIME-3).
+ * The moment of a bar edge: `start`, or `endExclusive` for `'end'` (the half-open interval).
  *
  * @param span - The bar, or just its bounds (e.g. a span after propagation).
  * @param anchor - Which edge.
@@ -165,7 +166,7 @@ export function anchorTime(
 }
 
 /**
- * Measures the gap between two moments as a lag counted in `mode` (FR-SCH-9): working time of
+ * Measures the gap between two moments as a lag counted in `mode`: working time of
  * the calendar (signed) or plain time, aligned to the nearest multiple of the granularity.
  *
  * @param from - The source anchor.
@@ -185,7 +186,7 @@ export function measureLag(
 }
 
 /**
- * Builds the dependency graph of a normalized model (FR-LINK-1, FR-LINK-2, FR-LINK-7, FR-LINK-8).
+ * Builds the dependency graph of a normalized model.
  * Never throws on bad data and never mutates the model.
  *
  * 1. **References**: a link whose source or target matches no task is dropped
@@ -196,10 +197,10 @@ export function measureLag(
  * 2. **Lags**: an explicit `Link.lag` is kept as normalized (already aligned). An omitted lag is
  *    the current gap between the anchors ({@link linkAnchors}), measured in the successor's
  *    `durationMode` with {@link measureLag}.
- * 3. **Cycles** (FR-LINK-7): every strongly connected component of the active links is one
+ * 3. **Cycles**: every strongly connected component of the active links is one
  *    `'cycle'` issue listing its tasks and links; those links are flagged `inCycle` and left
  *    out of the topological order.
- * 4. **Order** (FR-SCH-5): a stable topological order of all tasks over the remaining active
+ * 4. **Order**: a stable topological order of all tasks over the remaining active
  *    links, and O(1) adjacency of the active links.
  *
  * @param model - The normalized tasks and links.
@@ -281,9 +282,9 @@ export function buildLinkGraph(model: NormalizedModel): LinkGraph {
 }
 
 /**
- * Whether adding an active link from `source` to `target` would close a cycle (FR-LINK-6,
- * FR-LINK-7): `target` already reaches `source` through active links, or both are the same task.
- * The link type does not matter. O(V + E) in the worst case.
+ * Whether adding an active link from `source` to `target` would close a cycle: `target` already
+ * reaches `source` through active links, or both are the same task. The link type does not matter.
+ * O(V + E) in the worst case.
  *
  * @param graph - The current graph.
  * @param source - Predecessor of the new link.

@@ -1,11 +1,11 @@
 /**
- * The viewport (`docs/architecture.md` §7, FR-TL-*, FR-SCROLL-1, FR-SCROLL-2): the timeline
+ * The viewport: the timeline
  * range (auto from the tasks, padding, today, explicit, snapped to whole columns), the infinite
  * timeline's extend / trim policy with the exact `scrollLeft` compensation that keeps the date
  * under the viewport's left edge in place, scroll targets for dates, tasks and the initial
  * scroll, anchored rescaling for view mode changes and zoom, drag autoscroll speed, and the
  * `onRangeChange` payload. Pure math over numbers: no DOM, no timers. Depends on `layout` and
- * through it on `scale`, `model` and `time` (§3.1).
+ * through it on `scale`, `model` and `time`.
  *
  * Other core modules import the viewport only through this file.
  *

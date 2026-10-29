@@ -34,14 +34,15 @@ const next = (count: number): number => count + 1;
  *   is never stale. Giving a handler for the first time, or removing it, is a change. They are
  *   never called while React renders: the first events (those of the creation) wait for the end
  *   of the first commit, and what a handler throws while the chart is brought to the props goes
- *   to `onError`, like what it throws anywhere else, and never into React's commit.
+ *   to `onError` (without one, to the host's unhandled-rejection channel), and never into
+ *   React's commit.
  * - **Controlled or uncontrolled** `tasks`, `links`, `viewMode`, `expandedKeys` and
  *   `selectedKeys`, see {@link GanttControlledProps}.
  * - **One core, whichever core.** `instance.core` is the same object too, with its own `subscribe`
  *   and `on`; it stands for the core the chart has now, which is a new one after a hidden
  *   `<Activity>` shows the chart again.
  * - **Slots.** `renderTooltip`, `renderLinkMenu` and `renderBarLabel` give the chart's tooltip,
- *   link menu and bar labels as `ReactNode`s (FR-REACT-4), see {@link GanttSlotProps}. React draws
+ *   link menu and bar labels as `ReactNode`s, see {@link GanttSlotProps}. React draws
  *   them through portals that `instance.slots` holds, so render `instance.slots` next to the
  *   container, below the providers the content should see (`<Gantt>` does).
  *

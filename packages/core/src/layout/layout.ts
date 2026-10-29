@@ -1,5 +1,5 @@
 /**
- * The prepared layout (FR-ROW-5, FR-API-5): row metrics plus bar geometry by row, behind the
+ * The prepared layout: row metrics plus bar geometry by row, behind the
  * queries the facade exposes (`getRowMetrics`, `getBarRect`) and the virtualization window.
  */
 
@@ -46,19 +46,19 @@ export interface Layout {
   /** The bar of the row at `index`; `undefined` for a row without a bar or an unknown index. */
   readonly barAt: (index: number) => BarGeometry | undefined;
   /**
-   * Where a task's row lies (FR-ROW-5, FR-API-5); `undefined` when the row is not visible
+   * Where a task's row lies; `undefined` when the row is not visible
    * (a collapsed parent) or the id is unknown.
    */
   readonly getRowMetrics: (id: TaskId) => RowMetrics | undefined;
   /**
-   * Where a task's bar lies (FR-API-5), for positioning things next to it from outside; add
+   * Where a task's bar lies, for positioning things next to it from outside; add
    * `rows.headerHeight` to `y` for scroller content pixels. `undefined` without a visible bar.
    */
   readonly getBarRect: (id: TaskId) => BarGeometry | undefined;
 }
 
 /**
- * Prepares the layout of the visible rows (FR-ROW-5, FR-API-5): an index from row to bar, with
+ * Prepares the layout of the visible rows: an index from row to bar, with
  * bars placed lazily by {@link barGeometry}. Pure: the result depends only on the input, which
  * is never mutated; `input.tasks` is read when a bar is first needed, so it must not change
  * afterwards (build a new layout instead).

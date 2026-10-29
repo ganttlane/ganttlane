@@ -62,7 +62,7 @@ export { VERSION } from '@ganttlane/core';
 
 // The types of `@ganttlane/core` that the declarations above name, however deep, and the ones an
 // application writes around a chart, so that code that installed only `@ganttlane/dom` (strict
-// pnpm hides `@ganttlane/core`) can import them (ADR-026). Types only: no code of the core is
+// pnpm hides `@ganttlane/core`) can import them. Types only: no code of the core is
 // pulled in. The set is whatever the declarations of this package reach through the type names
 // they write, and `index.types.test.ts` computes it with the compiler: a new type in a public
 // signature, or in a type that one names, fails that test until it is added here. In the order
@@ -73,7 +73,7 @@ export { VERSION } from '@ganttlane/core';
 // `HistoryResult`, the edit session's); the changes it reports and takes back (`ChangeSet`,
 // `Change`, `Conflict`, `SessionChanges`, `TaskPatch`); the core and its parts (`GanttCore`,
 // `GanttSnapshot` and what a snapshot holds, scroll and zoom options); events and their payloads
-// (`GanttEventMap`, `docs/api.md` §5); issues (`Issue`, `OptionIssue`, `GanttIssues`); and the
+// (`GanttEventMap`); issues (`Issue`, `OptionIssue`, `GanttIssues`); and the
 // input and effects of a custom layer (`InteractionEvent`, `RendererEffect`, `HitTarget`).
 export type {
   ActiveLinkRecord,

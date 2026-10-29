@@ -1,5 +1,5 @@
 /**
- * Vertical grid lines (FR-SCALE-5, FR-SNAP-9, `docs/architecture.md` §6): column boundaries,
+ * Vertical grid lines: column boundaries,
  * major lines by the view mode's rule and minor lines that appear only when they are not
  * denser than a pixel threshold.
  */
@@ -37,7 +37,7 @@ export interface GridLine {
 /** Options of {@link gridLines}. */
 export interface GridLineOptions {
   /**
-   * Minor lines are generated only when they are at least this many pixels apart (FR-SNAP-9).
+   * Minor lines are generated only when they are at least this many pixels apart.
    * A non-negative number, default `6`.
    */
   readonly minMinorSpacingPx?: number;
@@ -58,7 +58,7 @@ const MINUTES: readonly [unit: TimeUnit, ms: number] = ['minute', MINUTE];
 
 /**
  * Lazily generates the vertical grid lines of a view mode inside `range`
- * (`range.start <= t < range.end`), in order, one per position (FR-SCALE-5, FR-SNAP-9):
+ * (`range.start <= t < range.end`), in order, one per position:
  *
  * - `'column'`: the start of every column (`viewMode.unit` × `viewMode.step`), aligned like
  *   header cells (`headerCells`).

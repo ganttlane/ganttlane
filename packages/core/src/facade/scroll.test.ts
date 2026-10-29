@@ -179,6 +179,22 @@ describe('createGanttCore: the infinite timeline through scroll()', () => {
     expect(gantt.scrollToDate('not a date')).toBeUndefined();
   });
 
+  it('FR-SCROLL-5: the scroll event also fires for the core own requests, before the renderer performs them', () => {
+    const gantt = chart({ scroll: { initial: 'start' } });
+    const positions: number[] = [];
+    gantt.on('scroll', ({ x }) => positions.push(x));
+    const request = gantt.scrollToDate('2026-03-20', { behavior: 'instant' })!;
+    expect(request.left).toBeGreaterThan(0);
+    // Said at once, from the core's own state: the renderer has not scrolled yet.
+    expect(positions).toEqual([request.left]);
+    // The renderer performs the request and reports the same position: nothing new to say.
+    gantt.scroll({ left: request.left!, top: 0 });
+    expect(positions).toEqual([request.left]);
+    // A position of its own is reported as usual.
+    gantt.scroll({ left: request.left! + 10, top: 0 });
+    expect(positions).toEqual([request.left, request.left! + 10]);
+  });
+
   it('FR-EDIT-6: a scroll during a drag keeps the bar under the still pointer', () => {
     const gantt = chart({ scroll: { initial: 'start', autoScroll: { edge: 40 } } }, 2000);
     const bar = gantt.getBarRect('design')!;

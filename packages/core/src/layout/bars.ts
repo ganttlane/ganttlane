@@ -1,5 +1,5 @@
 /**
- * Bar geometry (FR-BAR-1, FR-BAR-2, FR-BAR-6, FR-ROW-5): where a task's bar or milestone lies
+ * Bar geometry: where a task's bar or milestone lies
  * in the body, from its span, its row and the time scale.
  */
 
@@ -25,7 +25,7 @@ export interface BarSpan {
 
 /**
  * What {@link barGeometry} reads from a task: `TaskModel` fits as is. A task without a `span`
- * (placeholder, invalid) has no bar (FR-ROW-3).
+ * (placeholder, invalid) has no bar.
  */
 export interface BarSource {
   /** Row kind; `'placeholder'` never has a bar. */
@@ -34,7 +34,7 @@ export interface BarSource {
   readonly span: BarSpan | undefined;
 }
 
-/** Shape of a bar: a rectangle, or a milestone diamond (FR-BAR-6). */
+/** Shape of a bar: a rectangle, or a milestone diamond. */
 export type BarKind = 'bar' | 'milestone';
 
 /** Options of {@link barGeometry}, sizes in pixels (see `resolveLayoutOptions`). */
@@ -67,22 +67,22 @@ export interface BarGeometry {
   readonly width: number;
   /** Height: `barHeight`, at most the row height. */
   readonly height: number;
-  /** Corner radius, at most half the height and half the width (FR-BAR-2). */
+  /** Corner radius, at most half the height and half the width. */
   readonly radius: number;
-  /** Width of the done part from `x`, `0 … width` (FR-BAR-1); always `0` for a milestone. */
+  /** Width of the done part from `x`, `0 … width`; always `0` for a milestone. */
   readonly progressWidth: number;
 }
 
 /**
- * The geometry of a task's bar in its row (FR-BAR-1, FR-BAR-2, FR-ROW-5). Pure; the result is
+ * The geometry of a task's bar in its row. Pure; the result is
  * frozen.
  *
  * - The bar runs from `scale.dateToX(start)` to `scale.dateToX(endExclusive)`, centred
  *   vertically in the row; a zero-length task (not a milestone) is a bar of width `0`.
  * - `radius` is `barRadius` clamped to half the height and half the width, so a narrow bar
- *   stays a valid rounded rectangle (FR-BAR-2).
+ *   stays a valid rounded rectangle.
  * - `progressWidth` reaches `span.progressDate`, clamped to the bar.
- * - A milestone is a diamond of `barHeight` × `barHeight` centred on its start (FR-BAR-6).
+ * - A milestone is a diamond of `barHeight` × `barHeight` centred on its start.
  * - A placeholder or a task without a span (invalid, no dates) has no bar: `undefined`.
  *
  * @param task - The task's kind and span (`TaskModel`, or a draft-overlaid copy).

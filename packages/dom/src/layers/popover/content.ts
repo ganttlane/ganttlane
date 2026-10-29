@@ -5,7 +5,7 @@ import type { DisposableNode, TooltipAction, TooltipContent } from './types';
 const NO_ACTIONS: readonly never[] = Object.freeze([]);
 
 /**
- * Renders popover content into `host` (FR-TIP-1), replacing what is there. Safe by type: a
+ * Renders popover content into `host`, replacing what is there. Safe by type: a
  * string and every part of the structured form is a text node, a `Node` (or the `node` of a
  * `DisposableNode`) is appended as it is, and markup is parsed only for the explicit `{ html }`
  * form, which is the caller's responsibility (see {@link TooltipContent}). A node that is already
@@ -43,10 +43,10 @@ export function fillContent<TContext>(
     return NO_ACTIONS;
   }
   if ('html' in form) {
-    // The one sanctioned HTML sink (FR-TIP-1): explicit `{ html }`, never a string or a field.
+    // The one sanctioned HTML sink: explicit `{ html }`, never a string or a field.
     // eslint-disable-next-line no-restricted-properties -- caller-supplied markup by design
     host.innerHTML = form.html;
-    // Elements around nothing but whitespace show nothing: the popover is empty (FR-TIP-3).
+    // Elements around nothing but whitespace show nothing: the popover is empty.
     if (showsNothing(host)) host.replaceChildren();
     return NO_ACTIONS;
   }
@@ -74,7 +74,7 @@ export function fillContent<TContext>(
 }
 
 /**
- * Whether filled content shows nothing (FR-TIP-3): no element and no text but whitespace. An
+ * Whether filled content shows nothing: no element and no text but whitespace. An
  * empty popover is not shown at all.
  *
  * @param host - The popover element, after {@link fillContent}.

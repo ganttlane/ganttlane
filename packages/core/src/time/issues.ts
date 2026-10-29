@@ -7,7 +7,7 @@ import { DEV, err, type Issue, type Result, shortMessage } from '../shared';
  *   supported yet; convert them to floating wall-clock strings first);
  * - `'invalid-duration'`: a malformed or ambiguous duration such as `'5m'`;
  * - `'invalid-granularity'`: a valid duration that cannot be the data step (`'7min'`, `'5h'`,
- *   `'2d'`, `'1mo'`): it must divide 24 h exactly or be `'1d'` (FR-SNAP-12).
+ *   `'2d'`, `'1mo'`): it must divide 24 h exactly or be `'1d'`.
  */
 export type TimeIssueCode =
   'invalid-date' | 'unsupported-offset' | 'invalid-duration' | 'invalid-granularity';

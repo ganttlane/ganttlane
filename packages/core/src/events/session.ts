@@ -1,5 +1,5 @@
 /**
- * The edit session (FR-TX-4, FR-TX-6, `docs/architecture.md` §4), the model behind an edit mode
+ * The edit session, the model behind an edit mode
  * with Save / Cancel: changes accumulate from `begin()`, `getChanges()` is their aggregated diff,
  * `commit()` keeps them, `rollback()` returns to where the session began. Sits on top of the
  * change controller; the base lives in the store (`StoreState.session`).
@@ -93,7 +93,7 @@ export interface EditSession {
   readonly getChanges: () => SessionChanges | undefined;
   /** Whether a session is open. */
   readonly isOpen: boolean;
-  /** Whether a session is open and has changes (FR-TX-6). */
+  /** Whether a session is open and has changes. */
   readonly isDirty: boolean;
   /**
    * Stops tracking: no more events; `begin`, `commit` and `rollback` resolve cancelled. The store
@@ -120,7 +120,7 @@ interface Memo<T> {
 }
 
 /**
- * Creates the edit session of a chart (FR-TX-4, FR-TX-6): the "Edit mode: Save / Cancel" flow.
+ * Creates the edit session of a chart: the "Edit mode: Save / Cancel" flow.
  *
  * - **`begin()`** stores the current data as the base (`beginSession`): the tasks and links as
  *   given and, for controlled data, a committed change the owner has not applied yet. A preview
@@ -129,10 +129,10 @@ interface Memo<T> {
  *   the controller is pending (a hook is being awaited) it resolves `'busy'`: the change being
  *   confirmed would belong to neither side.
  * - **While open**, every action goes through the controller as usual and emits its own events
- *   (one `tasksChange` per action, FR-TX-1). Undo and redo work inside the session.
+ *   (one `tasksChange` per action). Undo and redo work inside the session.
  *   `getChanges()` diffs the base against the current data: one change per task whose dates,
  *   progress or precision differ (changed back: not listed), and the links added and removed. A
- *   change of the precision (FR-SNAP-7) carries it on both sides, so a controlled rollback
+ *   change of the precision carries it on both sides, so a controlled rollback
  *   (`editRollback`) brings a task made timed back to day precision. Data the owner passes
  *   (`controller.update` with `setTasks`, `setLinks` or `setData`) does not touch the session:
  *   in controlled mode that is how changes arrive, and in both modes the new data is diffed

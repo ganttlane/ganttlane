@@ -1,5 +1,5 @@
 /**
- * The virtualization window (`docs/architecture.md` §7a, NFR-PERF-1, NFR-PERF-3): which rows and
+ * The virtualization window: which rows and
  * which part of the time axis are on screen, plus overscan, and the bars inside it.
  */
 
@@ -11,8 +11,8 @@ import type { RowLayout } from './rows';
 
 /**
  * The visible part of the chart (glossary: Viewport): the scroller's scroll offsets and its
- * client size, in CSS pixels, as the renderer reads them from the scroll container
- * (`docs/architecture.md` §8). The sticky header covers the top `headerHeight` pixels of it.
+ * client size, in CSS pixels, as the renderer reads them from the scroll container.
+ * The sticky header covers the top `headerHeight` pixels of it.
  */
 export interface Viewport {
   /** Horizontal scroll offset: the time scale x at the left edge of the viewport. */
@@ -34,7 +34,7 @@ export interface WindowOptions {
 }
 
 /**
- * What to render (§7a): rows `firstRow … lastRow` (inclusive) and the time range `[start, end)`,
+ * What to render: rows `firstRow … lastRow` (inclusive) and the time range `[start, end)`,
  * overscan included. Being a {@link TimeRange}, it can be passed to `headerRows` and `gridLines`
  * as is. Frozen.
  */
@@ -50,7 +50,7 @@ export interface LayoutWindow extends TimeRange {
 }
 
 /**
- * The part of the chart to render for a viewport (§7a). Pure, O(1) for uniform rows.
+ * The part of the chart to render for a viewport. Pure, O(1) for uniform rows.
  *
  * - **Rows**: the sticky header sits on top of the body, so the body rows in view are those
  *   intersecting `[scrollTop, scrollTop + height - headerHeight)`, widened by `overscanRows` on
@@ -107,7 +107,7 @@ function overscan(value: number | undefined, fallback: number): number {
 }
 
 /**
- * The bars to render in a window (§7a): bars of rows `firstRow … lastRow` whose box touches
+ * The bars to render in a window: bars of rows `firstRow … lastRow` whose box touches
  * `[left, right]` (edges included, so a zero-width bar on the edge counts). Rows of collapsed
  * parents are not in the layout, so their bars never appear. O(rows in the window): the layout
  * indexes bars by row, nothing scans all tasks.

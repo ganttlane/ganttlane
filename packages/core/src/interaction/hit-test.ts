@@ -1,5 +1,5 @@
 /**
- * Geometric hit testing over the layout (FR-EDIT-1, FR-LINK-4): which bar and which of its parts
+ * Geometric hit testing over the layout: which bar and which of its parts
  * (body, resize handles, progress handle, link handles) lie under a point, for renderers that do
  * not get the target from their own elements (canvas, custom renderers) and for the machine
  * when an event carries no explicit target.
@@ -108,7 +108,7 @@ export function barHandles(bar: BarGeometry, options: HandleOptions = {}): BarHa
 }
 
 /**
- * What lies under a point (FR-EDIT-1): the row under `point.y` (`RowLayout.rowAt`), then its
+ * What lies under a point: the row under `point.y` (`RowLayout.rowAt`), then its
  * bar's parts in this order: link handles, the progress handle, the bar itself with its resize
  * zones at the edges, else empty space in that row. Handles are only found within the row of the
  * point. Links are not hit-tested here: renderers report them as explicit targets.

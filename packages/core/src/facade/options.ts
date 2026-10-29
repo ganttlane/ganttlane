@@ -1,5 +1,5 @@
 /**
- * The facade's options at the boundary (FR-API-2, FR-DATA-4): the shallow checks of every option
+ * The facade's options at the boundary: the shallow checks of every option
  * (the modules check the inside of their groups), the field-by-field merge of `setOptions`, and
  * the invalidation matrix that routes each option to what it invalidates.
  */
@@ -62,8 +62,8 @@ export function isHandlerKey(key: string): boolean {
  * Issue codes of the facade's options (errors; the default is used instead, `suggested` when it
  * is a plain value):
  * - `'invalid-option'`: an option has the wrong type or an unusable value;
- * - `'unsupported-option'`: a value `docs/api.md` §3 lists for a later release, such as
- *   `scheduling.propagation: 'push-forward'`.
+ * - `'unsupported-option'`: a value that is planned for a later release and not available yet,
+ *   such as `scheduling.propagation: 'push-forward'`.
  */
 export type OptionIssueCode = 'invalid-option' | 'unsupported-option';
 
@@ -111,7 +111,7 @@ export type OptionTarget =
 export type OptionKey = Exclude<keyof GanttCoreOptions, `on${string}`>;
 
 /**
- * The invalidation matrix of `setOptions` (FR-API-2) as data: which parts each option invalidates.
+ * The invalidation matrix of `setOptions` as data: which parts each option invalidates.
  * `setOptions` routes every given key by it, and each part recomputes only what depends on what
  * changed (memoized by identity). Handlers (`on*`) invalidate `'handlers'` only.
  *
@@ -184,7 +184,7 @@ const ON: readonly unknown[] = [true, false];
 const OFF: readonly unknown[] = [false, true];
 
 /**
- * The enum and boolean fields the facade checks (`docs/api.md` §3), by option path: the values
+ * The enum and boolean fields the facade checks, by option path: the values
  * each field takes, its default first. A path listed here as a field of another path is a nested
  * object of such fields (`scheduling.skipNonWorkingDays`). The modules check the other fields
  * (`calendar`, `scheduling.granularity` and `.snap`, `hierarchy.childAnchor`, `layout`,
@@ -204,7 +204,7 @@ const FIELDS: Readonly<Record<string, Readonly<Record<string, readonly unknown[]
   editing: { move: ON, resize: ON, progress: ON, links: ON },
 };
 
-/** Values `docs/api.md` §3 lists for a later release (P1), by option path. */
+/** Values that are planned for a later release and not available yet, by option path. */
 const LATER: Readonly<Record<string, readonly unknown[]>> = {
   'scheduling.propagation': ['push-forward'],
 };

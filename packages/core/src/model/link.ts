@@ -1,7 +1,7 @@
 /**
- * Normalization of links (FR-DATA-5, FR-LINK-1, ADR-007): the `links` array and the
+ * Normalization of links: the `links` array and the
  * `Task.dependencies` shorthand become {@link LinkModel}s with a resolved id, type and lag.
- * Whether source and target exist, and cycles, are checked by the graph (plan step 2.3).
+ * Whether source and target exist, and cycles, are checked by the graph.
  */
 
 import * as v from 'valibot';
@@ -16,7 +16,7 @@ import { durationValue, readDaysOrDuration, reportMisaligned } from './values';
 
 /**
  * A normalized link: core's internal record of one dependency, deeply frozen except for `link`
- * and the `value`s of issues. The graph (plan step 2.3) turns it into the public `LinkRecord`.
+ * and the `value`s of issues. The graph turns it into the public `LinkRecord`.
  */
 export interface LinkModel {
   /** `Link.id`, or `` `${source}:${type}:${target}` `` (for the shorthand always the latter). */
@@ -30,7 +30,7 @@ export interface LinkModel {
   /**
    * The lag in milliseconds, aligned to the nearest multiple of the granularity (negative for a
    * lead); counted in the successor's `durationMode` by scheduling. `undefined`: keep the current
-   * gap (ADR-007).
+   * gap.
    */
   readonly lag: number | undefined;
   /** `Link.editable`, default `true`. */
@@ -138,10 +138,10 @@ export function buildLinkModel(
 }
 
 /**
- * Checks one link against the rules normalization applies to it on its own (FR-DATA-11,
- * FR-LINK-6): its shape (`LinkSchema`), then its lag, read and aligned as `normalizeModel` does
- * (an invalid lag, a lag with months and, with `alignInput: 'reject'`, a misaligned lag drop the
- * link). What depends on other data is not checked: duplicate ids, references and cycles.
+ * Checks one link against the rules normalization applies to it on its own: its shape
+ * (`LinkSchema`), then its lag, read and aligned as `normalizeModel` does (an invalid lag, a lag
+ * with months and, with `alignInput: 'reject'`, a misaligned lag drop the link). What depends on
+ * other data is not checked: duplicate ids, references and cycles.
  *
  * @param link - The link, possibly from untyped code; never mutated.
  * @param options - The options of the model it is meant for (`NormalizedModel.options`).

@@ -1,5 +1,5 @@
 /**
- * Strict durations (FR-TIME-4): `'1y' '1q' '1mo' '2w' '3d' '6h' '30min'`, compounds such as
+ * Strict durations: `'1y' '1q' '1mo' '2w' '3d' '6h' '30min'`, compounds such as
  * `'1d 4h'`, ISO 8601 durations such as `'P1DT4H'` and the object form `{ hours: 4 }`,
  * normalized to a calendar part and a fixed part.
  */
@@ -30,7 +30,7 @@ export interface DurationFields {
 }
 
 /**
- * A duration as callers pass it (`docs/api.md` §2): a string of space-separated `<int><unit>`
+ * A duration as callers pass it: a string of space-separated `<int><unit>`
  * tokens with units `y`, `q`, `mo`, `w`, `d`, `h`, `min` (`'30min'`, `'1d 4h'`, `'1q'`), an
  * ISO 8601 duration (`'P1DT4H'`, `'P2W'`, `'P1M'`), or {@link DurationFields}. The unit `m` is
  * rejected as ambiguous; seconds are not supported.
@@ -84,7 +84,7 @@ const EXPECTED_ISO =
 const ISO_MISSING_AMOUNT = /(?<!\d)[YMWDHS]/;
 
 /**
- * Parses a duration strictly (FR-TIME-4). Never throws, also for values outside
+ * Parses a duration strictly. Never throws, also for values outside
  * {@link DurationInput} coming from untyped JS.
  *
  * - Strings: `<int><unit>` tokens separated by single spaces, each unit at most once, units

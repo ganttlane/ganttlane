@@ -46,7 +46,7 @@ interface Point {
 /** What to show and where; {@link Shown} adds what is measured when it is shown. */
 interface Request {
   readonly kind: Kind;
-  /** Rendered into the popover; empty content shows nothing (FR-TIP-3). */
+  /** Rendered into the popover; empty content shows nothing. */
   readonly content: TooltipContent | null | undefined;
   /** Handed to the actions' `onSelect`. */
   readonly context: unknown;
@@ -107,7 +107,7 @@ type Instance = Pick<RendererLayer, 'update' | 'destroy'> & Pick<PopoverLayer, '
 /**
  * The popover layer: tooltips, the link menu and the labels of highlighted and holiday days,
  * drawn into `div.gantt__layer` (HTML, a sibling of the scroller: never clipped or scrolled
- * away) one at a time (FR-TIP-1 … FR-TIP-6, FR-EDIT-8, FR-UI-3).
+ * away) one at a time.
  *
  * ```
  * div.gantt__layer
@@ -118,7 +118,7 @@ type Instance = Pick<RendererLayer, 'update' | 'destroy'> & Pick<PopoverLayer, '
  *
  * **Triggers.** A task tooltip opens by `tooltip.trigger`: `hover` (the default) follows
  * `snapshot.feedback.hover` after `tooltip.delay`, at once when another tooltip is open;
- * `click` follows the core's `taskClick`; `focus` is reserved for P1, when bars become focusable
+ * `click` follows the core's `taskClick`; `focus` is planned for when bars become focusable
  * (it opens nothing yet; `showTask` is where a `focusin` handler will come in); `none` never
  * opens it. While a bar is dragged
  * the tooltip shows `feedback.patch` (new dates, working days) unless `showWhileDragging` is off.
@@ -158,7 +158,7 @@ type Instance = Pick<RendererLayer, 'update' | 'destroy'> & Pick<PopoverLayer, '
  * the page scrolls the chart: the scroller's box has moved with it and the core's scroll offset
  * is that same page offset, so the bar's anchor takes no scroll offset.
  *
- * **Locale and strings (FR-I18N-1, FR-I18N-2).** The default task tooltip and link menu write
+ * **Locale and strings.** The default task tooltip and link menu write
  * their dates and numbers in the chart's locale (`snapshot.header.locale`) and take their words
  * from `context.strings`; both reach `tooltip.render` and `linkMenu.render` (`context.locale`).
  * When the locale or the strings change under an open task tooltip or link menu, it is made
@@ -364,7 +364,7 @@ function createInstance(ctx: LayerContext<LayerSlots['popover']>): Instance {
     if (!prior) root.append(el);
     hosted?.attached?.();
     // What it drew shows nothing, or closed the popover that was being made again (`hide()` in an
-    // effect): there is no popover. Elements around nothing show nothing (FR-TIP-3).
+    // effect): there is no popover. Elements around nothing show nothing.
     if (hosted !== undefined && (showsNothing(el) || (prior !== undefined && shown !== prior))) {
       close();
       el.remove();

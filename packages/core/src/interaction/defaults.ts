@@ -5,7 +5,7 @@
 /**
  * Default values of `InteractionOptions`:
  * - `dragThreshold` 3 px (mouse, pen) and `touchDragThreshold` 8 px: how far a press travels
- *   before it becomes a drag; shorter presses are clicks (FR-EDIT-3; the fork used 10 px);
+ *   before it becomes a drag; shorter presses are clicks;
  * - `doubleClickTime` 500 ms and `doubleClickDistance` 6 px: the second click of a double click
  *   (the common desktop default); clicks are never delayed or blocked;
  * - `handles`: resize zones 8 px wide inside the edges, a progress handle of ±6 px, link handles

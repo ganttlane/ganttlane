@@ -1,8 +1,8 @@
 /**
- * Floating wall-clock time (ADR-003, `docs/architecture.md` §5): numeric representation, input
- * parsing, durations, the data step (`granularity`, ADR-017) and alignment to it, calendar
+ * Floating wall-clock time: numeric representation, input
+ * parsing, durations, the data step (`granularity`) and alignment to it, calendar
  * arithmetic, the `DateAdapter` strategy and `Intl` formatting.
- * Calendar logic, ISO parsing and formatting run on `@internationalized/date` (ADR-018); its
+ * Calendar logic, ISO parsing and formatting run on `@internationalized/date`; its
  * objects never leave this module, core passes numbers around.
  *
  * Other core modules import time only through this file. Prefer a {@link DateAdapter} received

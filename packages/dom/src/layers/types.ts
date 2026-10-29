@@ -6,7 +6,7 @@ import type { GanttStrings } from '../strings';
 
 /**
  * The root element each layer draws into, by layer name. The skeleton creates these elements
- * (`docs/architecture.md` §8) and hands each to its layer as {@link LayerContext.root}.
+ * and hands each to its layer as {@link LayerContext.root}.
  */
 export interface LayerSlots {
   /** `div.gantt__header`: sticky header rows (HTML). */
@@ -64,7 +64,7 @@ export interface LayerContext<TRoot extends Element = Element> {
   /**
    * The scroll container (`div.gantt__scroller`). Read-only by convention: the renderer owns
    * `scrollLeft` / `scrollTop` writes. Reading its geometry is for event handlers (pointer
-   * down), never for `update` or scroll handlers (NFR-PERF-2).
+   * down), never for `update` or scroll handlers.
    */
   readonly scroller: HTMLElement;
   /** Prefix of every element id of this instance, e.g. `gantt-2`. */
@@ -86,7 +86,7 @@ export interface LayerContext<TRoot extends Element = Element> {
    */
   readonly display: ResolvedDisplay;
   /**
-   * The text the chart writes on its own (FR-I18N-2): the defaults with the `strings` option
+   * The text the chart writes on its own: the defaults with the `strings` option
    * over them, resolved and frozen. A layer takes every such text from here and hard-codes none.
    * Like `display` it is a new object exactly when a string changed (`MountedRenderer.setStrings`),
    * so compare it by identity with the one you drew with. The chart's locale is

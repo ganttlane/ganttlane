@@ -87,16 +87,15 @@ interface FlagInputs {
 const NO_MAJORS: ReadonlySet<number> = new Set<number>();
 
 /**
- * The header layer: the sticky rows of cells above the body, drawn into `div.gantt__header`
- * (FR-SCALE-4, FR-BAR-4, FR-UI-1).
+ * The header layer: the sticky rows of cells above the body, drawn into `div.gantt__header`.
  *
  * ```
  * div.gantt__header
  *   div.gantt__header-row[data-unit][data-row]
  *     div.gantt__header-cell[data-unit][data-major?][data-current?]
  *       span.gantt__header-label[data-sticky?]
- *   div.gantt__header-range?          the hovered or dragged bar's range (FR-BAR-4)
- *   div.gantt__today-marker?          today (FR-UI-1)
+ *   div.gantt__header-range?          the hovered or dragged bar's range
+ *   div.gantt__today-marker?          today
  * ```
  *
  * The rows come from the view mode's `headers` through core's `headerRows`, one row per header

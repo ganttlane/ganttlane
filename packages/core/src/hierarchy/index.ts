@@ -1,8 +1,8 @@
 /**
- * The task hierarchy (FR-ROW-1 … FR-ROW-4, `docs/architecture.md` §3): the tree from
+ * The task hierarchy: the tree from
  * `parentId` in row order, issues for unknown parents and parent cycles, normalized parent
- * anchors (FR-SCH-2), visible rows for an expanded state with zebra stripes per row or per
- * group, and pure helpers for the expanded state. Depends only on `model` (§3.1).
+ * anchors, visible rows for an expanded state with zebra stripes per row or per
+ * group, and pure helpers for the expanded state. Depends only on `model`.
  *
  * Other core modules import the hierarchy only through this file.
  *

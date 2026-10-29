@@ -1,5 +1,5 @@
 /**
- * Per-day classification cache with prefix sums of working days (FR-CAL-4).
+ * Per-day classification cache with prefix sums of working days.
  *
  * The index covers one contiguous window of day keys `[lo, hi)`. It grows on demand (at least
  * doubling, so filling it costs amortized O(1) per day) and is never invalidated: a calendar is

@@ -6,7 +6,7 @@
 declare const __GANTTLANE_DEV__: boolean | undefined;
 
 /**
- * Whether this is the development build of `@ganttlane/core` (ADR-016, ADR-019): `true` in
+ * Whether this is the development build of `@ganttlane/core`: `true` in
  * `dist/index.development.js` (export condition `development`) and in the sources, `false` in
  * the production build `dist/index.js`.
  *

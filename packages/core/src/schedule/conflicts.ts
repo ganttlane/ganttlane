@@ -1,8 +1,8 @@
 /**
- * Scheduling conflicts (FR-SCH-6, FR-SCH-7, FR-TX-2): starts and ends on non-working days,
+ * Scheduling conflicts: starts and ends on non-working days,
  * children outside their parent and violated links, found in a state of the plan — the model as
- * normalized (the facade's `TaskRecord.issues`, plan step 3.8) or the model with a change set
- * applied (`ChangeSet.conflicts`, read by `onBeforeTaskChange`, plan step 3.2).
+ * normalized (the facade's `TaskRecord.issues`) or the model with a change set
+ * applied (`ChangeSet.conflicts`, read by `onBeforeTaskChange`).
  *
  * Conflicts are warnings only: nothing here refuses, moves or corrects a task.
  */
@@ -51,7 +51,7 @@ export interface ConflictContext {
 export type ScheduleState = ReadonlyMap<TaskId, TaskBounds>;
 
 /**
- * The state of the plan after a change set (FR-TX-1): every task with a bar, in model order, at
+ * The state of the plan after a change set: every task with a bar, in model order, at
  * its change's `after` or else at its model span. Changes of unknown tasks and of tasks without a
  * bar are ignored; of two changes of one task the later wins. Pure: the model and the change set
  * are not touched, and the values are their own (frozen) objects.
@@ -81,7 +81,7 @@ export function applyChangeSet(
 }
 
 /**
- * Finds the scheduling conflicts of a state of the plan (FR-SCH-6). Pure, never throws on bad
+ * Finds the scheduling conflicts of a state of the plan. Pure, never throws on bad
  * data, deterministic. Only tasks with a bar take part; a bar with an edge that is not a finite
  * time within the range of a `Date` (and of the work calendar) counts as none.
  *
@@ -90,15 +90,15 @@ export function applyChangeSet(
  *   calendar. **`'non-working-end'`**: the day of the bar's last instant (`endExclusive - 1 ms`)
  *   is; milestones and other zero-length bars only have a start. A one-day bar on a Saturday has
  *   both. These are exactly the edges `skipNonWorkingDays` rolls onto working time, so an edit
- *   that rolled its edges has none (FR-SCH-7: "start on Saturday + ignore" keeps the conflict,
+ *   that rolled its edges has none ("start on Saturday + ignore" keeps the conflict,
  *   "+ accept" has none). Every task is checked, whatever its `durationMode`.
  * - **`'outside-parent'`**: a child starts before its parent's start or ends after its parent's
  *   end (`edges`). Only the resolved direct parent counts and it must have a bar: children of a
  *   placeholder row are never outside it. A milestone child may sit on either edge.
- * - **`'link-violated'`**: an active link that is not on a cycle (FR-LINK-7) has a gap between its
+ * - **`'link-violated'`**: an active link that is not on a cycle has a gap between its
  *   anchors, measured like its lag (`measureLag` in the target's `durationMode`), below the
  *   minimum it requires: the lag itself for an explicit `Link.lag`; `min(lag, 0)` for a lag
- *   derived from the initial gap (ADR-007). So a link without a lag only conflicts when its
+ *   derived from the initial gap. So a link without a lag only conflicts when its
  *   successor now overlaps its predecessor (an `FS` successor starts before the predecessor's
  *   end, …) by more than it did when the model was loaded; widening the gap never does. With
  *   `'preserve-lag'` propagation keeps the lag of every link it travels, so this flags the others:

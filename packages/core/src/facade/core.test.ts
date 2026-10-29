@@ -1,5 +1,5 @@
 import { deepFreeze, edgeCases, sampleProject, workingDayScenarios } from '@ganttlane/fixtures';
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { barHandles, type PointerInput, type TaskPart } from '../interaction';
 import { type Link, patchTask, type Task, type TaskId } from '../model';
@@ -291,6 +291,76 @@ describe('createGanttCore: data', () => {
     expect(events).toHaveLength(4);
   });
 
+  it('FR-ROW-2: expand and collapse of a task without children or of an unknown id change nothing', () => {
+    const gantt = chart();
+    const events = log(gantt, ['expandedChange']);
+    const all = gantt.getSnapshot().state.expandedKeys;
+    for (const id of ['build', 'child', 'stub', 'ghost']) {
+      gantt.expand(id);
+      gantt.collapse(id);
+    }
+    expect(events).toEqual([]);
+    expect(gantt.getSnapshot().state.expandedKeys).toBe(all);
+
+    gantt.collapse('phase');
+    for (const id of ['build', 'child', 'ghost']) {
+      gantt.expand(id);
+      gantt.collapse(id);
+    }
+    expect(events).toEqual([['expandedChange', []]]);
+    expect(gantt.getSnapshot().state.expandedKeys).toEqual([]);
+    expect(gantt.getTask('phase')?.isExpanded).toBe(false);
+  });
+
+  it('FR-ROW-2: setOptions compares hierarchy.expandedKeys with the value given last, and never fires expandedChange', () => {
+    const gantt = chart();
+    const events = log(gantt, ['expandedChange']);
+    const phase = (): boolean | undefined => gantt.getTask('phase')?.isExpanded;
+    const keys = ['phase'];
+    gantt.setOptions({ hierarchy: { expandedKeys: keys } });
+    expect(phase()).toBe(true);
+    gantt.collapse('phase');
+    expect(events).toEqual([['expandedChange', []]]);
+    // The same array again is no change, although the state has moved away from it since.
+    gantt.setOptions({ hierarchy: { expandedKeys: keys } });
+    expect(phase()).toBe(false);
+    // A new array, even an equal one, replaces the state; the application already knows it.
+    gantt.setOptions({ hierarchy: { expandedKeys: ['phase'] } });
+    expect(phase()).toBe(true);
+    // The same goes for "all".
+    gantt.setOptions({ hierarchy: { expandedKeys: 'all' } });
+    gantt.collapse('phase');
+    gantt.setOptions({ hierarchy: { expandedKeys: 'all' } });
+    expect(phase()).toBe(false);
+    expect(events).toEqual([
+      ['expandedChange', []],
+      ['expandedChange', []],
+    ]);
+  });
+
+  it('FR-API-2: setOptions merges a group one level deep; nested objects and lists are replaced whole', () => {
+    const gantt = chart();
+    const skipped = (): unknown =>
+      gantt.getSnapshot().state.settings.propagation.skipNonWorkingDays;
+    gantt.setOptions({ scheduling: { skipNonWorkingDays: { move: false, resize: true } } });
+    expect(skipped()).toEqual({ move: false, resize: true });
+    // `scheduling` is merged, but the object nested in it is taken whole: `move` and `resize`
+    // are back to their defaults.
+    gantt.setOptions({ scheduling: { skipNonWorkingDays: { progress: false } } });
+    expect(skipped()).toEqual({ progress: false });
+    // A field given with `undefined` returns to its default; a key left out keeps its value.
+    gantt.setOptions({ viewMode: 'week' });
+    gantt.setOptions({ scheduling: { durationMode: 'working' } });
+    expect(skipped()).toEqual({ progress: false });
+    gantt.setOptions({ viewMode: undefined });
+    expect(gantt.getSnapshot().viewMode.id).toBe('day');
+    // `tasks` has no default: `undefined` is an issue, and the chart is emptied.
+    expect(gantt.setOptions({ tasks: undefined as never })).toEqual([
+      expect.objectContaining({ code: 'invalid-option', path: 'tasks' }),
+    ]);
+    expect(gantt.getTask('design')).toBeUndefined();
+  });
+
   it('builds records of the sample project in row order with levels', () => {
     const project = sampleProject;
     const gantt = createGanttCore({
@@ -352,6 +422,15 @@ describe('createGanttCore: events and handlers', () => {
       ['design', date('2026-03-07')],
       ['build', date('2026-03-14')],
     ]);
+  });
+
+  it('FR-LINK-9: Link.editable only hides the UI action, removeLink still deletes the link', async () => {
+    const gantt = chart({
+      links: [{ id: 'pinned', source: 'design', target: 'build', editable: false }],
+    });
+    expect(gantt.getLink('pinned')?.editable).toBe(false);
+    expect(await gantt.removeLink('pinned')).toMatchObject({ status: 'deleted', id: 'pinned' });
+    expect(gantt.getLink('pinned')).toBeUndefined();
   });
 
   it('FR-EVT-1: maps link, range, scroll, selection and click payloads to the public forms', async () => {
@@ -747,6 +826,111 @@ describe('createGanttCore: edits through send', () => {
       expect(after.duration?.workingDays).toBe(scenario.expected.workingDays);
       expect(after.duration?.calendarDays).toBe(scenario.expected.calendarDays);
     });
+  });
+});
+
+describe('createGanttCore: a before-hook that fails during a gesture', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** What the core hands to the host's unhandled-rejection channel, kept from the test runner. */
+  function captureReports(): unknown[] {
+    const reports: unknown[] = [];
+    vi.spyOn(Promise, 'reject').mockImplementation((reason) => {
+      reports.push(reason);
+      return new Promise<never>(() => undefined);
+    });
+    return reports;
+  }
+
+  const veto = new Error('veto');
+  const throws = (): never => {
+    throw veto;
+  };
+
+  it('FR-TX-2, FR-EVT-1: a hook that throws cancels a drag and, with no error listener, is reported to the unhandled-rejection channel', async () => {
+    const reports = captureReports();
+    const gantt = chart({ onBeforeTaskChange: throws });
+    drag(gantt, 'design', DAY_PX);
+    await settle();
+    expect(gantt.getTask('design')?.start).toEqual(date('2026-03-02'));
+    expect(gantt.getSnapshot().busy).toBe(false);
+    expect(reports).toEqual([veto]);
+  });
+
+  it('FR-TX-2, FR-EVT-1: a hook that rejects is reported the same way', async () => {
+    const reports = captureReports();
+    const gantt = chart({
+      onBeforeTaskChange: async () => {
+        await Promise.resolve();
+        throw veto;
+      },
+    });
+    drag(gantt, 'design', DAY_PX);
+    await settle();
+    expect(gantt.getTask('design')?.start).toEqual(date('2026-03-02'));
+    expect(reports).toEqual([veto]);
+  });
+
+  it('FR-TX-2, FR-EVT-1: an answer that is not valid is reported too, as the TypeError it is', async () => {
+    const reports = captureReports();
+    const gantt = chart({ onBeforeTaskChange: (() => 'nope') as never });
+    drag(gantt, 'design', DAY_PX);
+    await settle();
+    expect(reports).toEqual([expect.any(TypeError)]);
+  });
+
+  it('FR-EVT-1: an error listener hears it, from on() or from onError, and then nothing is reported', async () => {
+    const reports = captureReports();
+    const gantt = chart({ onBeforeTaskChange: throws });
+    const heard: unknown[] = [];
+    gantt.on('error', (payload) => heard.push(payload));
+    const handled = vi.fn();
+    gantt.setOptions({ onError: handled });
+    drag(gantt, 'design', DAY_PX);
+    await settle();
+    const payload = { error: veto, source: 'hook', name: 'beforeTaskChange' };
+    expect(heard).toEqual([payload]);
+    expect(handled).toHaveBeenCalledWith(payload);
+    expect(reports).toEqual([]);
+
+    const optionOnly = chart({ onBeforeTaskChange: throws, onError: handled });
+    drag(optionOnly, 'design', DAY_PX);
+    await settle();
+    expect(handled).toHaveBeenCalledTimes(2);
+    expect(reports).toEqual([]);
+  });
+
+  it('FR-LINK-6, FR-EVT-1: a hook that throws on a drawn link is reported when nobody listens to error', async () => {
+    const reports = captureReports();
+    const gantt = chart({ onBeforeLinkCreate: throws });
+    const from = point(gantt, 'build', 'link-end');
+    const to = point(gantt, 'phase');
+    gantt.send(pointer('down', from));
+    gantt.send(pointer('move', to));
+    gantt.send(pointer('up', to));
+    await settle();
+    expect(gantt.getLink('build:FS:phase')).toBeUndefined();
+    expect(gantt.getSnapshot().busy).toBe(false);
+    expect(reports).toEqual([veto]);
+  });
+
+  it('FR-TX-2, FR-LINK-6: updateTask and addLink return the error and report nothing', async () => {
+    const reports = captureReports();
+    const gantt = chart({ onBeforeTaskChange: throws, onBeforeLinkCreate: throws });
+    expect(await gantt.updateTask('design', { start: '2026-03-03' })).toMatchObject({
+      status: 'cancelled',
+      reason: 'error',
+      error: veto,
+    });
+    expect(await gantt.addLink({ source: 'build', target: 'phase' })).toMatchObject({
+      status: 'cancelled',
+      reason: 'error',
+      error: veto,
+    });
+    await settle();
+    expect(reports).toEqual([]);
   });
 });
 
@@ -1159,10 +1343,22 @@ describe('createGanttCore: edge cases', () => {
     expect(gantt.scroll({ left: Number.NaN, top: Number.NaN })).toBeUndefined();
     expect(gantt.send(null as never)).toEqual([]);
     expect(gantt.setViewMode(5 as never)).toBeUndefined();
-    expect(await gantt.addLink(null as never)).toEqual({
+    // Not an object: the shape check of the model says why, like for any malformed link.
+    for (const link of [null, undefined, 'build', 5]) {
+      expect(await gantt.addLink(link as never)).toEqual({
+        status: 'rejected',
+        reason: 'invalid',
+        issues: [
+          expect.objectContaining({ code: 'invalid-shape', path: 'link', severity: 'error' }),
+        ],
+      });
+    }
+    expect(await gantt.addLink(['build', 'phase'] as never)).toMatchObject({
       status: 'rejected',
-      reason: 'unknown-task',
+      reason: 'invalid',
+      issues: [{ code: 'invalid-shape' }, { code: 'invalid-shape' }],
     });
+    expect(gantt.getSnapshot().busy).toBe(false);
     expect(await gantt.updateTask('design', null as never)).toMatchObject({
       status: 'rejected',
       reason: 'invalid-value',

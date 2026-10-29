@@ -1,5 +1,5 @@
 /**
- * The reducer of the store (Command pattern, `docs/architecture.md` §10): a pure function from a
+ * The reducer of the store (Command pattern): a pure function from a
  * state and a command to the next state.
  */
 

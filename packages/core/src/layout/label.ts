@@ -1,5 +1,5 @@
 /**
- * Bar label placement (FR-BAR-1, `display.barLabel`): inside the bar when it fits, else to its
+ * Bar label placement (`display.barLabel`): inside the bar when it fits, else to its
  * right. Measuring the text is the renderer's job; this decides where a label of a given width
  * goes.
  */
@@ -61,7 +61,7 @@ export interface LabelBox {
 }
 
 /**
- * Places a bar's label (FR-BAR-1). Pure; the result is frozen.
+ * Places a bar's label. Pure; the result is frozen.
  *
  * Inside, the label is centred on the bar (`anchor: 'middle'`); outside, it starts
  * `handleReach + padding` pixels after the bar's end (`anchor: 'start'`), clear of the link

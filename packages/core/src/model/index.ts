@@ -1,8 +1,8 @@
 /**
- * The data model (FR-DATA, `docs/architecture.md` §3, §5.2): public input types (`Task`, `Link`),
- * their valibot schemas (ADR-016) and the normalization of input data into immutable, numeric
+ * The data model: public input types (`Task`, `Link`),
+ * their valibot schemas and the normalization of input data into immutable, numeric
  * task and link models with indexes and typed issues, and writing scheduled values back into
- * input tasks (`patchTask`). Depends on `time`, `calendar` and `progress` (§3.1).
+ * input tasks (`patchTask`). Depends on `time`, `calendar` and `progress`.
  *
  * Other core modules import the model only through this file.
  *

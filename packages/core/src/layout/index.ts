@@ -1,9 +1,10 @@
 /**
- * Layout (`docs/architecture.md` §3, §7a): row metrics and header height (FR-ROW-5), bar
- * geometry with clamped radius and progress (FR-BAR-1, FR-BAR-2), label placement input
- * (`display.barLabel`), the queries behind `getRowMetrics` / `getBarRect` (FR-API-5) and the
- * virtualization window (NFR-PERF-1) and the link router (FR-LINK-3). Pure geometry in body pixels, no DOM. Depends on `scale`,
- * `hierarchy` and `schedule` (§3.1).
+ * Layout: row metrics and header height, bar
+ * geometry with clamped radius and progress, label placement input
+ * (`display.barLabel`), the queries behind `getRowMetrics` / `getBarRect` and the
+ * virtualization window and the link router. Pure geometry in body pixels, no DOM. Depends on
+ * `scale`,
+ * `hierarchy` and `schedule`.
  *
  * Other core modules import the layout only through this file.
  *

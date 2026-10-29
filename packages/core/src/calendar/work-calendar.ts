@@ -1,5 +1,5 @@
 /**
- * The work calendar (FR-CAL-1 … FR-CAL-7, FR-CAL-10): which days are working days and arithmetic
+ * The work calendar: which days are working days and arithmetic
  * over working days and working time.
  */
 
@@ -33,7 +33,7 @@ import type { CalendarIssue } from './issues';
 import { type CalendarRules, readCalendarOptions, type WorkCalendarOptions } from './options';
 
 /**
- * Why a day is or is not a working day, i.e. which rule decided it (FR-CAL-3):
+ * Why a day is or is not a working day, i.e. which rule decided it:
  * - `'exception'`: listed in `workingDays` (working);
  * - `'holiday'`: listed in `holidays` (non-working);
  * - `'custom'`: the `isWorkingDay` rule returned `true` or `false`;
@@ -42,17 +42,17 @@ import { type CalendarRules, readCalendarOptions, type WorkCalendarOptions } fro
  */
 export type DayReason = 'working' | 'weekend' | 'holiday' | 'custom' | 'exception';
 
-/** Result of `WorkCalendar.explain` (FR-CAL-5). */
+/** Result of `WorkCalendar.explain`. */
 export interface DayExplanation {
   /** Whether the day is a working day. */
   readonly working: boolean;
   /** Which rule decided it. */
   readonly reason: DayReason;
-  /** Name of the holiday, for a named holiday (FR-CAL-2), e.g. for a tooltip. */
+  /** Name of the holiday, for a named holiday, e.g. for a tooltip. */
   readonly label?: string;
 }
 
-/** Day counts of a half-open range, see `WorkCalendar.countDays` (FR-CAL-4). */
+/** Day counts of a half-open range, see `WorkCalendar.countDays`. */
 export interface DayCounts {
   /** All days: `endExclusive - start`. */
   readonly calendar: number;
@@ -92,17 +92,17 @@ export interface RollToWorkingOptions {
 }
 
 /**
- * An immutable work calendar (FR-CAL-1 … FR-CAL-7, FR-CAL-10), created by
- * {@link createWorkCalendar}. Usable on its own, without a chart (FR-CAL-6).
+ * An immutable work calendar, created by
+ * {@link createWorkCalendar}. Usable on its own, without a chart.
  *
  * **Days and times.** Day-level methods take and return {@link DayKey}s (whole days; get one from
  * a date-time with `toDayKey`). Time-level methods (`countWorkingTime`, `addWorkingTime`) take
- * {@link DateTimeMs}. In P0 a working day is the full 24 h (ADR-015), so working time is the
+ * {@link DateTimeMs}. For now a working day is the full 24 h, so working time is the
  * milliseconds that fall on working days. Floating time has no DST: every day is 24 h.
  *
  * **Performance.** Answers come from a per-day cache with prefix sums that grows on demand and
  * lives as long as the calendar: counting is amortized O(1), searches O(log n). Caching is why
- * the calendar is immutable; to change the rules, create a new calendar (FR-CAL-7).
+ * the calendar is immutable; to change the rules, create a new calendar.
  *
  * **Outside the calendar.** Day keys are floored to integers. Keys that are not finite or lie
  * beyond ±100 000 000 days (where no `Date` exists) are outside the calendar: they are non-working
@@ -118,7 +118,7 @@ export interface RollToWorkingOptions {
  */
 export interface WorkCalendar {
   /**
-   * Whether a day is a working day (FR-CAL-5).
+   * Whether a day is a working day.
    *
    * @param day - The day.
    * @returns `true` for a working day.
@@ -126,7 +126,7 @@ export interface WorkCalendar {
   readonly isWorkingDay: (day: DayKey) => boolean;
 
   /**
-   * Whether a day is a working day, which rule decided it and the holiday name (FR-CAL-5).
+   * Whether a day is a working day, which rule decided it and the holiday name.
    *
    * @param day - The day.
    * @returns A shared, immutable explanation.
@@ -140,7 +140,7 @@ export interface WorkCalendar {
 
   /**
    * Counts calendar, working and non-working days in the half-open range
-   * `[start, endExclusive)`, in amortized O(1) (FR-CAL-4).
+   * `[start, endExclusive)`, in amortized O(1).
    *
    * Signed: when `endExclusive < start` every count is negated
    * (`countDays(b, a)` is `-countDays(a, b)`), so counts of adjacent ranges add up.
@@ -154,7 +154,7 @@ export interface WorkCalendar {
   /**
    * Number of working days in the closed range `[start, end]`, `0` when `end < start`.
    *
-   * Legacy semantics (inclusive end dates, as in the frappe-gantt fork) for tasks whose
+   * Inclusive end dates, as used for tasks whose
    * `durationMode` is `'working'`; equals `countDays(start, end + 1).working` for `end >= start`.
    *
    * @param start - First day.
@@ -164,8 +164,8 @@ export interface WorkCalendar {
   readonly countWorkingDaysInclusive: (start: DayKey, end: DayKey) => number;
 
   /**
-   * Working time in milliseconds in `[start, end)`, including partial days at both ends
-   * (FR-CAL-10): the part of the range that falls on working days. Amortized O(1).
+   * Working time in milliseconds in `[start, end)`, including partial days at both ends:
+   * the part of the range that falls on working days. Amortized O(1).
    *
    * Signed like {@link WorkCalendar.countDays}: `countWorkingTime(b, a)` is
    * `-countWorkingTime(a, b)`, so `countWorkingTime(a, b) + countWorkingTime(b, c)` always equals
@@ -184,7 +184,7 @@ export interface WorkCalendar {
   readonly countWorkingTime: (start: DateTimeMs, end: DateTimeMs) => number;
 
   /**
-   * Moves a day by `amount` working days (FR-CAL-5).
+   * Moves a day by `amount` working days.
    *
    * - `amount > 0`: the `amount`-th working day strictly **after** `day`;
    * - `amount < 0`: the `|amount|`-th working day strictly **before** `day`;
@@ -205,8 +205,7 @@ export interface WorkCalendar {
   readonly addWorkingDays: (day: DayKey, amount: number) => DayKey | undefined;
 
   /**
-   * Moves a date-time by `ms` milliseconds of working time, skipping non-working days
-   * (FR-CAL-10).
+   * Moves a date-time by `ms` milliseconds of working time, skipping non-working days.
    *
    * The result is the **first** instant, going from `t` in the direction of `ms`, at which exactly
    * `|ms|` of working time lies between `t` and it, so
@@ -229,7 +228,7 @@ export interface WorkCalendar {
   readonly addWorkingTime: (t: DateTimeMs, ms: number) => DateTimeMs | undefined;
 
   /**
-   * The first working day after `day` (FR-CAL-5); with `inclusive: true`, `day` itself when it is
+   * The first working day after `day`; with `inclusive: true`, `day` itself when it is
    * a working day.
    *
    * @param day - The start day.
@@ -239,7 +238,7 @@ export interface WorkCalendar {
   readonly nextWorkingDay: (day: DayKey, options?: WorkingDaySearchOptions) => DayKey | undefined;
 
   /**
-   * The last working day before `day` (FR-CAL-5); with `inclusive: true`, `day` itself when it is
+   * The last working day before `day`; with `inclusive: true`, `day` itself when it is
    * a working day.
    *
    * @param day - The start day.
@@ -250,7 +249,7 @@ export interface WorkCalendar {
 
   /**
    * Moves an instant that lies in non-working time to the next (`direction` `1`) or previous
-   * (`-1`) working day (FR-SCH-4, FR-SNAP-8): the shared rule of `skipNonWorkingDays`.
+   * (`-1`) working day: the shared rule of `skipNonWorkingDays`.
    *
    * 1. **The checked day** depends on `edge` (see {@link RollEdge}): the day of `t` for a
    *    `'start'`, the day of `t - 1 ms` for an exclusive `'end'`; for a `'boundary'` the day of `t`
@@ -292,7 +291,7 @@ export interface WorkCalendar {
    * The last day of a span that starts at `start` and contains `workingDays` working days: the
    * smallest `end >= start` with `countWorkingDaysInclusive(start, end) === workingDays`.
    *
-   * Legacy semantics (the frappe-gantt fork's "end by working duration", inclusive end) for tasks
+   * Inclusive end, as used for tasks
    * whose `durationMode` is `'working'`: `start` counts as the first working day when it is one;
    * when it is not, it counts 0 and counting starts at the next working day. The walk goes forward
    * day by day until `workingDays` working days are counted, so the result is a working day.
@@ -316,10 +315,10 @@ export interface WorkCalendarResult {
 }
 
 /**
- * Creates an immutable work calendar (FR-CAL-1 … FR-CAL-7, FR-CAL-10). Never throws on bad
+ * Creates an immutable work calendar. Never throws on bad
  * options: invalid entries become issues and are skipped.
  *
- * A day is decided by the first rule that applies (FR-CAL-3): a `workingDays` exception makes it
+ * A day is decided by the first rule that applies: a `workingDays` exception makes it
  * working; else a holiday makes it non-working; else the `isWorkingDay` rule decides when it
  * returns a boolean; else it is non-working when its weekday is in `weekends`.
  *
@@ -557,7 +556,7 @@ export function buildWorkCalendar(
   return { calendar, issues };
 }
 
-/** The rule chain of FR-CAL-3: exception > holiday > custom rule > weekends. */
+/** The rule chain: exception > holiday > custom rule > weekends. */
 function classifier(rules: CalendarRules): DayClassifier {
   const { weekendMask, holidays, exceptions, rule } = rules;
   return (day, weekday): DayCode => {

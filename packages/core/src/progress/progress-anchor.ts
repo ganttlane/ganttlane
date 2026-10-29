@@ -1,5 +1,5 @@
 /**
- * Progress anchoring (FR-PROG-2): what happens to a task's progress when it is resized or moved.
+ * Progress anchoring: what happens to a task's progress when it is resized or moved.
  * The schedule calls {@link rebaseProgress} with the old and the new span of every changed task.
  */
 
@@ -14,7 +14,7 @@ import {
 } from './progress-date';
 
 /**
- * Which part of the work a resize keeps (`task.progressAnchor`, legacy `progress_fix_to_end`):
+ * Which part of the work a resize keeps (`task.progressAnchor`):
  * `'start'` keeps the completed amount, `'end'` keeps the unfinished remainder.
  */
 export type ProgressAnchor = 'start' | 'end';
@@ -33,21 +33,21 @@ export interface RebaseProgressInput {
   readonly mode: ProgressSpan['mode'];
   /** The work calendar, used in `'working'` mode. */
   readonly calendar: WorkCalendar;
-  /** The data step the new progress date is aligned down to (FR-SNAP-15). */
+  /** The data step the new progress date is aligned down to. */
   readonly granularity: Granularity;
 }
 
 /**
- * The progress of a task after its span changed from `from` to `to` (FR-PROG-2), with the
+ * The progress of a task after its span changed from `from` to `to`, with the
  * progress date on the new span.
  *
  * Amounts are measured like {@link ProgressSpan}: in working time in `'working'` mode, in calendar
  * time otherwise. When either span has no working time, both are measured in calendar time.
  *
- * - `anchor: 'start'` (default, the fork's behaviour) keeps the **completed amount**:
+ * - `anchor: 'start'` (default) keeps the **completed amount**:
  *   `progress × from / to`. The boundary stays the same distance of work after the start, so it
  *   moves with a resized start and stays put when the end is resized.
- * - `anchor: 'end'` (the fork's `progress_fix_to_end`) keeps the **unfinished remainder**:
+ * - `anchor: 'end'` keeps the **unfinished remainder**:
  *   `100 − (100 − progress) × from / to`. The boundary stays the same distance of work before the
  *   end, so it moves with a resized end and stays put when the start is resized; a span stretched
  *   past its plan shows the overrun as done work.
@@ -56,7 +56,7 @@ export interface RebaseProgressInput {
  * - The result is clamped to `0` … `100`: shrinking below the completed amount (`'start'`) gives
  *   `100`, below the remainder (`'end'`) gives `0`. `100 %` stays `100 %` with `'end'` and `0 %`
  *   stays `0 %` with `'start'`.
- * - The percentage is **not** quantized (FR-SNAP-15: the data keeps its exact value), so repeated
+ * - The percentage is **not** quantized (the data keeps its exact value), so repeated
  *   resizes do not drift; only `progressDate` is aligned down to `granularity`.
  *
  * Zero-length spans (milestones) hold no amount of work. From a zero-length span the percentage

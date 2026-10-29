@@ -7,13 +7,13 @@ import type { LayerSlots, RendererLayer } from '../types';
  * The overlay layer: what floats over the bars inside the SVG body, drawn into
  * `g.gantt__overlay` (which takes no pointer events).
  *
- * - **Link preview (FR-LINK-4).** While a link is being created, by dragging from a link handle
+ * - **Link preview.** While a link is being created, by dragging from a link handle
  *   or by click-click, one `path.gantt__link-preview` runs from the centre of the handle to the
  *   pointer, or to the anchor of the target bar when the pointer is over one
  *   (`snapshot.feedback.link`, the same preview the core's `link-preview` effect carries; the
  *   snapshot also has it when the effect was swallowed by an API call). `data-valid` is present
  *   unless the core refuses the target under the pointer (itself, a cycle, a duplicate, a task
- *   that may not be linked: FR-LINK-6), so the theme shows free space and a valid target alike
+ *   that may not be linked), so the theme shows free space and a valid target alike
  *   and a refusal differently. The node is made on the first preview of a gesture, kept while
  *   the gesture lasts and removed when it ends.
  *

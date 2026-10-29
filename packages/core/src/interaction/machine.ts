@@ -1,5 +1,5 @@
 /**
- * The interaction state machine (State pattern, `docs/architecture.md` §4, §10): pixel-level
+ * The interaction state machine (State pattern): pixel-level
  * pointer and key events in, effects out (preview, commit, link creation, autoscroll, range
  * extension, clicks, feedback). Renderer-independent and free of side effects: the caller applies
  * the effects (the change controller, the scroller, the cursor).
@@ -116,8 +116,7 @@ const CURSORS: Readonly<Record<GestureKind, InteractionCursor>> = {
 };
 
 /**
- * Creates the interaction state machine (FR-EDIT-1 … FR-EDIT-8, FR-LINK-4, FR-LINK-6,
- * FR-PROG-3, FR-SNAP-10, FR-TL-5). Each instance holds one gesture at a time; feed it every
+ * Creates the interaction state machine. Each instance holds one gesture at a time; feed it every
  * pointer, key and timeline event with the context current at that moment.
  *
  * **Phases.** `idle` → `pressed` (a primary-button press) → `dragging` once the pointer travels
@@ -140,8 +139,8 @@ const CURSORS: Readonly<Record<GestureKind, InteractionCursor>> = {
  * **Gestures** by the part pressed (`hitTest`, or the event's explicit `target`): the body moves
  * the bar, the resize zones its edges, the progress handle its progress, a link handle creates a
  * link. Each starts only if `context.busy` is not set and `resolvePermissions` allows it, checked
- * when the drag starts and **again on release** against the context of that moment
- * (FR-EDIT-7); a refusal is a `'refused'` effect, and a refused commit rolls the preview back. A
+ * when the drag starts and **again on release** against the context of that moment;
+ * a refusal is a `'refused'` effect, and a refused commit rolls the preview back. A
  * task gone mid-drag ends the drag (preview rolled back) and is refused `'unknown-task'` at the
  * release.
  *
@@ -154,14 +153,14 @@ const CURSORS: Readonly<Record<GestureKind, InteractionCursor>> = {
  * kept the same way against `context.scrollTop`, so after a vertical scroll a link gesture
  * hit-tests the row now under the pointer.
  *
- * **Date gestures** snap per gesture (`context.snap`; Alt falls back to the data step,
- * FR-SNAP-10), keep a resized bar one step long, and preview the propagation through links and
- * children (`propagate` with `conflicts: false`, FR-EDIT-5); see `snapEdit`. A preview is emitted
- * only when the snapped value changes; the release commits the last one (also outside the chart,
- * FR-EDIT-1). A dragged edge outside the timeline range asks for `'extend-range'` (see
+ * **Date gestures** snap per gesture (`context.snap`; Alt falls back to the data step), keep a
+ * resized bar one step long, and preview the propagation through links and children (`propagate`
+ * with `conflicts: false`); see `snapEdit`. A preview is emitted only when the snapped value
+ * changes; the release commits the last one (also outside the chart). A dragged edge outside the
+ * timeline range asks for `'extend-range'` (see
  * `ExtendRangeEffect` for the target); a pointer in the viewport's edge zones sets the
- * `'autoscroll'` velocity (FR-EDIT-6). `Escape` or a pointer cancel rolls the preview back
- * (FR-EDIT-4) and swallows the rest of the press.
+ * `'autoscroll'` velocity. `Escape` or a pointer cancel rolls the preview back
+ * and swallows the rest of the press.
  *
  * **Links** use the model's default link type. A target is refused for itself, when either end
  * may not link, for a duplicate (a link with the same source, target and type), or when the link
@@ -365,7 +364,7 @@ class Pressed implements State {
 
   cancel(event: CancelInput, run: Run): State {
     if (!matches(event, this.press.pointer.id)) return this;
-    // A cancelled press is no click and breaks a double click (FR-EDIT-3).
+    // A cancelled press is no click and breaks a double click.
     run.m.lastClick = undefined;
     return new Idle(EMPTY);
   }
@@ -569,7 +568,7 @@ class DateDrag implements State {
   }
 
   /**
-   * What the range has to contain for the previewed bar (FR-TL-5, see `ExtendRangeEffect`), or
+   * What the range has to contain for the previewed bar (see `ExtendRangeEffect`), or
    * `undefined` when it does: the dragged edge of a resize; for a move (and the bar of a
    * progress drag) the whole bar when it is no wider than the viewport, else the leading edge of
    * a move. A zero-length bar (a milestone) on an edge of the range counts as outside.
@@ -783,7 +782,7 @@ function hitInput(run: Run): Parameters<typeof hitTest>[1] {
   };
 }
 
-/** Why a gesture may not start or commit now, `undefined` when it may (FR-EDIT-7). */
+/** Why a gesture may not start or commit now, `undefined` when it may. */
 function refusalOf(
   ctx: InteractionContext,
   gesture: GestureKind,
@@ -803,7 +802,7 @@ function refusalOf(
 }
 
 /**
- * Why a link from `source` to `target` may not be created (FR-LINK-6, FR-LINK-7). A duplicate is
+ * Why a link from `source` to `target` may not be created. A duplicate is
  * a link with the same source, target and type, whatever its id.
  */
 function linkRefusal(
@@ -834,7 +833,7 @@ function refused(
   return Object.freeze({ type: 'refused', gesture, id, target, reason, at });
 }
 
-/** Emits a click, and a double click when it repeats the previous one (FR-EDIT-3). */
+/** Emits a click, and a double click when it repeats the previous one. */
 function click(run: Run, target: HitTarget, event: PointerInput): void {
   const { m } = run;
   const { doubleClickTime, doubleClickDistance } = m.settings;
@@ -866,7 +865,7 @@ function autoScroll(run: Run, vx: number | undefined): void {
   run.out.push(Object.freeze({ type: 'autoscroll', velocity }));
 }
 
-/** The cursor over a target: what a press there would do (FR-EDIT-8). */
+/** The cursor over a target: what a press there would do. */
 function cursorOf(target: HitTarget, run: Run, pressed: boolean): InteractionCursor {
   if (target.kind === 'link') return 'pointer';
   if (target.kind === 'empty') return 'default';
@@ -906,7 +905,7 @@ function sameTarget(a: HitTarget, b: HitTarget): boolean {
 }
 
 /**
- * Whether two clicks hit the same thing for a double click (FR-EDIT-3): the same task, whatever
+ * Whether two clicks hit the same thing for a double click: the same task, whatever
  * part of its bar (the body and a resize zone are one bar), the same link, the same empty row.
  */
 function sameClickTarget(a: HitTarget, b: HitTarget): boolean {

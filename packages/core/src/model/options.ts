@@ -12,7 +12,7 @@ import type { DurationMode, LinkType } from './types';
 
 /**
  * What normalization does with a date, duration or lag that is not a multiple of the granularity
- * (`scheduling.alignInput`, FR-SNAP-13). Every case also reports a `'misaligned'` issue.
+ * (`scheduling.alignInput`). Every case also reports a `'misaligned'` issue.
  * - `'expand'` (default): `start` down, `end` and `duration` up, so the task loses no time;
  * - `'nearest'`: to the nearest boundary, ties widen the task (`start` down, `end` up);
  * - `'reject'`: the task becomes invalid (no bar), the link is dropped.
@@ -22,8 +22,8 @@ import type { DurationMode, LinkType } from './types';
 export type AlignInput = 'expand' | 'nearest' | 'reject';
 
 /**
- * Options of `normalizeModel`: the data-related part of `GanttOptions` (`docs/api.md` §3,
- * `dates` and `scheduling`). The issue of an invalid option has the option's path in
+ * Options of `normalizeModel`: the data-related part of `GanttOptions` (`dates` and `scheduling`).
+ * The issue of an invalid option has the option's path in
  * `GanttOptions` (`'scheduling.granularity'`), so that it names the option wherever it is listed
  * (the facade lists it with the data issues); `maxSpan`, which `GanttOptions` does not have, is
  * reported as `'maxSpan'`.
@@ -31,7 +31,7 @@ export type AlignInput = 'expand' | 'nearest' | 'reject';
 export interface NormalizeModelOptions {
   /** The work calendar for working-time durations and day counts. */
   readonly calendar: WorkCalendar;
-  /** The data step (`scheduling.granularity`, FR-SNAP-12); default `'1d'`. */
+  /** The data step (`scheduling.granularity`); default `'1d'`. */
   readonly granularity?: DurationInput | undefined;
   /** Policy for misaligned input (`scheduling.alignInput`); default `'expand'`. */
   readonly alignInput?: AlignInput | undefined;
@@ -41,7 +41,7 @@ export interface NormalizeModelOptions {
   readonly durationMode?: DurationMode | undefined;
   /** Default `Link.type` (`scheduling.defaultLinkType`); default `'FS'`. */
   readonly defaultLinkType?: LinkType | undefined;
-  /** Longest valid task; longer ones get `'too-long'` (as upstream frappe-gantt); default `'10y'`. */
+  /** Longest valid task; longer ones get `'too-long'`; default `'10y'`. */
   readonly maxSpan?: DurationInput | undefined;
 }
 

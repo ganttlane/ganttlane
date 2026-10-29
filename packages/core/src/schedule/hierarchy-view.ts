@@ -1,7 +1,6 @@
 /**
  * The task tree as scheduling reads it: a structural view that the `Hierarchy` of
- * `buildHierarchy` fits, so that the schedule module does not depend on the hierarchy module
- * (`docs/architecture.md` §3.1).
+ * `buildHierarchy` fits, so that the schedule module does not depend on the hierarchy module.
  */
 
 import type { LinkType, TaskId } from '../model';

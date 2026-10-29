@@ -1,10 +1,10 @@
 /**
- * Scheduling (FR-LINK, FR-SCH, `docs/architecture.md` §3): the dependency graph over the
+ * Scheduling: the dependency graph over the
  * normalized model (typed anchors, lags, adjacency, cycles, topological order), the propagation
  * of an edit through links and the hierarchy into a `ChangeSet`, and the scheduling conflicts of
  * a state of the plan (non-working days, children outside their parent, violated links), and the
  * re-validation of change sets from outside `propagate` (before-hooks, API). Depends on
- * `calendar` and `model` (§3.1).
+ * `calendar` and `model`.
  *
  * Other core modules import scheduling only through this file.
  *

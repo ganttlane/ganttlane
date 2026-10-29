@@ -1,9 +1,9 @@
 /**
- * Graph algorithms over nodes numbered `0 … n - 1` (FR-LINK-7, FR-SCH-5): a stable topological
+ * Graph algorithms over nodes numbered `0 … n - 1`: a stable topological
  * sort (Kahn's algorithm with a min-heap, so ready nodes leave in input order) and the strongly
  * connected components with more than one node (iterative Tarjan, no recursion). Both are
  * O((V + E) log V) at most and safe for 10k+ nodes. {@link topoSort} wraps the sort for any node
- * type, so propagation (plan step 2.4) can combine link edges with parent → child edges.
+ * type, so propagation can combine link edges with parent → child edges.
  */
 
 /**
@@ -34,7 +34,7 @@ function at(values: ArrayLike<number>, i: number): number {
 }
 
 /**
- * Sorts nodes topologically, ties by input order (FR-SCH-5). Generic: nodes are compared with
+ * Sorts nodes topologically, ties by input order. Generic: nodes are compared with
  * `Map` semantics (`===`, `NaN` equal to itself); a repeated node counts once (its first
  * position), edges to or from unknown nodes are ignored and repeated edges are fine.
  *

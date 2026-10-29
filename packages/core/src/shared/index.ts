@@ -1,7 +1,7 @@
 /**
  * Base types and helpers shared by every core module: `Issue`, `Result`, `assertNever`, the
  * build flag `DEV` with the short production messages, and small runtime checks. Depends on
- * nothing; every module may import it (`docs/architecture.md` §3.1).
+ * nothing; every module may import it.
  *
  * @module
  */

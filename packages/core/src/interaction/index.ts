@@ -1,11 +1,11 @@
 /**
- * Interactions (FR-EDIT, FR-LINK-4, FR-LINK-6, FR-PROG-3, `docs/architecture.md` §3, §4, §10):
+ * Interactions:
  * the renderer-independent state machine that turns pixel-level pointer and key events into
  * effects (drag previews with live propagation, commits, link creation, autoscroll and range
  * extension intents, clicks and double clicks, cursor and tooltip feedback), the editing
  * permission matrix, and a geometric hit test over the layout for custom renderers. Depends on
- * `scale`, `schedule`, `progress`, `layout` and `viewport` (§3.1); never on the store or the
- * events, so the facade (plan step 3.8) wires the effects to the change controller.
+ * `scale`, `schedule`, `progress`, `layout` and `viewport`; never on the store or the
+ * events, so the facade wires the effects to the change controller.
  *
  * Other core modules import interactions only through this file.
  *

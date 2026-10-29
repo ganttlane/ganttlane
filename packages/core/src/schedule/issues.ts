@@ -2,7 +2,7 @@ import type { TaskId } from '../model';
 import { DEV, type Issue, type IssueSeverity, shortMessage } from '../shared';
 
 /**
- * Issue codes produced by the dependency graph (FR-LINK-7, FR-DATA-4).
+ * Issue codes produced by the dependency graph.
  *
  * - `'unknown-link-task'` (error): the source or target matches no task; the link is dropped;
  * - `'self-link'` (error): source and target are the same task; the link is dropped;

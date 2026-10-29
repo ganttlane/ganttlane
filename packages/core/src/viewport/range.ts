@@ -1,5 +1,5 @@
 /**
- * The timeline range (FR-TL-1): from the tasks plus padding (and today), or explicit, snapped
+ * The timeline range: from the tasks plus padding (and today), or explicit, snapped
  * outward to whole columns.
  */
 
@@ -48,7 +48,7 @@ const NO_PADDING: Duration = /* @__PURE__ */ Object.freeze({ months: 0, ms: 0 })
 const EMPTY_CHART_PADDING: Duration = /* @__PURE__ */ Object.freeze({ months: 0, ms: 7 * DAY });
 
 /**
- * The timeline range (FR-TL-1). Pure; the result is frozen and never empty.
+ * The timeline range. Pure; the result is frozen and never empty.
  *
  * - **Explicit**: `explicit` as is (no padding, no today).
  * - **Auto**: from the earliest `start` to the latest `endExclusive` of the spans; a zero-length

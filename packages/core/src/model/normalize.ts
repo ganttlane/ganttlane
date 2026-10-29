@@ -1,6 +1,6 @@
 /**
  * `normalizeModel`: input `tasks` and `links` → immutable task and link models with indexes and
- * typed issues (FR-DATA-1 … FR-DATA-5, FR-DATA-8, FR-DATA-11).
+ * typed issues.
  */
 
 import * as v from 'valibot';
@@ -21,7 +21,7 @@ import type { Link, Task, TaskId } from './types';
 export interface ModelInput<TData = unknown> {
   /** The tasks, in display order. */
   readonly tasks: readonly Task<TData>[];
-  /** The links (ADR-007); optional, `Task.dependencies` are merged in. */
+  /** The links; optional, `Task.dependencies` are merged in. */
   readonly links?: readonly Link[] | undefined;
 }
 
@@ -50,24 +50,24 @@ export interface NormalizedModel<TData = unknown> {
 }
 
 /**
- * Normalizes input tasks and links into immutable models (`docs/architecture.md` §5.2). Never
- * throws on bad data and never mutates its input: problems become typed issues (FR-DATA-4).
+ * Normalizes input tasks and links into immutable models. Never
+ * throws on bad data and never mutates its input: problems become typed issues.
  *
  * Per task, in input order:
- * 1. **Shape** (`TaskSchema`, FR-DATA-11): a task without a usable `id` (a string or a number,
+ * 1. **Shape** (`TaskSchema`): a task without a usable `id` (a string or a number,
  *    not `NaN`) is dropped with `'invalid-shape'`; a repeated id (compared with `===`) is dropped
  *    with `'duplicate-id'`, the first one wins; any other shape error makes the task invalid
- *    (a row without a bar, FR-ROW-3) with one `'invalid-shape'` issue per field.
- * 2. **Dates** (FR-DATA-2, FR-DATA-3): `type: 'placeholder'` has no bar and its dates are ignored;
+ *    (a row without a bar) with one `'invalid-shape'` issue per field.
+ * 2. **Dates**: `type: 'placeholder'` has no bar and its dates are ignored;
  *    no dates at all → a placeholder row plus a `'no-dates'` warning; `start` + `end` (`end`
  *    wins over `duration`, which is then ignored); `start` + `duration`; a milestone is
  *    zero-length at `start`. Anything else (only `start`, only `end`, a duration without a start)
  *    is invalid (`'incomplete-dates'`): ends are never projected backwards.
- * 3. **Precision** (ADR-015): see `TaskModel.precision`.
- * 4. **End semantics** (FR-TIME-3): with `endInclusive` (default) a date-only `end` is the whole
+ * 3. **Precision**: see `TaskModel.precision`.
+ * 4. **End semantics**: with `endInclusive` (default) a date-only `end` is the whole
  *    last day, unless `precision: 'time'` makes every value an exact moment. `end` before `start`
  *    → `'end-before-start'`.
- * 5. **Alignment** (ADR-017, FR-SNAP-13): `start`, `end` and the fixed part of `duration` are
+ * 5. **Alignment**: `start`, `end` and the fixed part of `duration` are
  *    aligned to the granularity (to whole days for day-precision tasks) per `alignInput`, with a
  *    `'misaligned'` issue carrying `value` and `suggested`.
  * 6. **End from duration**: a number is days, a string or object a `DurationInput`. Months
@@ -81,8 +81,8 @@ export interface NormalizedModel<TData = unknown> {
  * target = the task). Malformed links are dropped (`'invalid-shape'`), as are repeated ids
  * (`'duplicate-id'`; a default id can collide with an explicit one or with a link from the
  * shorthand) and invalid lags. A lag is a number of days or a fixed duration, aligned to the
- * nearest multiple of the granularity. References and cycles are checked later (plan step 2.3),
- * `parentId` by the hierarchy (step 2.2).
+ * nearest multiple of the granularity. References and cycles are checked later,
+ * `parentId` by the hierarchy.
  *
  * @param input - Tasks and links as the caller passes them.
  * @param options - Calendar, granularity and the other data options.

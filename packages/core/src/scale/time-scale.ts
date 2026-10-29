@@ -1,9 +1,9 @@
 /**
- * `TimeScale`: the linear date ↔ x mapping (FR-SCALE-1, `docs/architecture.md` §6).
+ * `TimeScale`: the linear date ↔ x mapping.
  *
  * `x = (t - origin) * pxPerDay / DAY`. One floating day is always 24 h, so months and years get
- * their real length on screen (the fork's `day_width` model, `docs/audit/02-fork.md` §2.1) and
- * the same scale works for every view mode: only `pxPerDay` changes.
+ * their real length on screen and the same scale works for every view mode: only `pxPerDay`
+ * changes.
  */
 
 import { asDateTimeMs, type DateTimeMs, DAY } from '../time';
@@ -11,9 +11,9 @@ import { asDateTimeMs, type DateTimeMs, DAY } from '../time';
 /**
  * Writing direction of the timeline.
  *
- * `'rtl'` is accepted and stored so options can already carry it, but mirroring is a P1
- * feature: until it lands, a `'rtl'` scale maps dates exactly like `'ltr'` (time grows to the
- * right).
+ * `'rtl'` is accepted and stored so options can already carry it, but mirroring is not
+ * available yet: until it lands, a `'rtl'` scale maps dates exactly like `'ltr'` (time grows to
+ * the right).
  */
 export type ScaleDirection = 'ltr' | 'rtl';
 
@@ -23,7 +23,9 @@ export interface TimeScaleOptions {
   readonly origin: DateTimeMs;
   /** Zoom level: pixels per floating day (24 h). Finite and greater than `0`. */
   readonly pxPerDay: number;
-  /** Writing direction, default `'ltr'`. `'rtl'` is stored only (mirroring is P1). */
+  /**
+   * Writing direction, default `'ltr'`. `'rtl'` is stored only: mirroring is not available yet.
+   */
   readonly direction?: ScaleDirection;
 }
 
@@ -34,7 +36,7 @@ export interface ZoomAnchor {
 }
 
 /**
- * An immutable linear time scale (FR-SCALE-1). Pixel values are unrounded floats: rounding to
+ * An immutable linear time scale. Pixel values are unrounded floats: rounding to
  * device pixels is the renderer's job. Dates and durations coming back from pixels are rounded
  * to whole milliseconds; snapping to a step is a separate concern (`scale/snap`).
  *
@@ -49,7 +51,7 @@ export interface TimeScale {
   readonly origin: DateTimeMs;
   /** Pixels per floating day (24 h). */
   readonly pxPerDay: number;
-  /** Writing direction as configured. `'rtl'` currently behaves like `'ltr'` (P1). */
+  /** Writing direction as configured. `'rtl'` currently behaves like `'ltr'`. */
   readonly direction: ScaleDirection;
   /** Horizontal position of a date: `(t - origin) * pxPerDay / DAY`, may be negative. */
   readonly dateToX: (t: DateTimeMs) => number;
@@ -71,7 +73,7 @@ export interface TimeScale {
 }
 
 /**
- * Creates an immutable linear time scale (FR-SCALE-1).
+ * Creates an immutable linear time scale.
  *
  * The arguments come from validated options (view modes are checked by `resolveViewModes`) or
  * from code, so invalid values are programming errors and throw, like `createFloatingAdapter`.

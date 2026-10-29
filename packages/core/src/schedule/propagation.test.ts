@@ -517,6 +517,40 @@ describe('propagate: links (fork parity)', () => {
   });
 });
 
+describe('propagate: two links between the same tasks', () => {
+  it('FR-LINK-2: FS + FF without lags move the successor rigidly; SS + FF and other lags stretch it', () => {
+    const tasks: readonly Task[] = [
+      { id: 'a', name: 'A', start: '2026-03-02', end: '2026-03-04' },
+      { id: 'b', name: 'B', start: '2026-03-06', end: '2026-03-08' },
+    ];
+    const resizeEnd: PropagationCommand = {
+      kind: 'resize-end',
+      id: 'a',
+      endExclusive: at('2026-03-07'),
+    };
+    const successor = (links: readonly Link[]): string[] =>
+      run(contextOf(tasks, { links }), resizeEnd).filter((line) => line.startsWith('b '));
+    expect(
+      successor([
+        { source: 'a', target: 'b', type: 'FS' },
+        { source: 'a', target: 'b', type: 'FF' },
+      ]),
+    ).toEqual(['b 2026-03-08..2026-03-10 (link a)']);
+    expect(
+      successor([
+        { source: 'a', target: 'b', type: 'SS' },
+        { source: 'a', target: 'b', type: 'FF' },
+      ]),
+    ).toEqual(['b 2026-03-06..2026-03-10 (link a)']);
+    expect(
+      successor([
+        { source: 'a', target: 'b', type: 'FS', lag: 1 },
+        { source: 'a', target: 'b', type: 'FF', lag: 5 },
+      ]),
+    ).toEqual(['b 2026-03-08..2026-03-11 (link a)']);
+  });
+});
+
 /** A two-week parent (Mon 03-02 … Fri 03-13) with a child for every kind of parent anchor. */
 const FAMILY: readonly Task[] = [
   { id: 'p', name: 'Parent', start: '2026-03-02', end: '2026-03-13' },
@@ -663,6 +697,22 @@ describe('propagate: children (fork parity)', () => {
       'p 2026-03-02..2026-03-16 (direct)',
       'fs 2026-03-19..2026-03-19 (parent p)',
     ]);
+  });
+
+  it('FR-SCH-2: parentAnchor is only read for a child with followParent', () => {
+    const anchored = FAMILY.map((task) =>
+      task.id === 'free' ? { ...task, parentAnchor: ['SS', 'FF'] as const } : task,
+    );
+    const free = (tasks: readonly Task[], command: PropagationCommand): string[] =>
+      run(contextOf(tasks), command).filter((line) => line.startsWith('free '));
+    // Without followParent the anchor is ignored: the child only shifts with its parent's start.
+    expect(free(anchored, RESIZE_END_P)).toEqual([]);
+    expect(free(anchored, MOVE_P)).toEqual(free(FAMILY, MOVE_P));
+    // With it, the same anchor pins both edges of the child.
+    const following = anchored.map((task) =>
+      task.id === 'free' ? { ...task, followParent: true } : task,
+    );
+    expect(free(following, RESIZE_END_P)).toEqual(['free 2026-03-09..2026-03-13 (parent p)']);
   });
 
   it('FR-SCH-2: nested parent → child → grandchild', () => {

@@ -49,7 +49,7 @@ export function createSelector<const T extends readonly [InputSelector, ...Input
 }
 
 /**
- * A task's dates and progress as rendered (FR-EDIT-5): the draft's `after` when the draft
+ * A task's dates and progress as rendered: the draft's `after` when the draft
  * changes it (the preview over the committed layer), else the committed values of the model.
  * Tasks without a bar (unknown ids, placeholders, invalid tasks) have none, whatever the draft
  * says, as in `applyChangeSet`.

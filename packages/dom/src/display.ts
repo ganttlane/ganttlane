@@ -7,20 +7,20 @@ import type {
 } from './layers/popover/types';
 import type { DisposableNode } from './shared';
 
-/** Which grid lines the body draws (FR-UI-4). */
+/** Which grid lines the body draws. */
 export type GridLinesOption = 'none' | 'vertical' | 'horizontal' | 'both';
 
-/** How non-working days are shown (FR-UI-2): a fill, a striped pattern, or not at all. */
+/** How non-working days are shown: a fill, a striped pattern, or not at all. */
 export type NonWorkingDaysOption = 'fill' | 'stripes' | false;
 
-/** Zebra stripes of the rows (FR-ROW-4): by row, by group (a parent with its children), or off. */
+/** Zebra stripes of the rows: by row, by group (a parent with its children), or off. */
 export type RowStripesOption = 'row' | 'group' | false;
 
-/** Where a bar's label goes (FR-BAR-1): `auto` puts it inside when it fits, else outside. */
+/** Where a bar's label goes: `auto` puts it inside when it fits, else outside. */
 export type BarLabelOption = 'auto' | 'inside' | 'outside' | 'none';
 
 /**
- * A visual highlight of days (FR-UI-3): it has no effect on scheduling. Days come from `dates`,
+ * A visual highlight of days: it has no effect on scheduling. Days come from `dates`,
  * a `range` (both ends inclusive) or a `match` predicate, in any combination.
  */
 export interface HighlightInput {
@@ -32,7 +32,7 @@ export interface HighlightInput {
   readonly range?: { readonly start: DateInput; readonly end: DateInput } | undefined;
   /** Days the predicate accepts. */
   readonly match?: ((day: CalendarDay) => boolean) | undefined;
-  /** Text shown for a highlighted day (tooltip, step 4.8): a string, or one per day. */
+  /** Text shown for a highlighted day (tooltip): a string, or one per day. */
   readonly label?: string | ((day: CalendarDay) => string) | undefined;
   /** Extra class on the highlight's nodes. */
   readonly className?: string | undefined;
@@ -57,7 +57,7 @@ export interface BarLabelContext<TData = unknown> {
 }
 
 /**
- * Custom bar label content (FR-BAR-5): a node, a {@link DisposableNode} (a node that is told
+ * Custom bar label content: a node, a {@link DisposableNode} (a node that is told
  * when the bar is done with it), or a string (inserted as text, never parsed). `null` /
  * `undefined` falls back to the task name. For `auto` placement a plain node's width is that of
  * its text when the renderer returns; a `DisposableNode`'s width is unknown and counts as 0, so it
@@ -70,7 +70,7 @@ export type BarLabelRenderer<TData = unknown> = (
 ) => Node | DisposableNode | string | null | undefined;
 
 /**
- * Display options of the renderer (`docs/api.md` §3, `display` plus the visual extras).
+ * Display options of the renderer (`display` plus the visual extras).
  * `createGantt` takes the plain ones under `display` and lifts `highlightDays`, `tooltip`,
  * `linkMenu` and `highlightTooltip` to its top-level options (`highlights`, `tooltip`,
  * `linkMenu`, `highlightTooltip`).
@@ -78,45 +78,45 @@ export type BarLabelRenderer<TData = unknown> = (
  * @typeParam TData - Type of `task.data`.
  */
 export interface DisplayOptions<TData = unknown> {
-  /** Grid lines (FR-UI-4). Default `'both'`. */
+  /** Grid lines. Default `'both'`. */
   readonly gridLines?: GridLinesOption | undefined;
-  /** The today line and marker (FR-UI-1). Default `true`. */
+  /** The today line and marker. Default `true`. */
   readonly today?: boolean | undefined;
-  /** Non-working days (FR-UI-2). Default `'fill'`. */
+  /** Non-working days. Default `'fill'`. */
   readonly nonWorkingDays?: NonWorkingDaysOption | undefined;
-  /** Whether {@link highlightDays} are drawn (FR-UI-3). Default `true`. */
+  /** Whether {@link highlightDays} are drawn. Default `true`. */
   readonly highlights?: boolean | undefined;
-  /** Highlighted days (FR-UI-3). Default none. */
+  /** Highlighted days. Default none. */
   readonly highlightDays?: readonly HighlightInput[] | undefined;
-  /** Row stripes (FR-ROW-4). Default `false`. */
+  /** Row stripes. Default `false`. */
   readonly rowStripes?: RowStripesOption | undefined;
-  /** Bar labels (FR-BAR-1). Default `'auto'`. */
+  /** Bar labels. Default `'auto'`. */
   readonly barLabel?: BarLabelOption | undefined;
-  /** Custom bar label content (FR-BAR-5). Default the task name. */
+  /** Custom bar label content. Default the task name. */
   readonly renderBarLabel?: BarLabelRenderer<TData> | undefined;
-  /** Highlight a hovered bar's range in the header (FR-BAR-4). Default `true`. */
+  /** Highlight a hovered bar's range in the header. Default `true`. */
   readonly headerRangeHighlight?: boolean | undefined;
-  /** Largest corner radius of link routes, in px (FR-LINK-3). Default `5`. */
+  /** Largest corner radius of link routes, in px. Default `5`. */
   readonly linkCurveRadius?: number | undefined;
   /**
-   * Bar labels that stay in view while scrolling (FR-BAR-8, P1). Default `false`. Reserved:
+   * Bar labels that stay in view while scrolling. Default `false`. Not available yet:
    * the renderer ignores it, and `createGantt` reports `true` as an `unsupported-option`.
    */
   readonly stickyBarLabels?: boolean | undefined;
   /**
-   * The expected-progress marker (FR-BAR-7, P1). Default `false`. Reserved: the renderer ignores
+   * The expected-progress marker. Default `false`. Not available yet: the renderer ignores
    * it, and `createGantt` reports `true` as an `unsupported-option`.
    */
   readonly expectedProgress?: boolean | undefined;
 
-  // ---- popovers (plan step 4.8). Each is a group taken as a whole: `setDisplay` replaces it,
+  // ---- popovers. Each is a group taken as a whole: `setDisplay` replaces it,
   // and the popover layer applies the defaults of its fields when it reads them. ----
 
-  /** The task tooltip: trigger, cursor following, content (FR-TIP-1, FR-TIP-2, FR-EDIT-8). */
+  /** The task tooltip: trigger, cursor following, content. */
   readonly tooltip?: TooltipOptions<TData> | undefined;
-  /** The menu a click on a link opens (FR-TIP-4). */
+  /** The menu a click on a link opens. */
   readonly linkMenu?: LinkMenuOptions<TData> | undefined;
-  /** The tooltip of highlighted and holiday days (FR-TIP-5). */
+  /** The tooltip of highlighted and holiday days. */
   readonly highlightTooltip?: HighlightTooltipOptions | undefined;
 }
 
@@ -206,7 +206,7 @@ export const DISPLAY_RULES: Readonly<Record<PlainDisplayKey, Rule>> = {
   expectedProgress: flag(D.expectedProgress),
 };
 
-/** The fields of the three popover groups, with the rule of each (FR-TIP-1 … FR-TIP-5). */
+/** The fields of the three popover groups, with the rule of each. */
 export const GROUP_RULES: Readonly<Record<GroupKey, Readonly<Record<string, Rule>>>> = {
   tooltip: {
     trigger: oneOf('hover', 'click', 'focus', 'none'),

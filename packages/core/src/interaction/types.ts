@@ -1,5 +1,5 @@
 /**
- * Types of the interaction layer (`docs/architecture.md` §3, §4, §10): the pixel-level input a
+ * Types of the interaction layer: the pixel-level input a
  * renderer's input adapter feeds in, the effects that come out, what the hit test reports, the
  * feedback a renderer shows (cursor, tooltip) and the context the machine reads.
  */
@@ -61,7 +61,7 @@ export type HitTarget = TaskTarget | LinkTarget | EmptyTarget;
 
 /** Modifier keys held during an input event. */
 export interface InteractionModifiers {
-  /** Alt / Option: snapping falls back to the data step (FR-SNAP-10). */
+  /** Alt / Option: snapping falls back to the data step. */
   readonly alt?: boolean | undefined;
   /** Shift. */
   readonly shift?: boolean | undefined;
@@ -72,7 +72,7 @@ export interface InteractionModifiers {
 }
 
 /**
- * A pointer went down, moved or went up (Pointer Events, FR-EDIT-1). Coordinates are **content
+ * A pointer went down, moved or went up (Pointer Events). Coordinates are **content
  * pixels** of the context the event is sent with: `x` on the time scale (`TimelineState`: scale
  * `x = 0` is the left edge of the scrolled content, so `x = clientX - viewportLeft + scrollLeft`),
  * `y` in layout body pixels (the top of the first row is `0`, so the scroller's content y minus
@@ -123,7 +123,7 @@ export interface CancelInput {
 }
 
 /**
- * A key went down: `'Escape'` cancels the gesture (FR-EDIT-4); any key re-reads `modifiers`, so
+ * A key went down: `'Escape'` cancels the gesture; any key re-reads `modifiers`, so
  * pressing or releasing Alt mid-drag re-snaps the preview.
  */
 export interface KeyInput {
@@ -160,13 +160,13 @@ export type RefusalReason =
   | 'unknown-task'
   /** A link from a task to itself. */
   | 'self'
-  /** The link would close a cycle of links (FR-LINK-7). */
+  /** The link would close a cycle of links. */
   | 'cycle'
   /** The same link (source, target, type) exists. */
   | 'duplicate';
 
 /**
- * The link a link gesture would create now, with the line to draw (FR-LINK-4). Points are content
+ * The link a link gesture would create now, with the line to draw. Points are content
  * pixels like {@link PointerInput}.
  */
 export interface LinkPreview {
@@ -186,7 +186,7 @@ export interface LinkPreview {
   readonly refusal: RefusalReason | undefined;
 }
 
-/** Shows a change set over the committed data (`ChangeController.preview`, FR-EDIT-5). */
+/** Shows a change set over the committed data (`ChangeController.preview`). */
 export interface PreviewEffect {
   /** Discriminant. */
   readonly type: 'preview';
@@ -194,7 +194,7 @@ export interface PreviewEffect {
   readonly changeSet: ChangeSet;
 }
 
-/** Removes the preview (`ChangeController.cancelPreview`, FR-EDIT-4). */
+/** Removes the preview (`ChangeController.cancelPreview`). */
 export interface CancelPreviewEffect {
   /** Discriminant. */
   readonly type: 'cancel-preview';
@@ -219,7 +219,7 @@ export interface LinkPreviewEffect {
   readonly preview: LinkPreview | undefined;
 }
 
-/** Creates a link (`ChangeController.createLink`, FR-LINK-4, FR-LINK-6). */
+/** Creates a link (`ChangeController.createLink`). */
 export interface CreateLinkEffect {
   /** Discriminant. */
   readonly type: 'create-link';
@@ -228,7 +228,7 @@ export interface CreateLinkEffect {
 }
 
 /**
- * Starts, changes or (`velocity: 0`) stops the drag autoscroll (FR-EDIT-6): the renderer adds
+ * Starts, changes or (`velocity: 0`) stops the drag autoscroll: the renderer adds
  * `velocity` to its scroll offset every animation frame and reports the scroll with a
  * {@link TimelineInput}.
  */
@@ -241,7 +241,7 @@ export interface AutoScrollEffect {
 
 /**
  * A dragged edge of the previewed bar lies outside the timeline range: grow the range to contain
- * `target` (`ensureContains`) so the bar can be dragged further (FR-TL-5). Asked once per target.
+ * `target` (`ensureContains`) so the bar can be dragged further. Asked once per target.
  */
 export interface ExtendRangeEffect {
   /** Discriminant. */
@@ -257,7 +257,7 @@ export interface ExtendRangeEffect {
 }
 
 /**
- * A click or double click (FR-EDIT-3): a press and release that never passed the drag threshold.
+ * A click or double click: a press and release that never passed the drag threshold.
  * A double click follows the second of two clicks on the same target (the same task, whatever
  * part of its bar; the same link; the same empty row) within the double-click time and distance;
  * both clicks are reported, without delay. A cancelled press or a drag between them breaks it.
@@ -271,7 +271,7 @@ export interface ClickEffect {
   readonly event: unknown;
 }
 
-/** A gesture or a link was refused at its start or at its commit (FR-EDIT-7, FR-LINK-6). */
+/** A gesture or a link was refused at its start or at its commit. */
 export interface RefusedEffect {
   /** Discriminant. */
   readonly type: 'refused';
@@ -323,7 +323,7 @@ export type InteractionCursor =
   'default' | 'pointer' | 'grab' | 'grabbing' | 'ew-resize' | 'crosshair' | 'not-allowed';
 
 /**
- * What a renderer shows for the interaction (FR-EDIT-8): the cursor, the hovered target, the
+ * What a renderer shows for the interaction: the cursor, the hovered target, the
  * previewed values of the dragged task for the tooltip (new dates, working days through the
  * calendar) and the link preview. Frozen; a new object only when something changed.
  */
@@ -344,7 +344,7 @@ export interface InteractionFeedback {
   readonly link: LinkPreview | undefined;
 }
 
-/** The global `editing` option (`docs/api.md` §3): `false` disables all editing from the UI. */
+/** The global `editing` option: `false` disables all editing from the UI. */
 export type EditingOption = boolean | EditingFlags;
 
 /**
@@ -366,7 +366,7 @@ export interface ResolvedEditing {
 
 /**
  * Everything the machine reads, current at the moment of each event. A structural type: the
- * facade (plan step 3.8) builds it from the store snapshot (`derived.model`, `.hierarchy`,
+ * facade builds it from the store snapshot (`derived.model`, `.hierarchy`,
  * `.graph`, `.snap.snap`, `settings.propagation`), its layout and timeline state, and the change
  * controller (`busy: controller.pending`).
  */
@@ -389,7 +389,7 @@ export interface InteractionContext {
   readonly scrollTop?: number | undefined;
   /**
    * Snap settings of the active view mode (`resolveSnap`); its `keepDayPrecision` also goes to
-   * the preview's `propagate` (FR-SNAP-7).
+   * the preview's `propagate`.
    */
   readonly snap: ResolvedSnap;
   /** Calendar math for snapping (week starts, months). */

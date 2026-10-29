@@ -1,12 +1,11 @@
 /**
- * The link router (LinkRouter, FR-LINK-3, FR-SEL-1, plan step 3.5): orthogonal SVG paths with
+ * The link router (LinkRouter): orthogonal SVG paths with
  * rounded corners between two bars, leaving and entering the edges the link type connects
  * (`linkAnchors` of `schedule`), an arrowhead at the target and a bounding box for
  * virtualization. Pure geometry on plain rectangles, independent of how bars are laid out.
  *
- * Unlike the fork, which drew every type as finish-to-start (`docs/audit/02-fork.md` §5.5 I3),
- * each type attaches to its own edges; corners turn by geometry, not by a fixed sweep, so links
- * that go up look like links that go down (upstream #624, `docs/audit/01-upstream.md` §6).
+ * Each link type attaches to its own edges, and corners turn by geometry, not by a fixed sweep,
+ * so links that go up look like links that go down.
  */
 
 import type { LinkType } from '../model';
@@ -61,7 +60,7 @@ export interface LinkRouteOptions {
 
 /** Input of {@link routeLink} and {@link linkBBox}. */
 export interface LinkRouteInput {
-  /** Link type: which edges the link connects (`linkAnchors`, FR-LINK-1). */
+  /** Link type: which edges the link connects (`linkAnchors`). */
   readonly type: LinkType;
   /** The predecessor's bar. */
   readonly source: LinkRect;
@@ -82,7 +81,7 @@ export interface LinkRoute {
    * format is stable: `M{x} {y}`, then absolute `H{x}` / `V{y}` runs and relative quarter
    * arcs `a{r} {r} 0 0 {sweep} {±r} {±r}` at the corners. Numbers are plain decimals.
    *
-   * It is also the hit path (FR-SEL-1): renderers stroke the same `d` a second time, wide and
+   * It is also the hit path: renderers stroke the same `d` a second time, wide and
    * transparent (`--gantt-link-hit-width`), to catch pointer events.
    */
   readonly d: string;
@@ -127,7 +126,7 @@ interface Skeleton {
 }
 
 /**
- * Routes a link between two bars (FR-LINK-3): an orthogonal path from the source anchor to the
+ * Routes a link between two bars: an orthogonal path from the source anchor to the
  * target anchor with rounded corners, plus its arrowhead and box.
  *
  * **Anchors.** The link leaves the middle of the source edge and enters the middle of the target
@@ -185,7 +184,7 @@ interface Skeleton {
  * nothing is `NaN`. Bars that overlap each other may be crossed; any other route stays outside
  * both bars.
  *
- * Layout is left-to-right; mirroring for `'rtl'` is P1, like the time scale's.
+ * Layout is left-to-right; mirroring for `'rtl'` is not available yet, like the time scale's.
  *
  * @param input - Link type, source and target bars, options.
  * @returns The path, arrowhead, corner points and box, rounded to `0.5` px.

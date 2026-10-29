@@ -1,8 +1,7 @@
 /**
- * Re-validation of a `ChangeSet` that did not come from `propagate` (FR-SNAP-13, FR-TX-2,
- * ADR-017): a change set modified by `onBeforeTaskChange`, or one built by an API call, goes
- * through the same alignment to the granularity as input data, loses what cannot be applied, and
- * gets its conflicts recomputed.
+ * Re-validation of a `ChangeSet` that did not come from `propagate`: a change set modified by
+ * `onBeforeTaskChange`, or one built by an API call, goes through the same alignment to the
+ * granularity as input data, loses what cannot be applied, and gets its conflicts recomputed.
  */
 
 import type { AlignInput, TaskId, TaskModel } from '../model';
@@ -74,7 +73,7 @@ export interface RevalidatedChangeSet {
 
 /**
  * Brings a change set from outside `propagate` (a before-hook's replacement, an API change) back
- * to the invariants of a `ChangeSet` on the given model (FR-SNAP-13, ADR-017). Pure and
+ * to the invariants of a `ChangeSet` on the given model. Pure and
  * deterministic; never throws on bad data, problems become {@link ChangeSetIssue}s.
  *
  * Each change, in order:
@@ -84,7 +83,7 @@ export interface RevalidatedChangeSet {
  *    later one wins, as in `applyChangeSet`), or its end lies before its start.
  * 2. **Aligned** like input data (`normalizeModel`): `after.start` and `after.endExclusive` to
  *    the step of the task's precision after the change — `after.precision` when given, else its
- *    own (FR-SNAP-7: `'time'` turns a day task into a timed one, `'day'` brings a timed one back)
+ *    own (`'time'` turns a day task into a timed one, `'day'` brings a timed one back)
  *    — a whole day for day precision, else `model.options.granularity`, per
  *    `model.options.alignInput` — `'expand'`: start down, end up; `'nearest'`: ties widen the
  *    bar; `'reject'`: the change is dropped. Each changed value is a `'misaligned'` issue.
@@ -330,7 +329,7 @@ function completeChange(
   return Object.freeze(isTaskId(via) ? { ...change, via } : change);
 }
 
-/** Aligns a date per `alignInput` as normalization does: starts down, ends up (ADR-017). */
+/** Aligns a date per `alignInput` as normalization does: starts down, ends up. */
 function alignTo(
   value: number,
   step: Granularity,

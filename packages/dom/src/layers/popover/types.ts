@@ -4,7 +4,7 @@ import type { DisposableNode } from '../../shared';
 
 export type { DisposableNode };
 
-/** What opens a task's tooltip (FR-TIP-1). */
+/** What opens a task's tooltip. */
 export type TooltipTrigger = 'hover' | 'click' | 'focus' | 'none';
 
 /** The side of its anchor a tooltip prefers; it flips to the other when there is no room. */
@@ -31,7 +31,7 @@ export interface TooltipSections<TContext = unknown> {
 }
 
 /**
- * What a popover shows (FR-TIP-1, FR-TIP-3), safe by type:
+ * What a popover shows, safe by type:
  *
  * - a `string` is inserted as **text**, never parsed as HTML;
  * - a `Node` is appended as it is (it is moved, so a render function that returns the same node
@@ -54,7 +54,7 @@ export type TooltipContent<TContext = unknown> =
   string | Node | DisposableNode | { readonly html: string } | TooltipSections<TContext>;
 
 /**
- * The chart's read helpers a popover's render function may use (FR-TIP-6).
+ * The chart's read helpers a popover's render function may use.
  *
  * @typeParam TData - Type of `task.data`.
  */
@@ -68,7 +68,7 @@ export interface TooltipApi<TData = unknown> {
 }
 
 /**
- * The dragged task's values as previewed during a gesture (FR-EDIT-8): what its dates and
+ * The dragged task's values as previewed during a gesture: what its dates and
  * lengths would be if it were dropped now.
  */
 export interface TaskPreview {
@@ -85,7 +85,7 @@ export interface TaskPreview {
 }
 
 /**
- * What a task tooltip's render function is told (FR-TIP-6).
+ * What a task tooltip's render function is told.
  *
  * @typeParam TData - Type of `task.data`.
  */
@@ -100,18 +100,18 @@ export interface TaskTooltipContext<TData = unknown> {
   readonly gesture: GestureKind | undefined;
   /** The task's parent. */
   readonly parent: TaskRecord<TData> | undefined;
-  /** Links into the task: `source` is the predecessor, `lag` the gap (FR-LINK-2). */
+  /** Links into the task: `source` is the predecessor, `lag` the gap. */
   readonly predecessors: readonly ActiveLinkRecord[];
   /** Links out of the task: `target` is the successor, `lag` the gap. */
   readonly successors: readonly ActiveLinkRecord[];
-  /** The chart's locale (BCP 47, the core's `locale` option), for `Intl` (FR-I18N-1). */
+  /** The chart's locale (BCP 47, the core's `locale` option), for `Intl`. */
   readonly locale: string;
   /** Read helpers and `hide()`. */
   readonly api: TooltipApi<TData>;
 }
 
 /**
- * What a link menu's render function is told (FR-TIP-4).
+ * What a link menu's render function is told.
  *
  * @typeParam TData - Type of `task.data`.
  */
@@ -129,20 +129,20 @@ export interface LinkMenuContext<TData = unknown> {
   readonly canRemove: boolean;
   /** Removes the link through `linkMenu.onRemove` and closes the menu; does nothing if `!canRemove`. */
   remove(): void;
-  /** The chart's locale (BCP 47, the core's `locale` option), for `Intl` (FR-I18N-1). */
+  /** The chart's locale (BCP 47, the core's `locale` option), for `Intl`. */
   readonly locale: string;
   /** Read helpers and `hide()`. */
   readonly api: TooltipApi<TData>;
 }
 
 /**
- * The `tooltip` option (FR-TIP-1, FR-TIP-2, FR-EDIT-8).
+ * The `tooltip` option.
  *
  * @typeParam TData - Type of `task.data`.
  */
 export interface TooltipOptions<TData = unknown> {
   /**
-   * What opens the tooltip. Default `'hover'`. `'focus'` is reserved for P1, when bars are
+   * What opens the tooltip. Default `'hover'`. `'focus'` is planned for when bars are
    * focusable: until then it opens nothing, like `'none'`.
    */
   readonly trigger?: TooltipTrigger | undefined;
@@ -165,7 +165,7 @@ export interface TooltipOptions<TData = unknown> {
 }
 
 /**
- * The `linkMenu` option (FR-TIP-4).
+ * The `linkMenu` option.
  *
  * @typeParam TData - Type of `task.data`.
  */
@@ -186,7 +186,7 @@ export interface LinkMenuOptions<TData = unknown> {
   readonly onRemove?: ((link: LinkRecord) => unknown) | undefined;
 }
 
-/** The `highlightTooltip` option (FR-TIP-5). */
+/** The `highlightTooltip` option. */
 export interface HighlightTooltipOptions {
   /** The label follows the cursor instead of staying where it opened. Default `false`. */
   readonly followCursor?: boolean | undefined;

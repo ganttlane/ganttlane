@@ -1,5 +1,5 @@
 /**
- * Column boundaries of a view mode (FR-TL-1, FR-TL-4): the timeline range snaps outward to them
+ * Column boundaries of a view mode: the timeline range snaps outward to them
  * so the first and last header cells are whole, and the infinite timeline grows and trims it by
  * whole columns.
  */

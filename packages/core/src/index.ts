@@ -544,6 +544,6 @@ export {
 } from './viewport';
 
 /**
- * Version of the `@ganttlane/core` package; `'0.0.0'` until the first release (plan step 6.5).
+ * Version of the `@ganttlane/core` package; `'0.0.0'` until the first release.
  */
 export const VERSION: string = '0.0.0';

@@ -1,6 +1,6 @@
 /**
- * The memoized pipeline of the store: options → settings, inputs → derived data
- * (`docs/architecture.md` §4). The previous state is the memo: a stage is reused while the
+ * The memoized pipeline of the store: options → settings, inputs → derived data.
+ * The previous state is the memo: a stage is reused while the
  * inputs it reads keep their identity, so the reducer stays pure.
  */
 

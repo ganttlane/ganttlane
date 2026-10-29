@@ -1,6 +1,6 @@
 /**
  * `patchTask`: writes scheduled values (a committed `TaskPatch`) back into an input task in the
- * task's own representation (FR-TX-3 uncontrolled data, FR-TIME-8), so that normalizing the
+ * task's own representation (uncontrolled data), so that normalizing the
  * patched task gives exactly the patched span.
  */
 
@@ -29,13 +29,13 @@ import type { Task, TaskId } from './types';
 
 /**
  * The scheduled values {@link patchTask} writes: structurally the schedule module's `TaskPatch`
- * (declared here because `model` sits below `schedule`, `docs/architecture.md` §3.1).
+ * (declared here because `model` sits below `schedule`).
  */
 export type PatchValues = Pick<TaskSpan, 'start' | 'endExclusive'> & {
   /** Progress in percent, `0` … `100`. */
   readonly progress: number;
   /**
-   * The task's new precision, when the patch changes it (`TaskPatch.precision`, FR-SNAP-7);
+   * The task's new precision, when the patch changes it (`TaskPatch.precision`);
    * absent: the task keeps its own.
    */
   readonly precision?: DatePrecision | undefined;
@@ -50,10 +50,10 @@ export type PatchTaskContext = Pick<NormalizedModel, 'taskById' | 'options'>;
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 
 /**
- * Returns a new task with a patch applied, in the task's own representation (FR-TX-3,
- * FR-TIME-8). Never mutates `task`; returns `task` itself when the patch changes nothing, and
- * when the context has no bar for it (unknown id, placeholder, invalid task). Normalizing the
- * result with the same options gives exactly `patch.start` / `patch.endExclusive` /
+ * Returns a new task with a patch applied, in the task's own representation. Never mutates `task`;
+ * returns `task` itself when the patch changes nothing, and when the context has no bar for it
+ * (unknown id, placeholder, invalid task). Normalizing the result with the same options gives
+ * exactly `patch.start` / `patch.endExclusive` /
  * `patch.progress` and the precision `patch.precision` (the task's own when absent), provided the
  * patch is aligned like a `ChangeSet` (multiples of the granularity, whole days for day
  * precision) and keeps a bar with an inclusive end at least one day long.
@@ -78,7 +78,7 @@ type Writable<T> = { -readonly [K in keyof T]: T[K] };
  * - **`progress`** is set only when it differs from the model's (clamped) progress.
  * - **Precision**: when the new values alone would make a time-precision task date-only (all at
  *   midnight as `Date`s or date-only strings), `precision: 'time'` is added to keep it.
- * - **A precision change** (`patch.precision`, FR-SNAP-7): a day task becomes timed through its
+ * - **A precision change** (`patch.precision`): a day task becomes timed through its
  *   values when they carry a time of day (a date-only end that stays reads as the inclusive last
  *   day), else with `precision: 'time'`; an explicit `precision: 'day'` becomes `'time'`. A timed
  *   task goes back to day precision (an undo) with date-only ISO strings and midnight `Date`s;
@@ -225,7 +225,7 @@ function writeDates(
 ): void {
   const { task, model, patch, options, precision } = write;
   const { start, endExclusive } = patch;
-  // A task going back to day precision gets date-only ISO strings (FR-SNAP-7).
+  // A task going back to day precision gets date-only ISO strings.
   const dateOnly = precision === 'day' && model.precision === 'time';
   next.start = kept(writeDate(start, task.start, dateOnly), task.start);
   if (model.type === 'milestone') return;

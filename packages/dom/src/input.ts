@@ -58,7 +58,7 @@ const TAP_SLOP = 8;
 
 /**
  * Wires the pointer and the keyboard of a chart to the core's interaction machine
- * (`core.send`, FR-EDIT-1 … FR-EDIT-8, FR-LINK-4), and the machine's feedback back to the page.
+ * (`core.send`), and the machine's feedback back to the page.
  *
  * - **Events.** Pointer Events (mouse, touch, pen) are heard on the scroller, by delegation, and
  *   passed on with `pointerId`, `pointerType`, `isPrimary`, `button`, the modifiers and the

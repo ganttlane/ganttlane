@@ -1,6 +1,6 @@
 /**
- * Work calendar (FR-CAL): weekends, holidays, exceptions and a custom rule, with O(1) day counts
- * and working-time arithmetic. Depends only on `time` and `shared` (`docs/architecture.md` §3.1).
+ * Work calendar: weekends, holidays, exceptions and a custom rule, with O(1) day counts
+ * and working-time arithmetic. Depends only on `time` and `shared`.
  *
  * Other core modules import the calendar only through this file.
  *

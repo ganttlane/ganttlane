@@ -1,14 +1,13 @@
 /**
- * `createStore`: the synchronous state container of core (Observer pattern,
- * `docs/architecture.md` §10). Hooks, async confirmation and history live above it (`events`,
- * plan steps 3.2–3.3).
+ * `createStore`: the synchronous state container of core (Observer pattern). Hooks, async
+ * confirmation and history live above it (`events`).
  */
 
 import { createStoreState, reduceStore } from './reducer';
 import type { Store, StoreCommand, StoreInit, StoreState } from './types';
 
 /**
- * Creates a store over immutable snapshots (FR-TX-3, FR-DATA-7), compatible with React's
+ * Creates a store over immutable snapshots, compatible with React's
  * `useSyncExternalStore(store.subscribe, store.getSnapshot)`: `getSnapshot` returns the same
  * object until a command changes something, and listeners are called only then, once per
  * command, in subscription order. No globals, no timers: everything happens synchronously inside

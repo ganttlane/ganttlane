@@ -1,5 +1,5 @@
 /*
- * @ganttlane/dom default theme (FR-THEME-1 .. FR-THEME-6).
+ * @ganttlane/dom default theme.
  *
  * - Everything lives in `@layer gantt`, so any application style (unlayered) wins without
  *   `!important`, and no rule is more specific than a class plus `data-*` / pseudo-class.
@@ -13,13 +13,13 @@
  */
 @layer gantt {
   /*
-   * STRUCTURE (plan step 4.1): the rules below make the skeleton scroll and stick. The renderer
+   * STRUCTURE: the rules below make the skeleton scroll and stick. The renderer
    * sets `--gantt-content-width`, `--gantt-header-height` and `--gantt-body-height` on the root
    * (CSSOM, so a strict `style-src` CSP is fine); a stylesheet that replaces this one must size
    * `.gantt__header` and `.gantt__body` from them. The chart fills its container, or is
    * `--gantt-height` tall when the `height` option is a number. It is left to right whatever the
    * page is: an RTL scroller counts `scrollLeft` down from zero, and the renderer's arithmetic
-   * is not made for that (a mirrored scale is the P1 `direction` option).
+   * is not made for that (a mirrored scale is planned with the `direction` option).
    */
   .gantt {
     position: relative;
@@ -67,7 +67,7 @@
   }
 
   /*
-   * SCROLLING AND HEIGHT (plan step 4.9, FR-SCROLL-3). With `height: 'auto'` the renderer sets
+   * SCROLLING AND HEIGHT. With `height: 'auto'` the renderer sets
    * `data-height="auto"` on the root: the chart is as tall as its rows and the page (or the
    * nearest ancestor that scrolls) scrolls it, so the scroller scrolls sideways only and a
    * header inside it could never stick. The header moves into `.gantt__pin`, in front of the
@@ -332,13 +332,13 @@
     text-overflow: ellipsis;
   }
 
-  /* A label that stays in view while its cell is partly scrolled out (FR-SCALE-5). */
+  /* A label that stays in view while its cell is partly scrolled out. */
   .gantt__header-label[data-sticky] {
     position: sticky;
     inset-inline-start: 6px;
   }
 
-  /* The hovered bar's range (FR-BAR-4): a tint over the cells, never a hit target. */
+  /* The hovered bar's range: a tint over the cells, never a hit target. */
   .gantt__header-range {
     position: absolute;
     inset-block: 0;
@@ -406,7 +406,7 @@
     stroke-width: var(--gantt-grid-major-line-width);
   }
 
-  /* Minor lines (the snap steps inside a column, FR-SNAP-9) are fainter and dotted. */
+  /* Minor lines (the snap steps inside a column) are fainter and dotted. */
   .gantt__gridline[data-minor] {
     stroke: var(--gantt-grid-minor-line-color);
     stroke-dasharray: 2 3;
@@ -614,7 +614,7 @@
   /* popovers */
 
   /*
-   * POPOVERS (plan step 4.8): one at a time inside `.gantt__layer`. The renderer places a popover
+   * POPOVERS: one at a time inside `.gantt__layer`. The renderer places a popover
    * with `--gantt-popover-x` / `--gantt-popover-y` (px, from the top left of the layer): a
    * transform, so following the cursor costs no layout. Only a popover with actions takes
    * pointer events; a tooltip never gets in the way of the chart.
@@ -698,7 +698,7 @@
     stroke: var(--gantt-link-selected-color);
   }
 
-  /* FOCUS (P1: bars, links and handles become focusable; the scroller already can be). */
+  /* FOCUS (bars, links and handles are not focusable yet; the scroller already is). */
   .gantt__scroller:focus-visible {
     outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
     outline-offset: calc(var(--gantt-focus-ring-width) * -1);
@@ -728,7 +728,7 @@
     stroke-width: var(--gantt-focus-ring-width);
   }
 
-  /* INTERACTION (plan step 4.7): pointer gestures. */
+  /* INTERACTION: pointer gestures. */
 
   /*
    * Touch drags bars instead of scrolling the chart: a bar that may be moved (`data-movable`) and,

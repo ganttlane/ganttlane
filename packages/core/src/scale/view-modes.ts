@@ -1,5 +1,5 @@
 /**
- * View modes (FR-SCALE-2, FR-SCALE-3, `docs/api.md` §3): zoom presets with their column unit,
+ * View modes: zoom presets with their column unit,
  * `pxPerDay`, header rows, grid lines, default snap step and timeline padding, plus
  * {@link resolveViewModes}, which merges caller overrides over the presets and validates them.
  */
@@ -18,7 +18,7 @@ import { checkDuration, describeValue, freezeCopy, joinPath, type Report } from 
 import type { ScaleIssue } from './issues';
 import { checkSnapInput, isSnapOptionsObject, type SnapInput } from './snap-input';
 
-/** Id of a built-in view mode preset (FR-SCALE-2). */
+/** Id of a built-in view mode preset. */
 export type ViewModeId = 'hour' | 'quarter-day' | 'half-day' | 'day' | 'week' | 'month' | 'year';
 
 /** Column unit of a view mode: one column is `step` of these (`{ unit: 'hour', step: 6 }`). */
@@ -44,7 +44,7 @@ export type HeaderFormatter = (
   adapter: DateAdapter,
 ) => string;
 
-/** One header row (FR-SCALE-4): cells of `step` × `unit` each, labelled by `format`. */
+/** One header row: cells of `step` × `unit` each, labelled by `format`. */
 export interface HeaderRowSpec {
   /** Unit of one cell; cells are merged across columns (a month row over day columns). */
   readonly unit: TimeUnit;
@@ -58,7 +58,7 @@ export interface HeaderRowSpec {
 }
 
 /**
- * Where major grid lines go (FR-SCALE-5): at every start of a unit (`{ unit: 'week' }`) or
+ * Where major grid lines go: at every start of a unit (`{ unit: 'week' }`) or
  * wherever the predicate returns `true` for a column start.
  */
 export type MajorLineSpec = { readonly unit: TimeUnit } | ((date: DateTimeMs) => boolean);
@@ -67,7 +67,7 @@ export type MajorLineSpec = { readonly unit: TimeUnit } | ((date: DateTimeMs) =>
 export type PaddingInput = DurationInput | readonly [before: DurationInput, after: DurationInput];
 
 /**
- * A zoom level of the chart (FR-SCALE-3): column unit and width, header rows, grid lines,
+ * A zoom level of the chart: column unit and width, header rows, grid lines,
  * default snap step and padding. Built-in presets are in {@link VIEW_MODE_PRESETS}; pass
  * overrides or custom modes through {@link resolveViewModes}.
  */
@@ -82,18 +82,18 @@ export interface ViewMode {
   readonly step?: number;
   /** Zoom level: pixels per floating day, finite and greater than `0`. */
   readonly pxPerDay: number;
-  /** Header rows, top first; at least one (FR-SCALE-4). */
+  /** Header rows, top first; at least one. */
   readonly headers: readonly HeaderRowSpec[];
-  /** Major grid lines (FR-SCALE-5); `false` or absent for none. */
+  /** Major grid lines; `false` or absent for none. */
   readonly majorLine?: MajorLineSpec | false;
   /**
-   * Minor grid lines every given duration, e.g. `'15min'` in the hour mode (FR-SNAP-9): one kind
+   * Minor grid lines every given duration, e.g. `'15min'` in the hour mode: one kind
    * of step, calendar (`'1mo'`) or fixed (`'15min'`, `'1d 12h'`), not both. `gridLines` leaves
    * them out while they are denser than a pixel threshold. `false` or absent for none.
    */
   readonly minorLine?: DurationInput | false;
   /**
-   * Default snap step of this mode (FR-SNAP-5); `scheduling.snap` overrides it. Only the syntax
+   * Default snap step of this mode; `scheduling.snap` overrides it. Only the syntax
    * is checked here: alignment to `scheduling.granularity` happens when snap is resolved.
    */
   readonly snap?: SnapInput;
@@ -193,7 +193,7 @@ function formatYearRange(range: HeaderCellRange, locale: string, adapter: DateAd
 }
 
 /**
- * The built-in view modes (FR-SCALE-2), deeply frozen, from the finest to the coarsest:
+ * The built-in view modes, deeply frozen, from the finest to the coarsest:
  *
  * | id | column | pxPerDay | headers | majorLine | minorLine | snap | padding |
  * |---|---|---|---|---|---|---|---|
@@ -205,10 +205,10 @@ function formatYearRange(range: HeaderCellRange, locale: string, adapter: DateAd
  * | `month` | 1 mo | 4 | year / month | quarter | — | `1d` | `4mo` |
  * | `year` | 1 y | 1 | decade / year | — | — | `1mo` | `2y` |
  *
- * `pxPerDay` follows the fork's `day_width` except in `hour`: 960 instead of 240 gives 40 px hour
- * columns like the 40 px day columns of `day` (at 240 the hour labels do not fit and the 15-minute
- * minor lines, 2.5 px apart, never show). Snap defaults follow FR-SNAP-5 (raised to
- * `scheduling.granularity` when finer, FR-SNAP-14). Labels are English; override `label` to
+ * `pxPerDay` is chosen so that a column is readable; `hour` uses 960 instead of 240, which gives
+ * 40 px hour columns like the 40 px day columns of `day` (at 240 the hour labels do not fit and
+ * the 15-minute minor lines, 2.5 px apart, never show). Snap defaults are raised to
+ * `scheduling.granularity` when finer. Labels are English; override `label` to
  * translate them.
  *
  * The columns of the three hourly presets are all 40 px wide, so their hour row shows the hour as
@@ -357,7 +357,7 @@ const RENAMED_FIELDS: ReadonlyMap<string, string> = /* @__PURE__ */ new Map([
 ]);
 
 /**
- * Resolves the `viewModes` option into the list of usable view modes (FR-SCALE-2, FR-SCALE-3).
+ * Resolves the `viewModes` option into the list of usable view modes.
  *
  * - No input: the presets ({@link VIEW_MODE_PRESETS}).
  * - Record form ({@link ViewModeOverrides}): each override is merged over the preset with the

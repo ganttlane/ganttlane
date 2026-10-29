@@ -55,7 +55,7 @@ export interface ScrollSyncOptions {
 /** Writes and reads the scroller's position on behalf of the core, see {@link createScrollSync}. */
 export interface ScrollSync {
   /**
-   * Performs a core scroll request (`docs/architecture.md` §4): with `from`, jump there
+   * Performs a core scroll request: with `from`, jump there
    * instantly first, then scroll to `left` / `top` with the request's `behavior`. Call it once
    * per request id, after the scrolled content has the size of the request's snapshot. With an
    * automatic height `top` is not the scroller's: the page scrolls to put that row at the top
@@ -73,7 +73,7 @@ export interface ScrollSync {
   place(snapshot: GanttSnapshot): void;
   /**
    * Switches between a scroller that scrolls both ways (a fixed or filled height) and one that
-   * scrolls sideways while the page scrolls it vertically (`height: 'auto'`, FR-SCROLL-3).
+   * scrolls sideways while the page scrolls it vertically (`height: 'auto'`).
    * Call it after the DOM has the shape of the mode (`Skeleton.setHeight`), then give the core
    * the new {@link ScrollSync.viewport}. The same mode twice does nothing.
    *
@@ -120,7 +120,7 @@ export interface ScrollSync {
    * Reads where the page is relative to the chart and tells the core (its `scrollTop` is how
    * far the page has scrolled past the top of the chart, and its viewport height is the page's),
    * when the page moved or was resized since the last call. Call it at the start of every render:
-   * it reads layout, which is fine in a frame but never in a scroll handler (NFR-PERF-2), and
+   * it reads layout, which is fine in a frame but never in a scroll handler, and
    * it does nothing at all unless the height is automatic. While a scroll request is pending
    * (`pending`) it waits for the render that performs the request, in the next frame.
    */
@@ -142,22 +142,22 @@ export interface ScrollSync {
 const SETTLE_STEPS = 4;
 
 /**
- * The renderer's whole scroll wiring in one place (plan steps 4.1, 4.6 and 4.9). The renderer
+ * The renderer's whole scroll wiring in one place. The renderer
  * owns `scrollLeft` / `scrollTop` writes and the core never touches the DOM, so:
  *
  * - **User scroll, from every source.** Wheel, scrollbar, keyboard, touch, programmatic
  *   scrolling and the drag autoscroll of the input adapter all move the scroller, so the one
- *   `scroll` event they all end in is the only trigger (FR-TL-2): it reports `scrollLeft` /
+ *   `scroll` event they all end in is the only trigger: it reports `scrollLeft` /
  *   `scrollTop` to `core.scroll`. Browsers fire it at most once per frame, before
  *   `requestAnimationFrame` callbacks, which is the "once per frame" the core expects. Nothing
- *   but those two properties is read (NFR-PERF-2). A writer that is not this module (the
+ *   but those two properties is read. A writer that is not this module (the
  *   autoscroll) must move the scroller relative to where it is now (`scrollByInstant`), never
  *   from a position of its own: a compensation may have moved it since the writer last looked.
  * - **Compensation.** When the core extends or trims the range it answers with a
  *   {@link ViewportChange}: the new content width is written first, then the compensated offset
  *   (`scrollTo` with `behavior: 'instant'`, so that a page that sets `scroll-behavior: smooth`
  *   cannot turn it into a visible slide), then the snapshot is rendered synchronously, so the
- *   date under the left edge stays put before paint (FR-TL-3, FR-TL-5). Without the synchronous
+ *   date under the left edge stays put before paint. Without the synchronous
  *   render the old nodes would be painted one frame at their old x.
  * - **Settling.** The core makes one change per call, so the handler asks again at the
  *   compensated position until the core has nothing more to do (an extension of one edge and
@@ -169,7 +169,7 @@ const SETTLE_STEPS = 4;
  *   performs a request has run, the scroller still shows the picture it replaces (and a smooth
  *   scroll or a momentum goes on firing events in its coordinates): nothing is reported then
  *   (`pending`). A scroll event renders the request first; `measure` waits a frame.
- * - **Automatic height** (FR-SCROLL-3, `setPaged`). The scroller is as tall as its content and
+ * - **Automatic height** (`setPaged`). The scroller is as tall as its content and
  *   scrolls only sideways, so what scrolls the chart vertically is its host, the nearest
  *   ancestor that scrolls (it has something to scroll, which depends on the chart's height, so
  *   it is looked for again when that changes, `contentResized`) or the page (`scrollHostOf`).

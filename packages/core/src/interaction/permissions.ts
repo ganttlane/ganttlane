@@ -1,5 +1,5 @@
 /**
- * The editing permission matrix (FR-EDIT-7): the global `editing` option, the per-task
+ * The editing permission matrix: the global `editing` option, the per-task
  * `editable` override, `locked`, `fixedDuration`, `linkable` and the task kind, resolved into
  * what the UI may do with one task.
  */
@@ -31,7 +31,7 @@ const NONE: TaskPermissions = /* @__PURE__ */ Object.freeze({
 });
 
 /**
- * The global `editing` option with every flag spelled out (FR-EDIT-7): `false` turns every flag
+ * The global `editing` option with every flag spelled out: `false` turns every flag
  * off, `true` or `undefined` on, an object per flag (omitted ones are on, only `false` turns one
  * off). Pure; the result is frozen and accepted wherever an `EditingOption` is.
  *
@@ -55,7 +55,7 @@ export function resolveEditing(editing?: EditingOption): ResolvedEditing {
 }
 
 /**
- * Resolves the editing permissions of a task (FR-EDIT-7). Pure; never throws, also on malformed
+ * Resolves the editing permissions of a task. Pure; never throws, also on malformed
  * input fields (only `true` and `false` count).
  *
  * 1. **Flags.** The global `editing`: `false` turns everything off, `true` or `undefined` on, an

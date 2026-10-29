@@ -1,5 +1,5 @@
 /**
- * A typed event emitter (Observer pattern, `docs/architecture.md` §10) with an `error` channel
+ * A typed event emitter (Observer pattern) with an `error` channel
  * for listener failures. No globals, no timers: everything happens synchronously inside `emit`.
  */
 
@@ -10,8 +10,17 @@ export type Unsubscribe = () => void;
 export type Listener<T> = (payload: T) => void;
 
 /**
- * Payload of the `error` channel: something the caller supplied threw (FR-EVT-1). Errors are never
- * swallowed: they reach the `error` listeners, or the code that triggered them.
+ * Payload of the `error` channel: something the caller supplied threw or rejected. Errors are
+ * never swallowed. With a listener of `error` it gets this payload. Without one the error goes to
+ * the code that triggered the event:
+ * - an event caused by an API call is rethrown by that call, once the change is made: as a
+ *   throw, or, for a method that returns a promise, as a rejection (several errors are one
+ *   `AggregateError`). A failed before-hook is the exception: `updateTask` and `addLink` return
+ *   its error in their result (`reason: 'error'`);
+ * - an event caused by renderer input (`setViewport`, `scroll`, `send`, `refreshNow`) does not
+ *   throw, because those methods never do after they changed the chart: the error goes to the
+ *   host's unhandled-rejection channel. So does the error of a before-hook that failed during a
+ *   gesture (a drag, a drawn link), which has no call to return it to.
  */
 export interface ErrorPayload {
   /** The thrown value or the rejection reason, as it was. */
@@ -49,6 +58,8 @@ export interface Emitter<Events extends EmitterEvents> {
    * handling of listener errors.
    */
   readonly emit: <K extends keyof Events & string>(name: K, payload: Events[K]) => void;
+  /** Whether `name` has at least one listener. */
+  readonly hasListeners: (name: keyof Events & string) => boolean;
   /** Removes every listener of every event, also from an emit in progress. */
   readonly clear: () => void;
 }
@@ -60,7 +71,7 @@ interface Entry {
 }
 
 /**
- * Creates a typed emitter (FR-EVT-1, FR-EVT-3). No globals: every emitter is independent.
+ * Creates a typed emitter. No globals: every emitter is independent.
  *
  * - **Order:** listeners are called in subscription order. A listener added while an event is
  *   being emitted is called from the next `emit`; a listener removed (or `clear`ed) during an emit
@@ -138,7 +149,7 @@ export function createEmitter<Events extends EmitterEvents>(): Emitter<Events> {
     lists.clear();
   };
 
-  return Object.freeze({ on, emit, clear });
+  return Object.freeze({ on, emit, hasListeners, clear });
 }
 
 /**

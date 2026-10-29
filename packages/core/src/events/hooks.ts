@@ -1,5 +1,5 @@
 /**
- * Before-hooks (Chain of Responsibility, `docs/architecture.md` §10, FR-TX-2, FR-LINK-6): the
+ * Before-hooks (Chain of Responsibility): the
  * hooks that may confirm, cancel or modify an edit before it is committed, and their registry.
  * The change controller runs the chains.
  */
@@ -16,7 +16,7 @@ import type { Unsubscribe } from './emitter';
  */
 export type Awaitable<T> = T | PromiseLike<T>;
 
-/** What a `beforeTaskChange` hook receives (`onBeforeTaskChange`, FR-TX-2). Frozen. */
+/** What a `beforeTaskChange` hook receives (`onBeforeTaskChange`). Frozen. */
 export interface BeforeTaskChangeContext {
   /**
    * The change set to commit: re-validated, so every value is aligned to the granularity. A hook
@@ -25,18 +25,18 @@ export interface BeforeTaskChangeContext {
   readonly changeSet: ChangeSet;
   /** `changeSet.reason`. */
   readonly reason: ChangeReason;
-  /** `changeSet.conflicts`: the conflicts the change set would cause (FR-SCH-6). */
+  /** `changeSet.conflicts`: the conflicts the change set would cause. */
   readonly conflicts: readonly Conflict[];
 }
 
 /**
  * What a `beforeTaskChange` hook answers: `false` cancels the commit, a `ChangeSet` replaces the
- * one being committed (it is re-validated, FR-SNAP-13), `true` or nothing lets it pass.
+ * one being committed (it is re-validated), `true` or nothing lets it pass.
  */
 export type BeforeTaskChangeResult = boolean | ChangeSet | undefined;
 
 /**
- * A `beforeTaskChange` hook (FR-TX-2): confirms, cancels or modifies a change set before it is
+ * A `beforeTaskChange` hook: confirms, cancels or modifies a change set before it is
  * committed, synchronously or asynchronously (e.g. after asking the user). It answers a
  * {@link BeforeTaskChangeResult}, a promise of one, or nothing (`void`, also as the value of the
  * promise: `Promise<boolean | void>` fits). Throwing or rejecting cancels the commit and reports
@@ -61,14 +61,14 @@ export type BeforeTaskChangeHook = (
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
 ) => Awaitable<BeforeTaskChangeResult | void>;
 
-/** What a `beforeLinkCreate` hook receives (`onBeforeLinkCreate`, FR-LINK-6). Frozen. */
+/** What a `beforeLinkCreate` hook receives (`onBeforeLinkCreate`). Frozen. */
 export interface BeforeLinkCreateContext {
   /** The link to create: as given, or a copy with a free `id` (see `LinkCreatePayload.id`). */
   readonly link: Link;
   /** Its id: `link.id`, the default `` `${source}:${type}:${target}` ``, or a free one. */
   readonly id: string;
   /**
-   * Whether the link would close a cycle of links (FR-LINK-7). Such a link is always rejected,
+   * Whether the link would close a cycle of links. Such a link is always rejected,
    * whatever the hooks answer; they are told so that they can explain why.
    */
   readonly wouldCreateCycle: boolean;
@@ -78,7 +78,7 @@ export interface BeforeLinkCreateContext {
 export type BeforeLinkCreateResult = boolean | undefined;
 
 /**
- * A `beforeLinkCreate` hook (FR-LINK-6): confirms or cancels a new link, synchronously or
+ * A `beforeLinkCreate` hook: confirms or cancels a new link, synchronously or
  * asynchronously. It answers a {@link BeforeLinkCreateResult}, a promise of one, or nothing
  * (`void`, also as the value of the promise: `Promise<boolean | void>` fits). Throwing or
  * rejecting cancels and reports the error on the `error` channel.
@@ -93,9 +93,9 @@ export type BeforeLinkCreateHook = (
 
 /** The hook chains by name. */
 export interface HookMap {
-  /** Before a change set is committed (FR-TX-2). */
+  /** Before a change set is committed. */
   readonly beforeTaskChange: BeforeTaskChangeHook;
-  /** Before a link is created (FR-LINK-6). */
+  /** Before a link is created. */
   readonly beforeLinkCreate: BeforeLinkCreateHook;
 }
 
@@ -130,7 +130,7 @@ interface Entry {
 }
 
 /**
- * Creates an empty hook registry (FR-TX-2, FR-LINK-6). Several hooks of a chain run one after
+ * Creates an empty hook registry. Several hooks of a chain run one after
  * another in registration order, each seeing the result of the previous one (see
  * `createChangeController`). No globals: every registry is independent.
  *

@@ -1,5 +1,5 @@
 /**
- * Snapping of dragged edges (FR-SNAP-1 … FR-SNAP-8, FR-SNAP-14, `docs/architecture.md` §5.1):
+ * Snapping of dragged edges:
  * {@link resolveSnap} turns `scheduling.snap` and the view mode's snap into one rule per
  * interaction, every step a multiple of `scheduling.granularity`; {@link snapTime} snaps an edge
  * during a drag; {@link clampResize} keeps a resized task at least one step long.
@@ -60,7 +60,7 @@ export interface CalendarSnapRule {
 /** A resolved snap step: fixed, calendar, or `false` when snapping is off. */
 export type SnapRule = FixedSnapRule | CalendarSnapRule | false;
 
-/** An interaction with its own snap step (FR-SNAP-4). */
+/** An interaction with its own snap step. */
 export type SnapInteraction = 'move' | 'resize' | 'progress';
 
 /** Direction of the drag: `-1` toward earlier dates, `1` toward later ones, `0` unknown. */
@@ -71,7 +71,7 @@ export type SnapEdge = 'start' | 'end';
 
 /** Snap settings resolved for a view mode by {@link resolveSnap}; deeply frozen. */
 export interface ResolvedSnap {
-  /** Snap strategy (FR-SNAP-2, FR-SNAP-3). */
+  /** Snap strategy. */
   readonly mode: SnapMode;
   /** Step for moving a bar. */
   readonly move: SnapRule;
@@ -81,7 +81,7 @@ export interface ResolvedSnap {
   readonly progress: SnapRule;
   /** The data step every rule is a multiple of. */
   readonly granularity: Granularity;
-  /** Whether day-precision tasks snap to whole days at least (FR-SNAP-7). */
+  /** Whether day-precision tasks snap to whole days at least. */
   readonly keepDayPrecision: boolean;
 }
 
@@ -131,7 +131,7 @@ export interface SnapContext extends SnapPrecision {
   readonly edge?: SnapEdge | undefined;
   /** Work calendar for skipping non-working days. */
   readonly calendar?: WorkCalendar | undefined;
-  /** `scheduling.skipNonWorkingDays[interaction]`, default `false` (FR-SNAP-8). */
+  /** `scheduling.skipNonWorkingDays[interaction]`, default `false`. */
   readonly skipNonWorking?: boolean | undefined;
 }
 
@@ -186,7 +186,7 @@ interface StepEntry {
 type SnapFields = Partial<Record<StepKey, StepEntry> & { mode: SnapMode }>;
 
 /**
- * Resolves the snap settings of a view mode (FR-SNAP-1 … FR-SNAP-5, FR-SNAP-14).
+ * Resolves the snap settings of a view mode.
  *
  * - `option` (`scheduling.snap`) overrides `viewMode.snap` field by field (`step`, `mode`,
  *   `move`, `resize`, `progress`); a step given directly (`'1h'`) replaces it as a whole.
@@ -254,9 +254,9 @@ export function resolveSnap(input: ResolveSnapInput): ResolvedSnapResult {
 }
 
 /**
- * Steps 1–2 of the snap algorithm for one task (`docs/architecture.md` §5.1): `false` (snapping
+ * Steps 1–2 of the snap algorithm for one task: `false` (snapping
  * off) becomes the granularity, a fixed step is raised to a multiple of it, and with
- * `keepDayPrecision` a day-precision task gets whole days at least (FR-SNAP-7).
+ * `keepDayPrecision` a day-precision task gets whole days at least.
  *
  * @param rule - The interaction's rule.
  * @param task - Task precision, granularity and `keepDayPrecision`.
@@ -273,7 +273,7 @@ export function effectiveSnapRule(rule: SnapRule, task: SnapPrecision): Exclude<
 }
 
 /**
- * Snaps a dragged edge (`docs/architecture.md` §5.1, FR-SNAP-2 … FR-SNAP-8).
+ * Snaps a dragged edge.
  *
  * 1. The step is {@link effectiveSnapRule}: `false` snaps to the granularity only, day-precision
  *    tasks to whole days at least when `keepDayPrecision` is on.
@@ -284,7 +284,7 @@ export function effectiveSnapRule(rule: SnapRule, task: SnapPrecision): Exclude<
  * 3. A value exactly halfway between two boundaries goes in the drag direction; direction `0`
  *    goes to the later one.
  * 4. With `skipNonWorking` and a `calendar`, an edge that lands on a non-working day moves to the
- *    next working day (previous for direction `-1`), keeping the time of day (FR-SNAP-8):
+ *    next working day (previous for direction `-1`), keeping the time of day:
  *    `WorkCalendar.rollToWorking` with `keepTimeOfDay`. For an `'end'` edge the day checked is the
  *    one before the exclusive end (an end at Saturday 00:00 ends on Friday). When no working day is
  *    found the edge stays.
@@ -333,7 +333,7 @@ export function snapTime(t: DateTimeMs, context: SnapContext): DateTimeMs {
 }
 
 /**
- * Keeps a resized task at least one step long (FR-SNAP-6): the dragged edge stops one
+ * Keeps a resized task at least one step long: the dragged edge stops one
  * `minStep` away from the fixed one. Milestones have no duration, so callers skip this for them.
  *
  * @param input - Edges, the dragged edge, the minimum step and the adapter.
@@ -476,7 +476,7 @@ function readStep(step: unknown): StepValue | undefined {
   return parsed.value;
 }
 
-/** Converts a step to a rule fitted to the granularity (FR-SNAP-14). */
+/** Converts a step to a rule fitted to the granularity. */
 function toRule(
   entry: StepEntry,
   viewMode: ResolveSnapInput['viewMode'],
