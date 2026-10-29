@@ -1,0 +1,32 @@
+/*
+ * The look of what the slots draw: a card for the tooltip and the menu, and a chip with the
+ * owner's initials in the label of a bar. The chart gives a popover its box and its shadow; this
+ * is only what is inside.
+ */
+.slots-card {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 11rem;
+  font-size: 0.8125rem;
+}
+
+.slots-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* The label is drawn on the bar, which has its own colour: the chip is a lighter patch of it. */
+.slots-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.slots-label__owner {
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.3);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}

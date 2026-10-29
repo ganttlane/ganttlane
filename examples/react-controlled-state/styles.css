@@ -1,0 +1,93 @@
+/*
+ * The look of the inspector under the chart: the application's state in a small table. It uses
+ * no colour of the page but the text's own, so it follows a light or a dark theme.
+ */
+.inspector {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.inspector code {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+}
+
+/* The four values that are not tasks: two columns, one column on a narrow screen. */
+.inspector__values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.25rem 1rem;
+  margin: 0;
+}
+
+.inspector__value {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+/* The list of links is the longest value: it takes the whole row. */
+.inspector__value:last-child {
+  grid-column: 1 / -1;
+}
+
+.inspector__value dt {
+  flex: none;
+  min-width: 6rem;
+  font-weight: 600;
+}
+
+.inspector__value dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.inspector__tasks {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.inspector__tasks caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.inspector__tasks th,
+.inspector__tasks td {
+  padding: 0.0625rem 0.25rem;
+  text-align: left;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.inspector__tasks thead th {
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.inspector__tasks tr[data-selected='true'] th {
+  font-weight: 700;
+}
+
+/* What the last action changed. */
+.inspector [data-changed='true'] {
+  background: rgb(245 159 0 / 0.3);
+}
+
+/* A button that reads as a cell of the table, not as a toolbar button. */
+.inspector .inspector__pick {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
