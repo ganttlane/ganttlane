@@ -1,17 +1,105 @@
 ---
 title: API reference
-description: The generated API reference of the three packages.
+description: The generated API reference of the three packages, one page per export, from the TSDoc of the source.
 sidebar:
   label: Overview
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-<Aside title="Coming soon">
-  The API reference is generated from the TSDoc comments of `@ganttlane/core`, `@ganttlane/dom` and
-  `@ganttlane/react` with TypeDoc, and will appear in this section. Until then the references are
-  the package READMEs:
-  [`core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md),
-  [`dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md) and
-  [`react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md).
+The reference lists every public export of the three packages: functions, interfaces, type aliases
+and constants, with their parameters, return types, defaults and examples. It is generated from the
+TSDoc comments of the source by [TypeDoc](https://typedoc.org) each time the site is built, so it
+always describes the code the site was built from. Members marked `@internal` are not part of it.
+
+The [guides](../guides/concepts/) explain how the pieces fit together; this section is where to
+look up a name, a signature or a field.
+
+## Packages
+
+The reference is grouped by package. Each package has one page per entry point of its `exports`,
+which lists everything that entry exports, and one page per export.
+
+<CardGrid>
+  <LinkCard
+    title="@ganttlane/core"
+    description="The headless core: createGanttCore, the data model, dates, the work calendar, scheduling, layout and the building blocks."
+    href="ganttlane/core/"
+  />
+  <LinkCard
+    title="@ganttlane/dom"
+    description="createGantt and the vanilla DOM renderer: options, strings, display, tooltips and the layers."
+    href="ganttlane/dom/"
+  />
+  <LinkCard
+    title="@ganttlane/react"
+    description="The Gantt component, the useGantt and useGanttState hooks, the ref handle and the slots."
+    href="ganttlane/react/"
+  />
+</CardGrid>
+
+| Import                     | Entry                                                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------- |
+| `@ganttlane/core`          | [The core](ganttlane/core/)                                                                    |
+| `@ganttlane/dom`           | [`createGantt`, `Gantt`, the options and the renderer](ganttlane/dom/)                         |
+| `@ganttlane/dom/facade`    | [`createChart`: the part of `createGantt` that needs no DOM](ganttlane/dom/facade/)            |
+| `@ganttlane/dom/dom-utils` | [Helpers shared by renderers: listeners, positioning, pointer input](ganttlane/dom/dom-utils/) |
+| `@ganttlane/react`         | [`Gantt`, `useGantt`, `useGanttState` and their types](ganttlane/react/)                       |
+| `@ganttlane/react/core`    | [`patchTasks` and the types, without the client directive](ganttlane/react/core/)              |
+
+`@ganttlane/dom` and `@ganttlane/react` re-export the types of the core that you meet around a
+chart (`Task`, `Link`, `TaskRecord`, `ChangeSet`, ...). In the reference, a re-export links to the
+page where the type is defined, which is the core's.
+
+## Where to start
+
+<CardGrid>
+  <LinkCard
+    title="createGantt"
+    description="Draw a chart into an element. The vanilla entry point."
+    href="ganttlane/dom/functions/creategantt/"
+  />
+  <LinkCard
+    title="Gantt (vanilla)"
+    description="What createGantt returns: every method of a chart."
+    href="ganttlane/dom/interfaces/gantt/"
+  />
+  <LinkCard
+    title="GanttCore"
+    description="The headless core: state, edits, scrolling, events."
+    href="ganttlane/core/interfaces/ganttcore/"
+  />
+  <LinkCard
+    title="createGanttCore"
+    description="Make a core, to write a renderer or to schedule without a DOM."
+    href="ganttlane/core/functions/createganttcore/"
+  />
+  <LinkCard
+    title="Gantt (React)"
+    description="The component, with its props."
+    href="ganttlane/react/variables/gantt/"
+  />
+  <LinkCard
+    title="useGantt"
+    description="The hook behind the component."
+    href="ganttlane/react/functions/usegantt/"
+  />
+</CardGrid>
+
+## How to read a page
+
+- **Pages are by kind.** In a package's sidebar group the pages are listed under Functions,
+  Interfaces, Type Aliases and Variables. A type that is an object shape, such as an options or a
+  payload type, is an interface or a type alias; a React component is a variable.
+- **Type parameters.** `TData` is the type of `task.data`. It flows from the options to every
+  handler and result, so a chart made with `createGantt<MyData>(...)` hands you `MyData` back.
+- **Defaults** are in the description of a field (for example "Default `'today'`"); the
+  [Options guide](../guides/options/) has them in tables, by group.
+- **Defined in** at the top of a page links to the source file on GitHub.
+
+<Aside type="note" title="Where the guides are better">
+  The reference documents each name on its own. For how things work together, start with the
+  [concepts](../guides/concepts/); for the full list of options, events and methods with their
+  results, see [Options](../guides/options/), [Events](../guides/events/) and
+  [Methods](../guides/methods/).
 </Aside>

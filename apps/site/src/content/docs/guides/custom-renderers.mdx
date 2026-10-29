@@ -1,0 +1,665 @@
+---
+title: Custom renderers
+description: Use @ganttlane/core on its own to draw the chart with a renderer of your own, and the pieces of @ganttlane/dom that bindings for other frameworks reuse.
+---
+
+`@ganttlane/core` is the whole chart without a page: dates, the work calendar, the time scale,
+scheduling and propagation, hierarchy, layout, the interaction state machines, edit sessions and undo
+history. It has no DOM, no globals and no timers, so it runs in Node, in a worker and in a browser.
+`@ganttlane/dom` and `@ganttlane/react` are built on it.
+
+Use the core directly when you want to **write a renderer** (a canvas, a native toolkit, another
+framework), **schedule on a server** (validate tasks, work out dates through links and calendars,
+turn a `ChangeSet` into your own records), or **test business rules** without a browser. For a chart
+in a page, install [`@ganttlane/dom`](../../getting-started/installation/) or
+[`@ganttlane/react`](../react/) instead; both re-export the types you need.
+
+This guide is about the first case: what the core gives a renderer, what a renderer owes the core, a
+complete renderer in one short file, the two builds of the core, and the pieces of `@ganttlane/dom`
+that a binding for another framework builds on.
+
+## The core on its own
+
+```ts
+import { createGanttCore } from '@ganttlane/core';
+
+const core = createGanttCore({
+  tasks: [
+    { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06' },
+    { id: 'build', name: 'Build', start: '2026-03-09', duration: 10 },
+  ],
+  links: [{ source: 'design', target: 'build' }],
+  viewMode: 'week',
+  onTasksChange: (changeSet) => console.log(changeSet.reason),
+});
+
+const result = await core.updateTask('design', { start: '2026-03-03' });
+console.log(result.status); // 'committed'
+core.destroy();
+```
+
+[`createGanttCore(options)`](../../api/ganttlane/core/functions/createganttcore/) returns a
+[`GanttCore`](../../api/ganttlane/core/interfaces/ganttcore/). Its members are plain functions that
+need no `this`, so `const { getTask } = core` works. The options are the core's half of the
+[Options guide](../options/): the data, the rules, the view, `layout`, `timeline`, `scroll`,
+`editing`, `history`, `interaction`, and the `on<Event>` handlers. Keys the core does not know are
+ignored, so a renderer can pass its own options object whole.
+
+Most members are the methods of the vanilla chart, with the same behaviour: data (`setTasks`,
+`updateTask`, `addLink`, ...), `setOptions`, the view and scrolling (`setViewMode`, `zoomTo`,
+`scrollTo*`), rows, selection, the edit session, history, queries (`getTask`, `getBarRect`, ...) and
+`on`. See the [Methods guide](../methods/). After `destroy()` the commands do nothing and the queries
+keep answering from the last state. The members that are for renderers are `setViewport`, `scroll`,
+`send`, `refreshNow`, `getSnapshot` and `subscribe`, and the rest of this page is about them.
+
+## What a renderer does
+
+A renderer has four jobs:
+
+1. **Tell the core how big it is,** with `setViewport`. The first non-zero width mounts the chart.
+2. **Draw the snapshot,** with `getSnapshot` each time `subscribe` says it changed.
+3. **Perform the scrolls the core asks for,** the scroll requests, and report the position back with
+   `scroll`.
+4. **Send input,** pointer and key events, with `send`.
+
+Plus one timer: **read the clock** once a minute with `refreshNow`, so the today line follows
+`snapshot.now`.
+
+The core never touches a scroller or a pointer: everything it wants done is a value you read, and
+everything it wants to know is a call you make. `setViewport`, `scroll`, `send` and `refreshNow`
+finish their change before they return and never throw because a handler of the application threw;
+those errors go to the `error` event, or to the host's unhandled-rejection channel.
+
+## The snapshot
+
+[`getSnapshot()`](../../api/ganttlane/core/interfaces/ganttsnapshot/) returns the view-model to
+draw. It is memoized: a new object only when something in it changed, and its parts keep their
+identity while their inputs do. That makes `snapshot.layout === previous.layout` a valid "nothing to
+do" check, and it is the contract of React's `useSyncExternalStore(core.subscribe, core.getSnapshot)`.
+
+| Field            | What it is, and what a renderer does with it                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `state`          | The data: `tasks`, `links`, `derived.model` (normalized tasks), `derived.rows`, `derived.graph`, `draft`, `session` |
+| `viewMode`       | The view mode in use: the header rows and the grid come from it                                                     |
+| `timeline`       | `range`, `scale` (date to x), `scrollLeft` and `viewportWidth`                                                      |
+| `contentWidth`   | Width of the scrolled content in px: size your scroll content to it                                                 |
+| `scrollTop`      | The vertical scroll offset, in body px                                                                              |
+| `viewportHeight` | Height of the viewport, header included                                                                             |
+| `header`         | The input of `headerRows` and `gridLines`: the scale, the calendar adapter and the locale                           |
+| `layoutOptions`  | Row, bar and header row sizes in use                                                                                |
+| `layout`         | Row metrics and bar geometry, with the dragged draft already laid over the data                                     |
+| `window`         | What to draw: rows `firstRow` to `lastRow` and the time `start` to `end`, overscan included                         |
+| `selection`      | `tasks` (selected ids) and `link` (the selected link id)                                                            |
+| `feedback`       | The cursor, the hovered target, the values of a dragged task (`patch`) and the link preview                         |
+| `editing`        | Which gestures the UI allows; with a task's permissions it decides which handles to draw                            |
+| `handles`        | The handle sizes in use: the hit test and the drawing share them                                                    |
+| `now`            | "Now", to the minute, as floating time: the today line is at `scale.dateToX(now)`                                   |
+| `autoScroll`     | The drag autoscroll velocity in px per 60 Hz frame; `0` when none                                                   |
+| `busy`           | A commit waits for a before-hook, or controlled data waits for `setTasks`; no gesture starts meanwhile              |
+| `scrollRequest`  | The latest scroll request: see [Scroll requests](#scroll-requests)                                                  |
+
+All coordinates are pixels. Bars are in **body pixels**: `y = 0` is the top of the first row, and
+`x` is on the time scale, where `x = 0` is the left edge of the scrolled content. For content pixels
+of the scroller, add `layout.rows.headerHeight` to a `y`. Dates inside the core are floating
+wall-clock numbers: use `toDate` to get a `Date`, or `core.getTask(id)`, which returns a `TaskRecord`
+with `Date`s.
+
+Drawing a frame from a snapshot takes a handful of building blocks, all pure functions (see
+[Building blocks](#building-blocks)):
+
+- **Header cells:** [`headerRows`](../../api/ganttlane/core/functions/headerrows/) takes the
+  snapshot's `viewMode`, `window` and `header`, and gives one lazy list of cells per header row, each
+  with `x`, `width` and `label`.
+- **Grid lines:** [`gridLines`](../../api/ganttlane/core/functions/gridlines/) takes the same three.
+- **Rows:** `snapshot.layout.rows` has `rows`, `rowHeight`, `headerRowHeights` and `bodyHeight`.
+- **Bars:** [`barsInWindow`](../../api/ganttlane/core/functions/barsinwindow/) takes the snapshot's
+  `window` and `layout` and gives a `BarGeometry` for each bar in the window: `x`, `y`, `width`,
+  `height`, `radius`, `progressWidth` and `kind` (`'bar'` or `'milestone'`).
+- **Links:** `snapshot.state.derived.graph.links` lists the links;
+  [`routeLink`](../../api/ganttlane/core/functions/routelink/) turns a link type and the two bars into
+  an SVG path and an arrowhead.
+- **Handles:** [`barHandles`](../../api/ganttlane/core/functions/barhandles/) gives the boxes of a bar
+  (with `snapshot.handles`), and
+  [`resolvePermissions`](../../api/ganttlane/core/functions/resolvepermissions/) says which of them
+  the task allows (with `snapshot.editing`).
+
+### Subscribing, and the events
+
+`subscribe(listener)` calls `listener` after every change of the snapshot and returns a function that
+stops it. That is the signal to draw. The listener takes no arguments: read `getSnapshot()` in it,
+ideally to schedule one draw per animation frame, since several changes can come in a frame.
+`state.lastDataChange` lists the task and link ids of the last new model; a renderer that drew
+`version - 1` can apply it, and any other redraws everything.
+
+The events (`tasksChange`, `taskClick`, `rangeChange`, `scroll`, ...) are for the application, with the
+[payloads of the Events guide](../events/). A renderer rarely needs them.
+
+## Reporting size and scroll
+
+```ts
+const request = core.setViewport({ width: scroller.clientWidth, height: scroller.clientHeight });
+```
+
+[`setViewport(size)`](../../api/ganttlane/core/interfaces/viewportsize/) takes the size of the
+scroller in CSS px, header included, from a `ResizeObserver`. The first non-zero width mounts the
+timeline and applies `scroll.initial`, which is returned as the first scroll request and is also in
+the snapshot.
+
+[`scroll({ left, top })`](../../api/ganttlane/core/interfaces/scrollposition/) reports the scroller's
+position: `left` is its `scrollLeft`, and `top` the body y at the bottom of the sticky header, which
+is its `scrollTop` when the header sticks inside it. Call it from every scroll event, once per
+frame at most. A gesture in progress is told that the timeline moved,
+so a dragged bar stays under the still pointer; you do not send that event yourself. With
+`timeline.infinite` the call may return a
+[`ViewportChange`](../../api/ganttlane/core/interfaces/viewportchange/): the range grew or shrank at
+its start. Apply it in the same frame, `scroller.scrollLeft += change.shift`, with the content sized
+to the snapshot's new `contentWidth`, so the date under the left edge does not move.
+
+`refreshNow()` reads "now" again (the `now` option, else the system clock) and publishes a new
+snapshot only when the minute changed. Call it from one timer aligned to the next minute:
+
+```ts
+let timer: ReturnType<typeof setTimeout>;
+const tick = (): void => {
+  core.refreshNow();
+  timer = setTimeout(tick, 60_000 - (Date.now() % 60_000));
+};
+timer = setTimeout(tick, 60_000 - (Date.now() % 60_000));
+// On teardown: clearTimeout(timer).
+```
+
+## Scroll requests
+
+The core cannot touch a scroller, so every scroll it wants is a **request**:
+[`ScrollRequest`](../../api/ganttlane/core/interfaces/scrollrequest/).
+
+| Field      | Meaning                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| `id`       | Grows by one with every request of the core                                                        |
+| `reason`   | `'initial'`, `'scroll-to'`, `'view-mode'`, `'zoom'`, `'data'`, `'options'`, `'resize'` or `'drag'` |
+| `from`     | An offset to jump to **instantly** first, or `undefined` to start from where the scroller is       |
+| `left`     | The horizontal offset to scroll to, in content px; `undefined` keeps the axis                      |
+| `top`      | The vertical offset to scroll to, in body px; `undefined` keeps the axis                           |
+| `behavior` | `'smooth'`, `'instant'` or `'auto'`                                                                |
+
+Requests are returned by `setViewMode`, `zoomTo`, `scrollToDate`, `scrollToToday`, `scrollToTask` and
+`setViewport`, and the latest is kept in the snapshot as `scrollRequest`, so a renderer also sees the
+requests of calls it did not make (the application's `scrollToTask`, a data change). The contract:
+
+1. **Perform each `id` once,** in the frame that draws its snapshot: compare `request.id` with the last
+   one you applied.
+2. **Size the content first.** The values are in the pixels of the snapshot that carries the request,
+   so set the width of the scrolled content to `contentWidth` before you scroll.
+3. If `from` is set, **jump there instantly,** then scroll to `left` and `top` with `behavior`. A
+   missing `left` or `top` keeps its axis.
+4. **Report the result** with `scroll()`, as you do for every scroll.
+
+Values are absolute and already account for earlier requests, so skipping a superseded request loses
+nothing. A `scrollTo*` made before the viewport has a width is remembered, the latest wins, and it
+replaces `scroll.initial` when the chart mounts.
+
+## Sending input
+
+```ts
+core.send({ type: 'down', pointerId: 1, x: 640, y: 24, time: performance.now() });
+```
+
+[`send(event)`](../../api/ganttlane/core/type-aliases/interactionevent/) feeds the interaction state
+machines (move, resize, progress and link creation) and applies the previews, the commits, the links
+and the range growth itself. The events, in **content coordinates**:
+
+| Event                                | Fields                                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `PointerInput`: `down`, `move`, `up` | `pointerId`, `x`, `y`, `time`; optional `button`, `pointerType`, `isPrimary`, `modifiers`, `target`, `event`         |
+| `KeyInput`: `key`                    | `key` (a `KeyboardEvent.key`), optional `modifiers`; `'Escape'` cancels a gesture and any key re-reads the modifiers |
+| `CancelInput`: `cancel`              | Optional `pointerId`: the pointer was cancelled or lost, so its gesture is rolled back                               |
+| `TimelineInput`: `timeline`          | The timeline moved under a still pointer; `core.scroll` already does this for you                                    |
+
+- **Coordinates.** `x` is on the time scale, `x = clientX - scrollerLeft + scrollLeft`, and `y` is in
+  body pixels, `y = clientY - scrollerTop + scrollTop - headerHeight`.
+- **`time`** is `event.timeStamp`; it decides double clicks. `button` defaults to `0`, and any other
+  button is ignored. Touch uses its own drag threshold: pass `pointerType`.
+- **`target`** is what you know is under the pointer: a
+  [`HitTarget`](../../api/ganttlane/core/type-aliases/hittarget/) of kind `'task'` (with a `part`:
+  `'body'`, `'resize-start'`, `'resize-end'`, `'progress'`, `'link-start'`, `'link-end'`), `'link'` or
+  `'empty'`. Leave it out and the machine hit-tests the layout, with the same permissions and handle
+  sizes as the snapshot. A **link** is never found that way, so a renderer that draws links passes
+  `{ kind: 'link', id }` for a press on one.
+- **`event`** is your own event; it comes back in `taskClick`, `linkClick` and the like.
+
+The machine runs one [`GestureKind`](../../api/ganttlane/core/type-aliases/gesturekind/) at a time:
+`'move'`, `'resize-start'`, `'resize-end'`, `'progress'` or `'link-create'`. `send` returns the
+[`RendererEffect`](../../api/ganttlane/core/type-aliases/renderereffect/)s left to you: `autoscroll`
+(a velocity to add to `scrollLeft` every frame while a drag is near an edge), `link-preview` (the
+line to draw while a link is dragged) and `feedback` (the cursor, hover and dragged values). All
+three are also in the snapshot (`autoScroll`, `feedback`), so a renderer that draws from the snapshot
+can ignore the return value. Clicks, hovers and commits are not effects: they are events.
+
+Drags keep their date under the pointer through autoscroll, range growth and zoom, because the state
+machine anchors in time, not in pixels.
+
+## Building blocks
+
+Everything `createGanttCore` is made of is exported, so you can use a part on its own. Each is a plain
+function over plain values, with no hidden state.
+
+| Area      | Exports                                                                                                                                                                                                                                |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Time      | `parseDateInput`, `parseDuration`, `parseGranularity`: strict parsers that never throw. `toDate`, `toDayKey`, `fromDayKey`. `alignFloor`, `alignCeil`, `alignNearest`, `isAligned`. `createFloatingAdapter`, the default `DateAdapter` |
+| Calendar  | `createWorkCalendar`: the work calendar as a function (`explain`, `countDays`, `addWorkingDays`, ...)                                                                                                                                  |
+| Scale     | `createTimeScale` (`dateToX`, `xToDate`), `resolveViewModes`, `VIEW_MODE_PRESETS`, `headerRows`, `headerCells`, `gridLines`, `currentCell`, `resolveSnap`, `snapTime`, `clampResize`                                                   |
+| Model     | `normalizeModel`, `patchTask`, `patchTasks`: tasks to models, and a change set back into your own tasks                                                                                                                                |
+| Hierarchy | `buildHierarchy`, `visibleRows`, `expandAll`, `collapseAll`, `setExpanded`, `toggleExpanded`                                                                                                                                           |
+| Schedule  | `buildLinkGraph`, `topoSort`, `wouldCreateCycle`, `propagate`, `detectConflicts`, `applyChangeSet`, `revalidateChangeSet`                                                                                                              |
+| Progress  | `progressToDate`, `dateToProgress`, `progressFromDate`, `rebaseProgress`                                                                                                                                                               |
+| Layout    | `layoutRows`, `createLayout`, `barGeometry`, `placeLabel`, `visibleWindow`, `barsInWindow`, `routeLink`, `linkBBox`                                                                                                                    |
+| Viewport  | `resolveRange`, `planExtension`, `planScrollTo`, `scrollToTask`, `keepAnchor`, `rebaseTimeline`                                                                                                                                        |
+| Input     | `createInteraction`, `hitTest`, `barHandles`, `resolvePermissions`, `INTERACTION_DEFAULTS`                                                                                                                                             |
+| State     | `createStore`, `createEmitter`, `createHooks`, `createChangeController`, `createEditSession`, `createChangeHistory`                                                                                                                    |
+
+The ones a renderer reaches for, with a line each:
+
+- [`createTimeScale`](../../api/ganttlane/core/functions/createtimescale/)`({ origin, pxPerDay })`: the
+  linear mapping between a date and an x (`dateToX`, `xToDate`).
+- `visibleWindow(viewport, rows, scale)`: the rows and the time to draw for a scroller. The
+  snapshot's `window` is this.
+- `layoutRows`, `createLayout` and `barGeometry`: the row metrics, the index from row to bar, and the
+  box of one bar.
+- `placeLabel(bar, labelWidth, mode)`: where a bar's label goes, inside or beside the bar.
+- `hitTest`: what lies under a point: a row, a part of a bar, a handle.
+- `currentCell`: the header cell under a position, for a label that stays in view.
+- `planScrollTo`, `planExtension`, `keepAnchor` and `rebaseTimeline`: the viewport maths behind scroll
+  requests and the infinite timeline.
+- `createInteraction`: the state machine behind `send`, for a renderer that wants no facade.
+- [`propagate`](../../api/ganttlane/core/functions/propagate/),
+  [`createWorkCalendar`](../../api/ganttlane/core/functions/createworkcalendar/) and
+  [`patchTasks`](../../api/ganttlane/core/functions/patchtasks/): scheduling with no chart at all.
+  `propagate` moves a task and returns the `ChangeSet` of everything that follows, and `patchTasks`
+  writes it into your own tasks.
+
+A calendar, a time scale and a propagation used together are in the
+[core README](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#building-blocks).
+
+## A minimal renderer
+
+This renderer draws the header and the bars of a chart into plain DOM elements, performs scroll
+requests, and sends pointer input back, so a bar can be dragged. The data and the core are created by
+the caller:
+
+```ts title="main.ts"
+import { createGanttCore } from '@ganttlane/core';
+
+import { mountBars } from './renderer';
+
+const scroller = document.querySelector<HTMLElement>('#chart');
+if (!scroller) throw new Error('#chart not found');
+
+const core = createGanttCore({
+  tasks: [
+    { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06', progress: 60 },
+    { id: 'build', name: 'Build', start: '2026-03-09', end: '2026-03-20' },
+  ],
+  links: [{ source: 'design', target: 'build' }],
+  viewMode: 'week',
+  scroll: { initial: 'first-task' },
+  // Only the drag of a whole bar is drawn here, so only that is on.
+  editing: { move: true, resize: false, progress: false, links: false },
+  onTasksChange: (changeSet) => {
+    console.log(changeSet.reason, changeSet.changes.length);
+  },
+});
+
+const stop = mountBars(scroller, core);
+// Later: stop(); core.destroy();
+```
+
+```html
+<div id="chart" style="height: 360px"></div>
+```
+
+```ts title="renderer.ts"
+import {
+  barsInWindow,
+  type GanttCore,
+  type GanttSnapshot,
+  headerRows,
+  type PointerInput,
+  type ScrollRequest,
+} from '@ganttlane/core';
+
+export function mountBars(scroller: HTMLElement, core: GanttCore): () => void {
+  // The scroller holds a sticky header and the body, both as wide as the content.
+  const content = document.createElement('div');
+  const header = document.createElement('div');
+  const body = document.createElement('div');
+  scroller.style.overflow = 'auto';
+  content.style.position = 'relative';
+  header.style.cssText = 'position: sticky; top: 0; z-index: 1; background: #f5f6f8';
+  body.style.position = 'relative';
+  content.append(header, body);
+  scroller.append(content);
+
+  const controller = new AbortController();
+  const { signal } = controller;
+  let appliedRequest = 0;
+
+  function perform(request: ScrollRequest): void {
+    // `from` first, instantly; then the target, with the request's behaviour.
+    if (request.from !== undefined) scroller.scrollLeft = request.from;
+    const target: ScrollToOptions = { behavior: request.behavior };
+    if (request.left !== undefined) target.left = request.left;
+    if (request.top !== undefined) target.top = request.top;
+    scroller.scrollTo(target);
+  }
+
+  function draw(snapshot: GanttSnapshot): void {
+    const { rows } = snapshot.layout;
+
+    // Size the content first: a scroll request is in these pixels.
+    content.style.width = `${snapshot.contentWidth}px`;
+    header.style.height = `${rows.headerHeight}px`;
+    body.style.height = `${rows.bodyHeight}px`;
+
+    // 1. Perform a scroll request once, in the frame that draws its snapshot.
+    const request = snapshot.scrollRequest;
+    if (request !== undefined && request.id > appliedRequest) {
+      appliedRequest = request.id;
+      perform(request);
+    }
+
+    // 2. The header: the cells of the window, one row of cells per header row.
+    const cells: HTMLElement[] = [];
+    let top = 0;
+    const headers = headerRows(snapshot.viewMode, snapshot.window, snapshot.header);
+    for (const [index, row] of headers.entries()) {
+      const height = rows.headerRowHeights[index] ?? 0;
+      for (const cell of row) {
+        const element = document.createElement('div');
+        element.textContent = cell.label;
+        element.style.cssText = `position: absolute; left: ${cell.x}px; top: ${top}px; width: ${cell.width}px; height: ${height}px; box-sizing: border-box; border-left: 1px solid #d3d9e1; overflow: hidden`;
+        cells.push(element);
+      }
+      top += height;
+    }
+    header.replaceChildren(...cells);
+
+    // 3. The bars: only the window, with the dragged draft already laid over the data.
+    const bars = barsInWindow(snapshot.window, snapshot.layout).map((bar) => {
+      const element = document.createElement('div');
+      element.dataset['taskId'] = String(bar.id);
+      element.textContent = core.getTask(bar.id)?.name ?? '';
+      element.style.cssText = `position: absolute; left: ${bar.x}px; top: ${bar.y}px; width: ${bar.width}px; height: ${bar.height}px; border-radius: ${bar.radius}px; background: #3f6fd1; color: #fff; overflow: hidden`;
+      const done = document.createElement('div');
+      done.style.cssText = `position: absolute; inset: 0 auto 0 0; width: ${bar.progressWidth}px; background: rgb(0 0 0 / 30%)`;
+      element.prepend(done);
+      return element;
+    });
+    body.replaceChildren(...bars);
+
+    scroller.style.cursor = snapshot.feedback.cursor;
+  }
+
+  // The core publishes a new snapshot when something changed: draw it.
+  const unsubscribe = core.subscribe(() => {
+    draw(core.getSnapshot());
+  });
+
+  // Tell the core how big the scroller is. The first non-zero width mounts the chart.
+  const resize = (): void => {
+    core.setViewport({ width: scroller.clientWidth, height: scroller.clientHeight });
+  };
+  const observer = new ResizeObserver(resize);
+  observer.observe(scroller);
+  resize();
+
+  // Report the scroll position (the browser fires `scroll` once per frame at most).
+  scroller.addEventListener(
+    'scroll',
+    () => {
+      const change = core.scroll({ left: scroller.scrollLeft, top: scroller.scrollTop });
+      // Only with `timeline.infinite`: the content grew at its start, keep the date in place.
+      if (change !== undefined) scroller.scrollLeft += change.shift;
+    },
+    { signal },
+  );
+
+  // Pointer input, in content coordinates: x on the time scale, y below the header.
+  const send = (type: PointerInput['type'], event: PointerEvent): void => {
+    const box = scroller.getBoundingClientRect();
+    core.send({
+      type,
+      pointerId: event.pointerId,
+      x: event.clientX - box.left + scroller.scrollLeft,
+      y: event.clientY - box.top + scroller.scrollTop - core.getSnapshot().layout.rows.headerHeight,
+      time: event.timeStamp,
+      button: event.button,
+      pointerType: event.pointerType,
+      isPrimary: event.isPrimary,
+      event,
+    });
+  };
+  scroller.addEventListener(
+    'pointerdown',
+    (event) => {
+      scroller.setPointerCapture(event.pointerId);
+      send('down', event);
+    },
+    { signal },
+  );
+  scroller.addEventListener('pointermove', (event) => void send('move', event), { signal });
+  scroller.addEventListener('pointerup', (event) => void send('up', event), { signal });
+  scroller.addEventListener(
+    'pointercancel',
+    (event) => void core.send({ type: 'cancel', pointerId: event.pointerId }),
+    { signal },
+  );
+
+  draw(core.getSnapshot());
+
+  // Leave nothing behind. The core is the caller's: it is not destroyed here.
+  return () => {
+    controller.abort();
+    observer.disconnect();
+    unsubscribe();
+    content.remove();
+  };
+}
+```
+
+What it does:
+
+- **Size and scroll.** A `ResizeObserver` feeds `setViewport`; the first width mounts the chart, and
+  the initial scroll request (`first-task`) arrives through the snapshot. The `scroll` listener
+  reports the position back, and `perform` follows the contract above.
+- **Drawing.** `draw` runs on every snapshot. It sizes the content, performs a pending request, and
+  rebuilds the header cells and the bars of the window. Rebuilding is the simplest thing that works;
+  the stock renderer reconciles by key and touches only what changed, and draws once per animation
+  frame instead of once per snapshot.
+- **Dragging.** A press on a bar and moves of the pointer become `down`, `move` and `up`. The snapshot
+  already has the dragged bar at its previewed place, so nothing here moves it; the `up` commits the
+  change, and `onTasksChange` hears one `ChangeSet` with the dragged task and the tasks that followed
+  it along the link.
+
+What it leaves out is what makes the stock renderer long: link arrows (`routeLink`, with
+`{ kind: 'link', id }` targets), the handles of a bar (`barHandles`), labels outside narrow bars, grid
+lines, the today line (`scale.dateToX(snapshot.now)`), non-working days, the link preview, popovers,
+drag autoscroll (`snapshot.autoScroll` with `createAutoScroller` from `@ganttlane/dom/dom-utils`),
+touch handling (`touch-action: none` on bars that can move), and keyboard and accessibility semantics.
+
+The [playground](https://github.com/ganttlane/ganttlane#the-playground) runs the stock renderer on the
+same core, and is the better reference for everything the minimal renderer omits.
+
+## Development and production builds
+
+`@ganttlane/core` ships two builds of the same code. They report the same issues (`code`, `severity`,
+`path`, `value`, `suggested` and the ids) and behave identically. **No extra check runs in the
+development build:** the difference is the `message` of an issue.
+
+| Build       | File                        | Export condition | Issue `message`                                                 |
+| ----------- | --------------------------- | ---------------- | --------------------------------------------------------------- |
+| Production  | `dist/index.js`             | `default`        | Short: `'<path>: <code>'`                                       |
+| Development | `dist/index.development.js` | `development`    | A full English explanation, with the offending value and a hint |
+
+The explanatory texts exist only in the development build: the bundler folds a build-time constant
+(`__GANTTLANE_DEV__`), so the production build has none of them. The development build is about 4 kB
+gzipped larger. Branch on `code` and `path`, never on `message`.
+
+Vite and webpack choose the `development` condition in development mode on their own. This is why
+`@ganttlane/dom` and `@ganttlane/react` give you readable issues while you build and short ones in
+production, although neither has a development build of its own (the issues of the renderer's own
+options are always short). Elsewhere, opt in explicitly:
+
+```ts title="vite.config.ts"
+import { defaultClientConditions, defineConfig } from 'vite';
+
+// Readable issue messages in a production build, for a staging site.
+export default defineConfig({
+  resolve: { conditions: ['development', ...defaultClientConditions] },
+});
+```
+
+```sh
+node --conditions=development server.js
+esbuild app.ts --bundle --conditions=development
+```
+
+Other tools: `@rollup/plugin-node-resolve` takes `exportConditions: ['development']`, and Jest takes
+`testEnvironmentOptions.customExportConditions`.
+
+`@ganttlane/react` has development warnings of its own (a controlled and uncontrolled switch, a
+missing `onTasksChange`), switched by `process.env.NODE_ENV` as React's are; see the
+[React guide](../react/#how-props-reach-the-chart).
+
+## For bindings of other frameworks
+
+### createChart
+
+`@ganttlane/dom/facade` is the part of `createGantt` that needs no DOM.
+[`createChart(options)`](../../api/ganttlane/dom/facade/functions/createchart/) makes the same chart,
+with the same routing of the options to the core and the renderer, the same validation and the one
+list of issues, but draws nothing and touches no DOM. `chart.gantt.core.getSnapshot()` already
+answers, also on a server. It is what `@ganttlane/react` is built on, and what a binding for Vue,
+Svelte or a web component needs.
+
+```ts
+import { createChart } from '@ganttlane/dom/facade';
+
+const chart = createChart({ tasks, viewMode: 'week' });
+chart.gantt.setOptions({ theme: 'dark' }); // kept until the chart is mounted
+chart.mount(element); // draws the renderer into an empty element with a height
+chart.unmount(); // removes the renderer; the core and its state stay
+chart.mount(other); // draws it again, with whatever setOptions changed meanwhile
+chart.gantt.destroy(); // ends the renderer and the core
+```
+
+A [`GanttChart`](../../api/ganttlane/dom/facade/interfaces/ganttchart/) has `gantt` (the object
+`createGantt` returns), `mount` and `unmount`. `createGantt(container, options)` is
+`createChart(options, container).gantt`. Application code uses `createGantt`.
+
+### mountRenderer and layers
+
+[`mountRenderer(container, core, options)`](../../api/ganttlane/dom/functions/mountrenderer/) is the
+stock renderer alone, for a core you create and share yourself. It takes the renderer's options
+(`theme`, `strings`, `height`, `display`, `idPrefix`, `layers`, `frames`), returns an object with
+`destroy`, `setDisplay`, `setStrings`, `setHeight`, `setTheme` and `hideTooltip`, and leaves the core
+alone on `destroy()`. Several renderers can share a page, and even a core.
+
+The renderer is made of six layers (`header`, `grid`, `links`, `bars`, `overlay`, `popover`), each
+owning one element of the skeleton. The `layers` option of `mountRenderer`, and `renderer.layers` of
+`createGantt` (at creation only), replace built-in layers by name with a
+[`RendererLayer`](../../api/ganttlane/dom/interfaces/rendererlayer/): `mount(context)`,
+`update(snapshot, previous)` and `destroy()`.
+
+```ts
+import { barsInWindow } from '@ganttlane/core';
+import { createGantt, type RendererLayer } from '@ganttlane/dom';
+
+// A bars layer of your own: it owns `g.gantt__bars` and nothing else.
+function createDotsLayer(): RendererLayer<SVGGElement> {
+  let root: SVGGElement | undefined;
+  return {
+    mount: (context) => {
+      root = context.root; // a layer adds nodes below its root and nowhere else
+    },
+    update: (snapshot) => {
+      // Draw from the snapshot, and read no layout here.
+      const dots = barsInWindow(snapshot.window, snapshot.layout).map((bar) => {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('class', 'gantt__bar');
+        dot.setAttribute('data-task-id', String(bar.id));
+        dot.setAttribute('cx', String(bar.x));
+        dot.setAttribute('cy', String(bar.y + bar.height / 2));
+        dot.setAttribute('r', '6');
+        return dot;
+      });
+      root?.replaceChildren(...dots);
+    },
+    destroy: () => {
+      root?.replaceChildren();
+    },
+  };
+}
+
+createGantt(container, { tasks, renderer: { layers: { bars: createDotsLayer } } });
+```
+
+The [`LayerContext`](../../api/ganttlane/dom/interfaces/layercontext/) has, among other things, the
+root element, the scroller, the `display` and `strings` in use, an `AbortSignal` that ends with the
+chart (give every listener this signal), `send` to the core, `on`, `getTask` and `getLink`.
+
+A layer replaces what it draws, and whatever relies on that. The renderer's pointer input finds the
+bar under the pointer through the class `gantt__bar` and the `data-task-id` of the
+[unstyled contract](../theming/#the-unstyled-contract), and falls back to hit-testing the layout when
+the DOM cannot tell, so a `bars` layer of your own should keep both.
+
+### dom-utils
+
+`@ganttlane/dom/dom-utils` holds the helpers the renderer and other renderers share. None knows the
+layers or the core.
+
+| Helpers                                                                                               | What they do                                                                                                                |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `createDisposables`, `listen`                                                                         | A bag of cleanups released newest first; a listener owned by an `AbortSignal` (the signal is required)                      |
+| `observeSize`, `measureSize`                                                                          | A `ResizeObserver` that reports the content size (equal sizes once); a one-off measure                                      |
+| `allocateIdPrefix`, `prefixedId`, `DEFAULT_ID_BASE`                                                   | Unique element ids per document and instance                                                                                |
+| `measureFrame`, `pointerInput`, `keyInput`, `hitTargetOf`, `pointerOnScrollbar`, `pointerOutsideBody` | The Pointer Events adapter: DOM events to the core's `PointerInput` and `KeyInput`, targets read from the unstyled contract |
+| `createAutoScroller`                                                                                  | The drag autoscroll loop: moves `scrollLeft` by `snapshot.autoScroll` each frame                                            |
+| `placePopover`, `pointRect`, `viewportRect`, `intersectRects`, `CURSOR_SIZE`                          | Popover placement above or below an anchor, flipped and shifted into bounds; pure                                           |
+| `scrollByInstant`, `scrollHostOf`, `measureHost`, `observeHostSize`, `forwardScroll`                  | Scrolling helpers, including the page host of a chart with automatic height                                                 |
+| `showsNothing`                                                                                        | The rule for markup that shows nothing (an empty tooltip)                                                                   |
+| `ROOT_CLASS`                                                                                          | The class of a chart's root element, `'gantt'`                                                                              |
+
+For a renderer in the DOM, `measureFrame` once when a press starts, then `pointerInput` for each
+event, replaces the coordinates arithmetic of the minimal renderer above and also handles a chart
+scaled by a CSS `transform`:
+
+```ts
+import { hitTargetOf, measureFrame, pointerInput } from '@ganttlane/dom/dom-utils';
+
+scroller.addEventListener('pointerdown', (event) => {
+  const frame = measureFrame(scroller, header);
+  const { timeline, scrollTop, layout } = core.getSnapshot();
+  const scroll = {
+    scrollLeft: timeline.scrollLeft,
+    scrollTop,
+    headerHeight: layout.rows.headerHeight,
+  };
+  core.send(pointerInput('down', event, frame, scroll));
+});
+```
+
+## Related
+
+- Guides: [Options](../options/), [Events](../events/), [Methods](../methods/),
+  [Change sets and hooks](../concepts/change-sets-and-hooks/),
+  [Edit sessions and history](../concepts/edit-sessions-and-history/), [React](../react/) and
+  [Theming](../theming/), whose unstyled contract is what the stock renderer's input reads.
+- No example covers custom renderers. The
+  [playground](https://github.com/ganttlane/ganttlane#the-playground) runs the stock renderer on its
+  own core, and its `/bench/` page draws large plans.
+- API reference: [`createGanttCore`](../../api/ganttlane/core/functions/createganttcore/),
+  [`GanttCore`](../../api/ganttlane/core/interfaces/ganttcore/),
+  [`GanttSnapshot`](../../api/ganttlane/core/interfaces/ganttsnapshot/) and the
+  [`@ganttlane/core` module](../../api/ganttlane/core/); the
+  [`@ganttlane/dom` module](../../api/ganttlane/dom/) and its
+  [facade](../../api/ganttlane/dom/facade/) and [dom-utils](../../api/ganttlane/dom/dom-utils/).

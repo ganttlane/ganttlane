@@ -1,21 +1,860 @@
 ---
 title: React
-description: The component, the hooks, controlled data, slots and server rendering.
+description: The Gantt component, the useGantt and useGanttState hooks, controlled state, ReactNode slots, the ref handle, and server rendering.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-<Aside title="Coming soon">
-  This guide is not written yet. The reference is the [`@ganttlane/react`
-  README](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md):
-  [props](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#props),
-  [controlled and uncontrolled
-  data](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#controlled-and-uncontrolled),
-  [hooks](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#hooks) and
-  [slots](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#slots-tooltip-link-menu-and-bar-label-as-reactnode).
+`@ganttlane/react` is a thin layer over the vanilla renderer of `@ganttlane/dom`. The chart in the
+page is the one [`createGantt`](../../api/ganttlane/dom/functions/creategantt/) draws, with the same
+DOM, classes, stylesheet, pointer input and scrolling. The package adds the React side: props for
+the options, state you can control, handlers that are never stale, `ReactNode` slots for the
+tooltip, the link menu and the bar label, a `ref` handle, and support for StrictMode, server
+rendering and hidden trees.
+
+This guide covers the component and its props, controlled and uncontrolled state, the hooks, the
+slots, the handle, and the places where React's rules meet the chart's: StrictMode, hydration,
+`<Activity>` and React 18.3 against 19.
+
+## Install
+
+```sh
+pnpm add @ganttlane/react react react-dom
+```
+
+- **React 18.3 or 19.** `react` and `react-dom` are peer dependencies (`^18.3.0 || ^19.0.0`);
+  `react-dom` is used for portals and `flushSync`. Nothing here needs an API that exists only in 19.
+- **ESM only**, with TypeScript declarations. TypeScript must resolve package `exports`
+  (`moduleResolution` of `bundler`, `node16` or `nodenext`).
+- **One install is enough.** `@ganttlane/react` depends on `@ganttlane/dom` and `@ganttlane/core`.
+  Strict pnpm lets you import only what your own `package.json` lists, so the package re-exports what
+  a React application meets: `patchTasks`, and the types of the data you give and the events you get
+  (`Task`, `Link`, `TaskRecord`, `ChangeSet`, `SessionChanges`, `Issue`, `ViewMode`,
+  `TaskTooltipContext`, `LinkMenuContext`, `BarLabelContext`, ...). For anything deeper, such as the
+  work calendar's types or the [building blocks](../custom-renderers/#building-blocks), add
+  `@ganttlane/core`, on the same version.
+- **The stylesheet is a separate import**, once per page: `@ganttlane/react/styles.css`. It is a
+  copy of `@ganttlane/dom/styles.css` that the build of this package makes byte for byte, so an app
+  that installed only `@ganttlane/react` can import it. Import one of the two, not both. See
+  [Theming](../theming/) for the tokens and the unstyled contract.
+
+## A first chart
+
+```tsx
+import '@ganttlane/react/styles.css';
+import { Gantt } from '@ganttlane/react';
+
+export function Plan() {
+  return (
+    <Gantt
+      style={{ height: 480 }}
+      defaultTasks={[
+        { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06', progress: 60 },
+        { id: 'build', name: 'Build', start: '2026-03-09', end: '2026-03-20' },
+      ]}
+      defaultLinks={[{ source: 'design', target: 'build' }]}
+      defaultViewMode="week"
+      scroll={{ initial: 'first-task' }}
+      theme="auto"
+      onTaskClick={(record) => {
+        console.log(record.id);
+      }}
+    />
+  );
+}
+```
+
+[`<Gantt>`](../../api/ganttlane/react/variables/gantt/) renders one `div` and draws the chart into
+it.
+
+- **Give the container a height**, with `style` or `className`, or give the chart its own with
+  `layout.height`. The chart fills the container and scrolls inside it.
+- **`id`, `aria-*` and `data-*` props** go to the same `div` as they are, typed as React types
+  them: `<Gantt id="plan" aria-label="Release plan" data-testid="plan" />`. They are not options of
+  the chart.
+- **`defaultTasks` and `defaultLinks`** are where an uncontrolled chart starts: it owns the data,
+  and the handlers tell you what happened. To keep the tasks in your own state, pass `tasks` instead
+  (see [Controlled and uncontrolled state](#controlled-and-uncontrolled-state)).
+- **The chart opens at today** (`scroll.initial: 'today'`), which for a plan in the past or the
+  future is the nearest end of its range. Use `'first-task'` or `'start'` for a fixed plan.
+- **Your props, tasks and links are never mutated.**
+
+In vanilla code the same chart is `createGantt(container, options)`, which you change with
+`gantt.setOptions(...)` and end with `gantt.destroy()`. In React the options are props, a prop that
+changes later changes the chart, and React ends the chart when the component goes.
+
+## Props
+
+Every option of `createGantt` is a prop with the same name, type and default: `calendar`,
+`scheduling`, `dates`, `layout`, `timeline`, `scroll`, `locale`, `strings`, `theme`, `display`,
+`highlights`, `tooltip`, `linkMenu`, `highlightTooltip`, `editing`, `history`, `interaction`,
+`viewModes`, `now`, `direction` and `toolbar`. So is every `on<Event>` handler, and the two
+before-hooks, `onBeforeTaskChange` and `onBeforeLinkCreate`. The full lists, with types and
+defaults, are in the [Options guide](../options/) and the [Events guide](../events/). What differs in
+React:
+
+| Prop                                           | Type                            | Meaning                                                                  |
+| ---------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------ |
+| `tasks` / `defaultTasks`                       | `Task<TData>[]`                 | The tasks: controlled / the start of an uncontrolled chart               |
+| `links` / `defaultLinks`                       | `Link[]`                        | The links, the same way                                                  |
+| `viewMode` / `defaultViewMode`                 | `string` (a view mode id)       | The view mode                                                            |
+| `expandedKeys` / `defaultExpandedKeys`         | `'all'` \| `TaskId[]`           | The expanded parents (in place of `hierarchy.expandedKeys`)              |
+| `selectedKeys` / `defaultSelectedKeys`         | `TaskId[]`                      | The selected tasks                                                       |
+| `onLinksChange`                                | `(links) => void`               | The links after one was drawn or removed                                 |
+| `renderTooltip`                                | `(context) => ReactNode`        | The tooltip of a task, as React: see [Slots](#slots)                     |
+| `renderLinkMenu`                               | `(context) => ReactNode`        | The menu a click on an arrow opens                                       |
+| `renderBarLabel`                               | `(context) => ReactNode`        | The label of a bar                                                       |
+| `hierarchy`                                    | `{ childAnchor, moveChildren }` | The `hierarchy` group without `expandedKeys`, which is a prop of its own |
+| `className`, `style`, `id`, `aria-*`, `data-*` | as React types them             | Go to the container `div`                                                |
+| `renderer`                                     | `{ idPrefix, layers, frames }`  | Read when the chart is created and never again                           |
+
+There is no `dataMode` prop: `tasks` makes the chart controlled and `defaultTasks` leaves it
+uncontrolled. The type of `task.data` is the `TData` type argument. It flows from `tasks` and
+`defaultTasks` into every handler and render function, and
+`<Gantt<Row> defaultTasks={rows} />` names it when it cannot be inferred. The full prop types are
+[`GanttProps`](../../api/ganttlane/react/type-aliases/ganttprops/),
+[`GanttControlledProps`](../../api/ganttlane/react/interfaces/ganttcontrolledprops/) and
+[`GanttSlotProps`](../../api/ganttlane/react/interfaces/ganttslotprops/).
+
+### How props reach the chart
+
+After every commit, the component works out what changed since the last one and gives `setOptions`
+exactly that. A re-render costs nothing when nothing changed, and a prop that changes costs what the
+same `setOptions` costs on the vanilla chart.
+
+- **Compared by data, not by identity.** An option written inline is the same option while its data
+  is: `calendar={{ weekends: [0, 6] }}` or `tooltip={{ delay: 300 }}` on every render sends nothing.
+  Arrays, plain objects and `Date`s are compared by their contents.
+- **Functions are compared by identity.** An option object that holds a function
+  (`tooltip.render`, `display.renderBarLabel`, `calendar.isWorkingDay`, `linkMenu.render`, `now`)
+  changes on every render unless the function is stable. Define it outside the component, or memoize
+  it:
+
+  ```tsx
+  // Module scope: the same function on every render.
+  const calendar = {
+    isWorkingDay: (day: { weekday: number }) => (day.weekday === 5 ? false : undefined),
+  };
+
+  <Gantt defaultTasks={tasks} calendar={calendar} />;
+  ```
+
+- **Groups go field by field,** the way `setOptions` merges them (`calendar`, `dates`,
+  `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`, `interaction`, `display`, `strings`).
+  `scheduling={{ snap: '1h' }}` after `{ snap: '1h', propagation: 'none' }` sends
+  `{ scheduling: { propagation: undefined } }`: `setOptions` alone would keep the old field, props do
+  not. `tooltip`, `linkMenu`, `highlightTooltip`, `editing`, `history`, `viewModes` and every list are
+  taken whole.
+- **A prop that goes away goes back to its default.** Remove `locale` and the chart is `'en'` again.
+- **`tasks` and `links` are compared by identity.** The same array again is nothing. A new array is
+  given to the core, which diffs it by id. With controlled `tasks` a new array is your answer and
+  ends a pending draft; see [Controlled tasks and drafts](#controlled-tasks-and-drafts).
+- **Handlers are always current.** The core is given one stable function per `on<Event>` prop that
+  calls the latest one, so a handler that is new on every render, or closes over state, is never
+  stale and never a `setOptions`. Giving a handler for the first time, or removing it, is the only
+  change. A before-hook is a handler too, and its answer is the core's.
+- **The first events arrive after the first commit.** What the chart emits while it is created and
+  mounted (`onIssues` for the first options, `onRangeChange` with reason `'initial'`) is held back
+  while the component renders and delivered in order once it is committed. Nothing in your
+  application is called during a render.
+- **A handler that throws never breaks the commit.** The error goes where the core sends the error of
+  a listener: to `onError` (and the listeners of `instance.on('error')`) as
+  `{ error, source: 'listener', name }`, and the other handlers still run. With nobody listening to
+  `error` it is rethrown outside the commit, to the host's unhandled-rejection channel. The same
+  holds where the core drives the chart, such as a click.
+- **The issues of the options** are one list, as on the vanilla chart: `onIssues`, and
+  `instance.getIssues()`. See [Issues](../concepts/issues/).
+
+In development (when `process.env.NODE_ENV` is not `'production'`) the package also writes a few
+`console.warn` messages, each once per chart and prefixed `[@ganttlane/react]`: a controlled or
+uncontrolled switch, controlled `tasks` with editing on and no `onTasksChange`, a new `tasks` array
+with the same content while a draft is pending, a slot that nothing draws, and both a slot prop and
+its vanilla option given.
+
+## Controlled and uncontrolled state
+
+Five groups follow the convention of React Aria (`value`, `defaultValue`, `onValueChange`):
+
+| Value prop     | Start value           | Handler                                                     |
+| -------------- | --------------------- | ----------------------------------------------------------- |
+| `tasks`        | `defaultTasks`        | `onTasksChange(changeSet)`                                  |
+| `links`        | `defaultLinks`        | `onLinksChange(links)`; also `onLinkCreate`, `onLinkDelete` |
+| `viewMode`     | `defaultViewMode`     | `onViewModeChange(viewMode)`: a `ViewMode`, read its `id`   |
+| `expandedKeys` | `defaultExpandedKeys` | `onExpandedChange(expandedKeys)`                            |
+| `selectedKeys` | `defaultSelectedKeys` | `onSelectionChange(selectedKeys, selectedLink)`             |
+
+A group is **controlled** when its value prop is not `undefined` the first time the chart renders,
+and **uncontrolled** otherwise. It keeps that mode for the life of the component. A switch
+(`viewMode={undefined}` on a later render, or a `viewMode` that appears) is reported once in
+development and ignored: a controlled group holds the last value it had, and an uncontrolled one
+ignores the new prop.
+
+- **Uncontrolled.** The chart keeps the value, `default...` is where it starts, and the handler only
+  tells you what happened. A different `default...` on a later render is not a change; to start over
+  with other data, give the component a new `key`.
+- **Controlled.** The prop is the truth. The chart follows it whenever it changes, and tells no
+  handler about it, because you caused it. When the chart changes the value itself (the user selects
+  a link, `instance.collapse('p')` runs), the handler is called, the component renders again, and if
+  the prop did not change the chart is set back to it. So the value changes only when your state
+  does.
+
+```tsx
+const [viewMode, setViewMode] = useState('week');
+const [selected, setSelected] = useState<readonly TaskId[]>([]);
+
+<Gantt
+  defaultTasks={tasks}
+  viewMode={viewMode}
+  onViewModeChange={(mode) => setViewMode(mode.id)}
+  selectedKeys={selected}
+  onSelectionChange={(keys) => setSelected(keys)}
+/>;
+```
+
+<Aside type="caution" title="Data that loads">
+  `tasks={data?.tasks}` is `undefined` until the data is there, and a chart that ignored the tasks
+  that then arrive would stay empty for good. So `tasks` (and `links`) going from `undefined` to a
+  value makes the group controlled from then on, and development warns once. Going from a value back
+  to `undefined` is the switch above: the chart keeps the last tasks. To avoid the warning, pass
+  `tasks={data?.tasks ?? []}` from the first render.
 </Aside>
 
-`<Gantt>` is a `div` that the vanilla renderer draws into, with the options as props; `useGantt` is
-the same without the `div`. Every [example](../../examples/) has a `react.tsx` next to its
-`vanilla.ts`: the [custom tooltip](../../examples/custom-tooltip/) is a React component, and the
-[edit session](../../examples/edit-session/) uses `useGantt` and `useGanttState`.
+**Selection.** `selectedKeys` is the selected tasks. The selected link (a click on an arrow) is the
+chart's own and survives it. Keys that name tasks the chart does not have yet are selected when the
+tasks arrive; a key that names no task at all is ignored.
+
+**Expanded parents.** `expandedKeys` replaces `hierarchy.expandedKeys` (a `hierarchy` prop holds the
+other hierarchy options). It is `'all'` or a list of ids.
+
+**Links.** `links` is controlled like the others. With controlled `tasks`, pass `links` too: a link
+the user draws or removes is not applied until you pass the new list back, and `onLinksChange` gives
+you that list. A link that comes from `task.dependencies` is in no list of links, so deleting one
+leaves `links` as it was and only `onLinkDelete` reports it.
+
+### Controlled tasks and drafts
+
+Controlled `tasks` run the core with `dataMode: 'controlled'`. The core never changes your tasks.
+Every committed change (a drag, `updateTask`, an undo) is a
+[`ChangeSet`](../concepts/change-sets-and-hooks/) given to `onTasksChange`, and it is **shown as a
+draft** until you pass the new tasks back, so you may take your time (a save request) without the bar
+jumping back. Write the change set into your own tasks with
+[`patchTasks`](../../api/ganttlane/core/functions/patchtasks/), which keeps the shape of each task: an
+ISO string stays an ISO string, a `Date` a `Date`, a `duration` a `duration`.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import { patchTasks } from '@ganttlane/core';
+import { createGantt } from '@ganttlane/dom';
+
+let tasks = initialTasks;
+const gantt = createGantt(container, {
+  tasks,
+  dataMode: 'controlled',
+  onTasksChange: (changeSet) => {
+    const { model } = gantt.core.getSnapshot().state.derived;
+    tasks = patchTasks(tasks, changeSet, model);
+    gantt.setTasks(tasks); // your answer: the draft ends
+  },
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { Gantt, type GanttHandle, patchTasks, type Task } from '@ganttlane/react';
+import { useRef, useState } from 'react';
+
+export function Plan({ initialTasks }: { initialTasks: readonly Task[] }) {
+  const chart = useRef<GanttHandle>(null);
+  const [tasks, setTasks] = useState(initialTasks);
+
+  return (
+    <Gantt
+      ref={chart}
+      style={{ height: 480 }}
+      tasks={tasks}
+      onTasksChange={(changeSet) => {
+        // The model the change set was computed on is the chart's current one.
+        const model = chart.current?.core.getSnapshot().state.derived.model;
+        if (model) setTasks((current) => patchTasks(current, changeSet, model));
+      }}
+    />
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+The rules of the draft:
+
+- **The same array again is nothing.** A **new** array, even with equal contents, is your answer and
+  ends a pending draft: the bar goes back to where your tasks have it.
+- **Memoize what you derive.** A `tasks` array built in the render body would end the draft of a
+  change that is being saved on any re-render of the parent, for example when you set a `saving`
+  state in `onTasksChange`. Keep the tasks in state, or build them in `useMemo`.
+- **To discard a draft,** after a failed save, pass a new array: `setTasks((tasks) => [...tasks])`.
+  Passing the patched tasks accepts the change.
+- **Controlled tasks need `onTasksChange` while editing is on** (the default; `editing: false` turns
+  off editing from the UI). Development warns once if it is missing, because the change would never
+  be given to you.
+- While a committed change waits for your answer the chart is busy: no new drag starts.
+
+The [controlled data example](../../examples/controlled-data/) runs this with a "server" that can
+refuse the save, and the [controlled state example](../../examples/react-controlled-state/) shows
+the five groups side by side. The model of data ownership is explained in
+[Data ownership](../concepts/data-ownership/).
+
+### Edit mode: Save and Cancel
+
+An [edit session](../concepts/edit-sessions-and-history/) (`edit.begin()`, `commit()`, `rollback()`)
+works with controlled `tasks` and `links` as it does on the vanilla chart, with one more step that is
+yours: the chart does not change controlled data, so what a **Cancel** puts back arrives as
+`onEditRollback` (the inverse of the session), and you write it into your state the way you write
+`onTasksChange`.
+
+```tsx
+import {
+  type ChangeSet,
+  type Link,
+  patchTasks,
+  type Task,
+  useGantt,
+  useGanttState,
+} from '@ganttlane/react';
+import { useState } from 'react';
+
+export function Plan({
+  initialTasks,
+  initialLinks,
+}: {
+  initialTasks: Task[];
+  initialLinks: Link[];
+}) {
+  const [tasks, setTasks] = useState<readonly Task[]>(initialTasks);
+  const [links, setLinks] = useState<readonly Link[]>(initialLinks);
+
+  // A committed change and the inverse of a cancelled session are written the same way.
+  const apply = (changes: ChangeSet): void => {
+    const { model } = gantt.core.getSnapshot().state.derived;
+    setTasks((current) => patchTasks(current, changes, model));
+  };
+
+  const gantt = useGantt({
+    tasks,
+    links,
+    onTasksChange: apply,
+    onLinksChange: setLinks,
+    onEditRollback: (changes) => {
+      apply(changes);
+      // `restoreLinks` is yours: it puts `changes.links` back (see the edit session example).
+      setLinks((current) => restoreLinks(current, changes.links));
+    },
+  });
+  const { setContainer, slots } = gantt;
+  const dirty = useGanttState(gantt, () => gantt.edit.isDirty);
+
+  return (
+    <>
+      <button type="button" onClick={() => gantt.edit.begin()}>
+        Edit
+      </button>
+      <button type="button" disabled={!dirty} onClick={() => gantt.edit.commit()}>
+        Save
+      </button>
+      <button type="button" onClick={() => gantt.edit.rollback()}>
+        Cancel
+      </button>
+      <div ref={setContainer} style={{ height: 480 }} />
+      {slots}
+    </>
+  );
+}
+```
+
+`commit()` returns `{ status: 'committed', changes }` with the net changes of the session
+(`'no-session'` and `'busy'` mean nothing was committed). The data is already yours, because every
+gesture was applied as it happened. `edit.getChanges()`, `edit.isOpen` and `edit.isDirty` tell where
+the session stands, and the session is part of the snapshot, so
+`useGanttState(gantt, (snapshot) => snapshot.state.session !== undefined)` re-renders the buttons.
+The [edit session example](../../examples/edit-session/) is the full recipe, with a Save that sends
+the plan to a server and puts the last saved plan back when that fails.
+
+## Events and methods
+
+Every event of the chart is an `on<Event>` prop with the arguments listed in the
+[Events guide](../events/): `onTasksChange`, `onTaskClick`, `onSelectionChange`, `onRangeChange`,
+`onIssues`, `onError` and the rest. React adds `onLinksChange`. Listeners that are not tied to a
+render (a log, an analytics call) are added to the instance or the handle with
+`on(name, handler)`, which returns a function that removes them.
+
+The methods of the chart are those of the vanilla [`Gantt`](../../api/ganttlane/dom/interfaces/gantt/)
+(see the [Methods guide](../methods/)), without `destroy`, which React does for you. They live on two
+objects: the [`ref` handle](#the-ref-handle) of `<Gantt>` and the [instance](#usegantt) that
+`useGantt` returns. `setOptions` is an escape hatch there: a prop that changes later wins over it.
+
+## Hooks
+
+### useGantt
+
+```ts
+function useGantt<TData = unknown>(options: GanttReactOptions<TData>): GanttInstance<TData>;
+```
+
+[`useGantt`](../../api/ganttlane/react/functions/usegantt/) is the component without the `div`:
+`<Gantt {...options} />` is `useGantt(options)`, `<div ref={gantt.setContainer} />` and
+`{gantt.slots}`. Its options are the props of `<Gantt>` except the container's. It returns an
+[instance](../../api/ganttlane/react/interfaces/ganttinstance/), the same object for the life of the
+component, with the methods of the vanilla `Gantt` and:
+
+| Member                  | What it is                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------- |
+| `setContainer(element)` | The ref of the element the chart fills: drawn while attached, removed when detached |
+| `slots`                 | The portals of the `ReactNode` slots, to render next to the container               |
+| `core`                  | The headless core (`GanttCore`), the same object for the life of the component      |
+| `getSnapshot()`         | The core's current snapshot                                                         |
+| `subscribe(listener)`   | Calls `listener` after every change of the snapshot                                 |
+
+```tsx
+import { useGantt } from '@ganttlane/react';
+
+export function Plan() {
+  const { setContainer, slots } = useGantt({
+    defaultTasks: tasks,
+    renderTooltip: (context) => <TaskCard task={context.task} />,
+  });
+  return (
+    <>
+      <div ref={setContainer} style={{ height: 480 }} />
+      {slots}
+    </>
+  );
+}
+```
+
+- **Render `slots` next to the container,** anywhere below the providers the slot content should
+  see. It is a stable element that draws the portals and updates itself. A slot that is given and
+  not drawn is reported once in development. Destructuring `setContainer` and `slots` also keeps the
+  lint rules of React (`react-hooks/refs`) quiet.
+- **The core exists while the component renders,** so `instance.getTask(...)` and `getSnapshot()`
+  already answer in the first render, and on a server. The renderer is drawn when a container is
+  attached.
+- **The first events reach the handlers in the last layout effect of `useGantt`.** A layout effect
+  you declare after the hook runs after them. `<Gantt>` sets its `ref` before them.
+- **`instance.core` is one object whichever core is behind it.** It stands for the core the chart
+  has now, which is a new one when a hidden `<Activity>` shows the chart again, and its
+  `getSnapshot`, `subscribe` and `on` follow the chart. So it can be kept, and given to
+  `useGanttState(instance.core, ...)`, which keeps reading the chart after that.
+
+### useGanttState
+
+```ts
+function useGanttState<TData = unknown, T = unknown>(
+  instance: SnapshotSource<TData>,
+  selector: (snapshot: GanttSnapshot<TData>) => T,
+  isEqual?: (a: T, b: T) => boolean,
+): T;
+```
+
+[`useGanttState`](../../api/ganttlane/react/functions/useganttstate/) reads a slice of the
+[snapshot](../../api/ganttlane/core/interfaces/ganttsnapshot/) through `useSyncExternalStore` and
+renders again only when the slice changes. `instance` is anything with `getSnapshot` and
+`subscribe` ([`SnapshotSource`](../../api/ganttlane/react/interfaces/snapshotsource/)): the instance
+of `useGantt`, its `core`, the `ref` handle, or a core made with `createGanttCore`.
+
+```tsx
+import { useGantt, useGanttState } from '@ganttlane/react';
+
+export function Status() {
+  const gantt = useGantt({ defaultTasks: tasks, defaultViewMode: 'week' });
+  const { setContainer, slots } = gantt;
+
+  const mode = useGanttState(gantt, (snapshot) => snapshot.viewMode.id);
+  const selected = useGanttState(gantt, (snapshot) => snapshot.selection.tasks);
+  // A selector that builds a new array needs an `isEqual`.
+  const rows = useGanttState(
+    gantt,
+    (snapshot) => snapshot.state.derived.rows.map((row) => row.id),
+    (a, b) => a.length === b.length && a.every((id, index) => id === b[index]),
+  );
+
+  return (
+    <>
+      <div ref={setContainer} style={{ height: 480 }} />
+      {slots}
+      <p>
+        {mode}, {selected.length} selected, {rows.length} rows
+      </p>
+    </>
+  );
+}
+```
+
+- **The selector may be written inline.** It runs when the snapshot changes, or when you pass another
+  selector.
+- **The default `isEqual` is `Object.is`.** Pick primitives or parts of the snapshot, which keep
+  their identity until they change. A selector that builds a new object or array each time needs an
+  `isEqual` (a shallow one), or the component renders on every change of the chart.
+- **It works on a server.** `useGanttState` has a server snapshot: the core exists during the render,
+  so a server render and the hydration read the same state.
+- **A child component can read the chart** on its own: give it `gantt.core` (or the instance), and
+  it calls `useGanttState(core, selector)` itself.
+
+See the [hooks example](../../examples/react-hooks/) for both hooks together.
+
+### Which one to use
+
+| You want                                                     | Use                                              |
+| ------------------------------------------------------------ | ------------------------------------------------ |
+| A chart, and nothing else                                    | `<Gantt>`                                        |
+| To call methods from a parent (scroll to a task, undo)       | `<Gantt ref>`, see [the handle](#the-ref-handle) |
+| To read the chart in render, or call its methods in handlers | `useGantt`, the instance, with `useGanttState`   |
+| To place the container or the slots yourself                 | `useGantt`: `setContainer` and `slots`           |
+| To read the chart in a child component                       | `useGanttState(gantt.core, ...)` or the handle   |
+
+## Slots
+
+Three places of the chart have content of their own: the tooltip of a task, the menu a click on a
+link opens, and a bar's label. Each takes a function that returns a `ReactNode`, which React draws
+through a portal into the node the vanilla renderer shows there.
+
+```tsx
+import { Gantt } from '@ganttlane/react';
+
+// `TaskCard` and `LinkMenu` are your own components.
+export function Plan() {
+  return (
+    <Gantt
+      style={{ height: 480 }}
+      defaultTasks={tasks}
+      tooltip={{ trigger: 'click' }}
+      display={{ barLabel: 'outside' }}
+      renderTooltip={({ task, preview, isDragging }) => (
+        <TaskCard task={task} dates={preview} dragging={isDragging} />
+      )}
+      renderLinkMenu={({ source, target, canRemove, remove }) => (
+        <LinkMenu from={source?.name} to={target?.name} onRemove={canRemove ? remove : undefined} />
+      )}
+      renderBarLabel={({ name, progress }) => (
+        <b>
+          {name} {Math.round(progress)}%
+        </b>
+      )}
+    />
+  );
+}
+```
+
+| Prop             | Called with                                                                    | Same as in `createGantt` |
+| ---------------- | ------------------------------------------------------------------------------ | ------------------------ |
+| `renderTooltip`  | [`TaskTooltipContext`](../../api/ganttlane/dom/interfaces/tasktooltipcontext/) | `tooltip.render`         |
+| `renderLinkMenu` | [`LinkMenuContext`](../../api/ganttlane/dom/interfaces/linkmenucontext/)       | `linkMenu.render`        |
+| `renderBarLabel` | [`BarLabelContext`](../../api/ganttlane/dom/interfaces/barlabelcontext/)       | `display.renderBarLabel` |
+
+The contexts:
+
+| Context              | Fields                                                                                                                                                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TaskTooltipContext` | `task` (a `TaskRecord`), `preview` (while dragging: `start`, `end`, `endExclusive`, `progress`, `workingDays`), `isDragging`, `gesture`, `parent`, `predecessors`, `successors`, `locale`, `api` (`getTask`, `getLink`, `hide()`) |
+| `LinkMenuContext`    | `link`, `source`, `target` (`TaskRecord`s), `canRemove`, `remove()`, `locale`, `api`                                                                                                                                              |
+| `BarLabelContext`    | `id`, `name`, `task` (the `Task` as you gave it), `progress`                                                                                                                                                                      |
+
+The vanilla functions (`tooltip.render`, `linkMenu.render`, `display.renderBarLabel`, returning a
+DOM node) still work. When both a slot prop and its vanilla option are given, the slot is used and
+development warns once.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+createGantt(container, {
+  tasks,
+  tooltip: {
+    render: ({ task }) => {
+      const element = document.createElement('strong');
+      element.textContent = task.name;
+      return element; // a Node, or { node, dispose }, or text sections
+    },
+  },
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+<Gantt
+  defaultTasks={tasks}
+  renderTooltip={({ task }) => <strong>{task.name}</strong>} // any ReactNode
+/>
+```
+
+</TabItem>
+
+</Tabs>
+
+### What the slots guarantee
+
+- **Your tree, your context.** The portals are rendered next to the container, so what is in them
+  sees the providers above `<Gantt>` (theme, i18n, a store), reads your state and can use hooks. Each
+  tooltip, menu or label is the body of a component of its own, drawn once for each the chart shows.
+  Keep the logic in a component and return an element: `renderTooltip={({ task }) => <TaskCard task={task} />}`.
+- **Always the latest function, and no churn.** The function is read when the portals draw, like a
+  handler: a new one on every render (an inline arrow) is no option change and costs the chart
+  nothing. A state change in the parent draws the portals again without making the popover or the bar
+  again. The state inside the content (a counter, an input) survives the chart making its tooltip
+  again for the same task, because the tooltip, the menu or the label of one task or link keeps the
+  same host while the chart shows it.
+- **Nothing leaks.** A portal is unmounted when its tooltip or menu closes, when the tooltip is
+  replaced by another task's, when a bar leaves the window, when labels are hidden
+  (`display.barLabel: 'none'`) or replaced, and when the chart unmounts, under StrictMode too.
+- **Empty is nothing.** `null`, `undefined`, `false`, `''`, whitespace and elements that wrap nothing
+  (`<div />`, `<p> </p>`) show no tooltip or menu. An element that draws without text (an `img`, an
+  `svg`, an `input`, a `button`) is something. A box that only CSS draws (a colour swatch) counts as
+  nothing: give it an `svg` or some text. A tooltip whose content becomes empty while it is open
+  closes.
+- **Pointer events and focus.** A menu, and a tooltip that stays open (`tooltip.trigger: 'click'`),
+  take pointer events, so buttons and inputs in them work. A hover tooltip is for reading and takes
+  none. The menu moves the focus to its first button unless your content has taken it
+  (`autoFocus`), and Escape and a press outside close it. The focus, and what is typed in an
+  `<input>`, survive the chart making the tooltip again. A bar's label takes no pointer events.
+- **Portals inside the content.** A select, a menu or a date picker in your content that renders into
+  `document.body` is part of the content: a press on it is not a press outside, and a scroll of its
+  list does not close the popover.
+- **Labels and `'auto'` placement.** The chart never measures what React draws, so the width of a React
+  label is not known. `'auto'` places a React label **inside** the bar, clipped to it; it goes outside
+  only in a bar narrower than the label's padding. Choose `'inside'` or `'outside'` for a label that
+  needs the one or the other (outside, the label does not clip). A tooltip is sized when it opens and
+  is not measured again.
+- **One portal per visible label.** A label slot costs one portal for each bar in the window. The
+  chart draws only the visible rows, so a long plan does not multiply it; see
+  [Performance](../performance/) for the rest of what keeps the chart fast.
+- **Not on a server.** There is no renderer on a server, so there are no portals: the server markup
+  is the container `div` only, and the slots are drawn after hydration.
+
+### Hooks in the function, and slotKey
+
+The function is called as the body of the slot's component, so it may use hooks, and they stay:
+**the same hooks in the same order** for as long as the function is the one the slot shows. A
+function that is new on every render counts as the same function, and its state survives. A
+_different_ function with other hooks is another component. Give each its own `slotKey` and the slot
+starts it anew with no error:
+
+```tsx
+import type { TaskTooltipContext } from '@ganttlane/react';
+
+// `Compact` and `Full` are your own components.
+const renderCompact = Object.assign((c: TaskTooltipContext) => <Compact {...c} />, {
+  slotKey: 'compact',
+});
+const renderFull = Object.assign((c: TaskTooltipContext) => <Full {...c} />, {
+  slotKey: 'full',
+});
+
+<Gantt defaultTasks={tasks} renderTooltip={compact ? renderCompact : renderFull} />;
+```
+
+Without a `slotKey`, React cannot tell the swap and throws when the hooks differ in number. The slot
+catches that, starts the new function anew once and shows it (React still logs the error in
+development), and hooks of the same number and other kinds go unnoticed. See
+[`SlotRender`](../../api/ganttlane/react/type-aliases/slotrender/). Keeping the logic in a component
+avoids all of it.
+
+### Errors in a slot
+
+What a slot function throws while React renders its content does not unmount your app. It is caught
+around the slot: the tooltip or menu is hidden (`api.hide()`), a label draws nothing, and the error
+is reported to `onError`, as the errors of the vanilla functions are (to the page, with
+`reportError`, when there is no handler). The slot draws again when its context or its function
+changes. Errors in event handlers and effects inside your content are yours, as everywhere in React.
+
+## The ref handle
+
+`<Gantt ref>` is the chart's handle: the object of `useGantt` without what is for React
+(`setContainer`, `slots`). It has the methods of the chart, `core`, `getSnapshot()` and
+`subscribe()`. Its type is [`GanttHandle`](../../api/ganttlane/react/type-aliases/gantthandle/).
+
+```tsx
+import { useRef } from 'react';
+import { Gantt, type GanttHandle } from '@ganttlane/react';
+
+export function Plan() {
+  const chart = useRef<GanttHandle>(null);
+  return (
+    <>
+      <button type="button" onClick={() => chart.current?.scrollToTask('build')}>
+        Go to Build
+      </button>
+      <Gantt ref={chart} defaultTasks={tasks} style={{ height: 480 }} />
+    </>
+  );
+}
+```
+
+- **The same object for the life of the component.** It is set when the chart is committed, before
+  the layout effects of the parent, which may use it at once, and before the handlers hear of the
+  first events. It survives StrictMode: one object, one chart. It is frozen, and it has no
+  `setContainer` and no `slots`.
+- **`null` after the component unmounts,** and while a hidden `<Activity>` has the chart. Before the
+  first commit it is `null` too, so read it in handlers and effects, not in the render body.
+- **Typed with `TData`.** `GanttHandle<TData>` is the handle of a chart of `Task<TData>`:
+  `useRef<GanttHandle<Row>>(null)` goes with `defaultTasks` of `Task<Row>[]`, or with
+  `<Gantt<Row> ...>`. Another `TData` is a type error.
+- **It is a source of snapshots,** like the instance: `getSnapshot()` and `subscribe()` for code
+  outside a render, and `handle.core.on(...)` to add listeners.
+- **With `useGantt` there is no separate handle:** the instance is the handle. `ref` is for when you
+  render `<Gantt>` and want its methods.
+
+`Gantt` is made with `forwardRef`, which works in React 18.3 and 19. A `forwardRef` component cannot
+be generic, so `Gantt` is `forwardRef` cast to a generic function component. Do the same to wrap
+`<Gantt>` in a component of your own that keeps the `ref` and the `TData` type:
+
+```tsx
+import { type ForwardedRef, forwardRef, type ReactElement, type RefAttributes } from 'react';
+import { Gantt, type GanttHandle, type GanttProps } from '@ganttlane/react';
+
+function PlanImpl(props: GanttProps, ref: ForwardedRef<GanttHandle>): ReactElement {
+  return <Gantt {...props} ref={ref} className="plan" />;
+}
+
+export const Plan = forwardRef(PlanImpl) as <TData = unknown>(
+  props: GanttProps<TData> & RefAttributes<GanttHandle<TData>>,
+) => ReactElement | null;
+```
+
+The [ref handle example](../../examples/react-ref-handle/) calls the methods from a toolbar.
+
+## StrictMode, server rendering and hidden trees
+
+### StrictMode
+
+Mount, unmount, mount leaves one chart, with no leaked listener, timer or subscription, and the
+instance and its core stay the same. The renderer is drawn into the container each time it is
+attached. The core is destroyed only when the component really goes: an effect cleanup cannot tell a
+real unmount from StrictMode's, so the core is destroyed a microtask after the cleanup, if the
+effects were not set up again by then. On React 18.3, StrictMode also renders a component twice on
+its first render and keeps the second pass's state; the first pass of `useGantt` makes a core that
+is never committed, which nothing holds and which has no timer or listener, so it is garbage.
+
+### Server rendering and hydration
+
+- **Importing the package reads no `window` or `document`.**
+- **On a server** `<Gantt>` renders its container only, `<div class="..." style="..."></div>`, with
+  your `className`, `style`, `id`, `aria-*` and `data-*`. The core is created, but the chart is not
+  drawn: no renderer, no portals, no effects. `useGanttState` reads the same snapshot on the server and
+  in the browser, so a summary rendered next to the chart (the number of tasks, the view mode) is in
+  the server markup.
+- **On hydration** React keeps the server's `div`, and the chart is drawn into it as soon as the
+  container is attached, before the browser paints. The slots are drawn after that.
+
+### Hidden trees and Activity
+
+`<Activity mode="hidden">` (React 19.2) tears effects down for a hidden tree and sets them up again
+when it is shown, with the state kept. The core of a chart cannot be restarted, so when the tree is
+shown the chart is made again from the latest props and what the old core held: the uncontrolled
+tasks, links, view mode, expanded parents and selected tasks, the selected link, the zoom (`zoomTo`)
+and the date at the left edge of the viewport. The chart opens where it was scrolled to; the vertical
+position is not kept. Listeners added with `instance.on` and `instance.core.on`, `useGanttState`
+subscribers and `instance.core.subscribe` move to the new core, and `instance.core` is the same
+object.
+
+What is **not** carried over is told to the application when the chart is shown:
+
+- **An open edit session ends as a Cancel.** It is rolled back, so the data is what it was when
+  `edit.begin()` ran. The application hears what a rollback tells, in its order: `onHistoryChange`
+  (when there was undo history, which is not carried either), `onDirtyChange({ isDirty: false })` (when
+  the session was dirty) and `onEditRollback` with the inverse, which a controlled chart writes into
+  its tasks like any Cancel. So an "unsaved changes" flag that follows `onDirtyChange` clears together
+  with the data. Nothing is said while the chart is hidden, and nothing when the component is really
+  unmounted.
+- **While hidden, the chart is gone.** `ref.current` is `null`. The commands of an instance you kept
+  (`select`, `updateTask`, `edit.begin`, ...) do nothing and are not queued; its queries (`getTask`,
+  `getSnapshot`) answer from the state the chart had. Call them after it is shown.
+
+## React 18.3 and 19
+
+The peer range is `^18.3.0 || ^19.0.0`. The unit tests of the package run twice, against React 19
+and against React 18.3.1, and the sources and tests are type-checked against `@types/react` 19 and 18. What differs on 18.3:
+
+| Topic                       | React 19                         | React 18.3                                                                                          |
+| --------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| StrictMode renders          | Reuses the first pass's state    | Keeps the second pass's state; the first pass's core is garbage                                     |
+| `<Activity>`                | Available from 19.2              | Not available, so there is no hidden-tree case                                                      |
+| Server render with a DOM    | No message                       | A test with jsdom or happy-dom makes React report that `useLayoutEffect` does nothing on the server |
+| `useRef<GanttHandle>(null)` | `RefObject<GanttHandle \| null>` | Read-only `RefObject<GanttHandle>` (with `@types/react` 18)                                         |
+
+Both types are a valid `ref`. The server case concerns tests only: the component uses `useEffect`
+where there is no `document`, so a server proper never sees the message; render with `document` and
+`window` hidden, or ignore the message in such a test.
+
+## Server components and the `'use client'` entry
+
+The main entry of the package starts with `'use client'`, because everything in it is a component or
+a hook. In a framework with server components, a server component can render `<Gantt>` with plain
+data props (`defaultTasks`, `defaultViewMode`, `layout`), but handlers and render functions are
+functions and cannot cross from a server component to a client one: put them in a client component
+of your own that renders `<Gantt>`.
+
+The same directive has a consequence for `patchTasks`. A server component, a server action or a route
+handler that imports it from the main entry does not get the function, but a reference to a client
+module, which it cannot call. **`@ganttlane/react/core`** has no directive and nothing of React in it.
+It exports `patchTasks` and the types of the data you give and the events you get (`Task`,
+`ChangeSet`, `SessionChanges`, `TaskRecord`, `Link`, ...), the same ones the main entry exports.
+
+```ts
+// A module that server code and client code share, or a server action.
+import { createGanttCore } from '@ganttlane/core';
+import { type ChangeSet, patchTasks, type Task } from '@ganttlane/react/core';
+
+export function applyChanges(tasks: readonly Task[], changes: ChangeSet): readonly Task[] {
+  // `patchTasks` takes the model of a core: make one with the same options as the chart.
+  const core = createGanttCore({ tasks });
+  const next = patchTasks(tasks, changes, core.getSnapshot().state.derived.model);
+  core.destroy();
+  return next;
+}
+```
+
+`patchTasks(tasks, changes, model)` takes the `model` of a core
+(`core.getSnapshot().state.derived.model`), so on a server it goes with a core made there with
+`createGanttCore` from `@ganttlane/core`; the types need nothing. In client code the main entry
+exports the same function. The [module page](../../api/ganttlane/react/core/) of the entry lists
+what it exports.
+
+## Theming and accessibility
+
+The theme, the tokens and the unstyled contract are those of the vanilla chart, because the DOM and
+the stylesheet are the same: see [Theming](../theming/). `theme` is a prop, and changing it costs no
+redraw. A class on `<Gantt className>` is the parent of `div.gantt`, so `.roadmap .gantt { ... }` is
+the selector for one chart. The `strings` prop holds the text the chart writes itself, and dates and
+numbers follow the `locale` prop.
+
+The chart is the vanilla chart, so its [accessibility](../accessibility/) is that of
+`@ganttlane/dom`. What React adds is that `id`, `aria-*` and `data-*` go to the container, and that
+the content you draw through the slots is your React, so its semantics, labels and focus behaviour
+are yours.
+
+## Related
+
+- Examples: [React slots](../../examples/react-slots/), [hooks](../../examples/react-hooks/),
+  [ref handle](../../examples/react-ref-handle/),
+  [controlled state](../../examples/react-controlled-state/),
+  [controlled data](../../examples/controlled-data/), [edit session](../../examples/edit-session/)
+  and [custom tooltip](../../examples/custom-tooltip/). Every example has a `react.tsx` next to its
+  `vanilla.ts`.
+- Guides: [Options](../options/), [Events](../events/), [Methods](../methods/),
+  [Data ownership](../concepts/data-ownership/), [Theming](../theming/),
+  [Custom renderers](../custom-renderers/) and [Migration](../migration/).
+- API reference: [`Gantt`](../../api/ganttlane/react/variables/gantt/),
+  [`useGantt`](../../api/ganttlane/react/functions/usegantt/),
+  [`useGanttState`](../../api/ganttlane/react/functions/useganttstate/),
+  [`GanttHandle`](../../api/ganttlane/react/type-aliases/gantthandle/) and the
+  [`@ganttlane/react` module](../../api/ganttlane/react/).

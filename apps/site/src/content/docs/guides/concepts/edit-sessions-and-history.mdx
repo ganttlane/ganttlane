@@ -1,0 +1,344 @@
+---
+title: Edit sessions and history
+description: The Edit, Save, Cancel flow with edit sessions, and undo and redo with the change history.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Two features let the user take a change back. An **edit session** wraps a spell of editing between
+**Edit**, **Save** and **Cancel**. The **history** steps back and forward one action at a time with
+undo and redo. This page explains both, what each returns, and how they work together and with
+controlled data.
+
+## Edit sessions
+
+A session remembers the data when it starts, the **base**. Nothing is held back while it is open:
+every drag and every `updateTask` is applied as it happens, runs the before-hook as usual, and
+emits its own `tasksChange`. So `getTask()` and the chart show the edited plan all along. The
+session adds three things:
+
+- `edit.getChanges()` is the **net difference** from the base: one entry per task whose dates or
+  progress differ, plus the links added and removed. A task dragged away and back is not listed.
+- `edit.commit()` closes the session and returns that difference (the **Save** button).
+- `edit.rollback()` closes the session and puts the base back (the **Cancel** button). It never
+  asks the before-hooks: a cancel is not vetoed.
+
+```ts
+gantt.edit.begin(); // { status: 'begun' }
+// ... the user drags bars, draws a link ...
+gantt.edit.isDirty; // true: there is something to save
+gantt.edit.getChanges(); // SessionChanges: what differs from the base
+gantt.edit.commit(); // { status: 'committed', changes } or gantt.edit.rollback()
+```
+
+### What each call returns
+
+All the session methods are synchronous and return a `status`:
+
+| Call              | Status                          | Meaning                                                                             |
+| ----------------- | ------------------------------- | ----------------------------------------------------------------------------------- |
+| `edit.begin()`    | `'begun'`                       | A session is open on the current data.                                              |
+|                   | `'already-open'`                | One is already open. It keeps its base and nothing changes.                         |
+|                   | `'busy'`                        | A before-hook is being awaited: the change being confirmed belongs to neither side. |
+| `edit.commit()`   | `'committed'`, with `changes`   | The session is closed and the data is kept. `changes` is the `SessionChanges`.      |
+|                   | `'no-session'`                  | None is open. Nothing was committed.                                                |
+|                   | `'busy'`                        | A before-hook is being awaited. The session stays open.                             |
+| `edit.rollback()` | `'rolled-back'`, with `changes` | The session is closed and the data is back at the base. `changes` is the inverse.   |
+|                   | `'no-session'`                  | None is open.                                                                       |
+|                   | `'busy'`                        | A before-hook is being awaited. The session stays open.                             |
+| all three         | `'cancelled'`                   | With `reason: 'disposed'`: the chart was destroyed.                                 |
+
+`edit.getChanges()` returns `undefined` when no session is open, and `edit.isOpen` and
+`edit.isDirty` are booleans. The statuses `'unchanged'` and `'rejected'` do not occur here: they
+belong to `updateTask` and the link calls. Always check `status` before you trust `changes`.
+
+### Nesting
+
+Sessions do not nest. A second `begin()` returns `'already-open'`, leaves the open session alone and
+keeps its original base. That makes an Edit button safe to press twice: the second press changes
+nothing.
+
+### Dirty state
+
+`edit.isDirty` is `true` while a session is open and `getChanges()` would list something: a changed
+task, a created link or a removed link. It is `false` right after `begin()`, and it goes back to
+`false` when the user drags a task back to where it started.
+
+The `dirtyChange` event (`onDirtyChange`) carries `{ isDirty }` and fires only when the flag
+flips: after an action's data changes (before that action's `tasksChange`), and on `commit()` and
+`rollback()`. Use it to enable the Save button.
+
+### Cancelling, in both data modes
+
+`rollback()` first cancels a drag in progress, then returns the data to the base. The data modes
+differ in who does the returning:
+
+- **Uncontrolled:** the chart puts the base arrays back, the very task and link objects it began
+  with. `getTask()` shows the base at once.
+- **Controlled:** the data is yours. When there is something to revert, the chart shows the base
+  values as a draft and is busy until you answer. The event **`editRollback(sessionChanges)`**
+  carries what to revert: write it into your tasks with `patchTasks`, fix your links as described
+  below, and call `setTasks` and `setLinks`.
+
+In both modes `editRollback` is emitted, and its payload is the inverse of the session: each
+change goes from the current values back to the base values, `links.added` are links to **restore**
+and `links.removed` are links to **drop**. No `tasksChange`, `linkCreate` or `linkDelete` is
+emitted for a rollback. The events come in this order: `historyChange`, `dirtyChange`,
+`editRollback`.
+
+The links in a `SessionChanges` are link models. `model.id` is the link's id, and `model.link` is
+your own `Link`, which a link from `task.dependencies` does not have.
+
+### Reads during a session
+
+There is no separate draft inside a session. `getTask(id)` shows the current data, with the
+session's changes applied (in controlled mode, once you have applied them). `getChanges()`
+compares that to the base and is memoized: it returns the same object until something changed.
+With controlled data, a committed change you had not applied yet when `begin()` was called belongs
+to the base.
+
+## The Edit, Save, Cancel flow
+
+Until the user presses Edit, the chart is in view mode (`editing: false`): bars cannot be dragged and
+links cannot be drawn. Edit starts a session and turns editing on. Save closes the session and sends
+the plan. Cancel rolls the session back.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  editing: false,
+  onDirtyChange: ({ isDirty }) => {
+    save.disabled = !isDirty;
+  },
+});
+
+edit.addEventListener('click', () => {
+  gantt.edit.begin();
+  gantt.setOptions({ editing: true });
+});
+
+save.addEventListener('click', async () => {
+  const result = gantt.edit.commit();
+  if (result.status !== 'committed') return; // 'no-session' or 'busy': nothing was committed
+  gantt.setOptions({ editing: false });
+  await savePlan(result.changes); // the net changes of the session, or the whole plan
+});
+
+cancel.addEventListener('click', () => {
+  gantt.edit.rollback(); // the chart restores its own data
+  gantt.setOptions({ editing: false });
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { useRef, useState } from 'react';
+import { Gantt, type GanttHandle } from '@ganttlane/react';
+
+export function Plan() {
+  const chart = useRef<GanttHandle>(null);
+  const [editing, setEditing] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  return (
+    <>
+      <button
+        hidden={editing}
+        onClick={() => {
+          chart.current?.edit.begin();
+          setEditing(true);
+        }}
+      >
+        Edit
+      </button>
+      <button
+        hidden={!editing}
+        disabled={!dirty}
+        onClick={async () => {
+          const result = chart.current?.edit.commit();
+          if (result?.status !== 'committed') return;
+          setEditing(false);
+          await savePlan(result.changes);
+        }}
+      >
+        Save
+      </button>
+      <button
+        hidden={!editing}
+        onClick={() => {
+          chart.current?.edit.rollback();
+          setEditing(false);
+        }}
+      >
+        Cancel
+      </button>
+      <Gantt
+        ref={chart}
+        style={{ height: 420 }}
+        defaultTasks={tasks}
+        defaultLinks={links}
+        editing={editing}
+        onDirtyChange={({ isDirty }) => setDirty(isDirty)}
+      />
+    </>
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+When the data is yours, one more step is added and it is yours too: write the cancel into your
+state. The chart will not do it, because it never changes controlled data.
+
+```ts
+const gantt: Gantt = createGantt(container, {
+  tasks,
+  links,
+  dataMode: 'controlled',
+  onTasksChange: (changeSet) => {
+    tasks = patchTasks(tasks, changeSet, gantt.core.getSnapshot().state.derived.model);
+    gantt.setTasks(tasks);
+  },
+  onEditRollback: (changes) => {
+    // The inverse of the session. Tasks: write it like any change set.
+    tasks = patchTasks(tasks, changes, gantt.core.getSnapshot().state.derived.model);
+    gantt.setTasks(tasks);
+    // Links: drop what the session added, restore what it removed.
+    const dropped = new Set(changes.links.removed.map((model) => model.id));
+    links = [
+      ...links.filter((link) => !dropped.has(linkId(link))),
+      ...changes.links.added.flatMap((model) => model.link ?? []),
+    ];
+    gantt.setLinks(links);
+  },
+});
+```
+
+`linkId(link)` is the link's `id`, or `source:type:target` with the type defaulting to `FS`. The
+[edit session example](../../../examples/edit-session/) has the whole flow, with a Save that can
+be refused by the server and puts the last saved plan back, in vanilla and in React.
+
+<Aside type="caution" title="Rollback also reverts data you replaced">
+  The base is the data at `begin()`. With uncontrolled data a rollback puts the base arrays back as
+  they were, so tasks you loaded with `setTasks` during the session are gone. With controlled data
+  it reverts the dates and progress of the tasks that exist in both states. Do not load new data
+  into the chart during a session you may cancel.
+</Aside>
+
+## Undo and redo
+
+The history is off until you ask for it:
+
+```ts
+const gantt = createGantt(container, {
+  tasks,
+  links,
+  history: true, // or { limit: 50 }
+  onHistoryChange: ({ canUndo, canRedo }) => {
+    undoButton.disabled = !canUndo;
+    redoButton.disabled = !canRedo;
+  },
+});
+
+const result = gantt.undo(); // synchronous
+```
+
+The `history` option is `true`, `false`, or `{ enabled, limit }`. The object form is on unless
+`enabled: false`. `limit` is the most entries kept, undo and redo together, and the oldest go
+first. The default is `100`; any whole number from `0` (keep nothing) to `Infinity` is accepted,
+and anything else is an `invalid-option` issue and the default. Turning the history off clears it.
+
+### What is one step
+
+One **action** is one entry:
+
+- one drag, with every task it moved;
+- one `updateTask` call;
+- one link created, or one link deleted.
+
+A progress drag is an entry too. A session is not an entry, its actions are. Not recorded: the view
+mode, scrolling, selection, expanding rows, and option changes.
+
+### Results
+
+| Call                  | Status                                 | Meaning                                                                                        |
+| --------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `undo()` and `redo()` | `'undone'` or `'redone'`, with `entry` | The step was applied. `entry` is the history entry now on the other stack.                     |
+|                       | `'empty'`                              | Nothing to step through.                                                                       |
+|                       | `'stale'`, with `entry`                | The data no longer shows the entry's result, so it cannot be applied. The history was cleared. |
+|                       | `'busy'`                               | A before-hook is pending, or controlled data holds a change you have not applied yet.          |
+|                       | `'cancelled'`                          | With `reason: 'disposed'`.                                                                     |
+
+`canUndo` and `canRedo` say whether a step is possible, and `historyChange` fires when either flips.
+
+A step is applied only while the data still shows the entry's result. If you changed the tasks
+behind the history's back (a `setTasks` in controlled mode that moved them elsewhere), the step is
+`'stale'`.
+
+### How undo behaves
+
+- **It does not ask the before-hooks.** An undo restores a state they already accepted, and a veto
+  would leave the history out of step with the data. It is re-validated like any change set.
+- **It emits what an action emits.** One `tasksChange` with `reason: 'undo'` or `'redo'`, then
+  `taskDatesChange` per task, or `linkCreate` and `linkDelete` for links.
+- **A new action clears the redo entries.**
+- **A drag in progress is cancelled first.**
+- **Data from outside.** In uncontrolled mode `setTasks`, `setLinks` or an option that changes the
+  model clears the history, because its entries describe data that is gone. In controlled mode
+  `setTasks` is how you apply changes, so the history is kept.
+- **Controlled data.** An undo is a change like any other: `onTasksChange` gets it, you apply it,
+  and until you do, further steps return `'busy'`.
+
+### History and sessions
+
+Undo and redo work inside a session, and the session's difference follows them. A rollback puts the
+history back as it was at `begin()`, so no entry can undo into a rolled-back state. A commit keeps
+the entries: undo still works after Save, and it changes the chart's data, not what you already
+sent.
+
+There are no keyboard shortcuts yet. Bind your own:
+
+```ts
+document.addEventListener('keydown', (event) => {
+  if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return;
+  event.preventDefault();
+  if (event.shiftKey) gantt.redo();
+  else gantt.undo();
+});
+```
+
+## Traps
+
+- **Check the status.** `commit()` can return `'busy'` or `'no-session'`. Closing your Edit mode
+  without looking at it leaves a session open.
+- **`begin()` while editing is a no-op.** It reports `'already-open'`; the original base is kept.
+- **Save does not send anything.** `commit()` only closes the session and returns the difference.
+  With uncontrolled data the data is already in the chart, so read it with
+  `gantt.core.getSnapshot().state.tasks` or send `result.changes`.
+- **Rollback and `editing`.** Rolling back does not turn editing off. Do it yourself, as above.
+- **The history is not saved.** It lives in the chart, up to `limit` entries, and goes when the
+  chart is destroyed.
+
+## Related
+
+- Examples: the [edit session example](../../../examples/edit-session/) and the
+  [undo and redo example](../../../examples/undo-redo/), and the
+  [controlled data example](../../../examples/controlled-data/).
+- Concepts: [Who owns the data](../data-ownership/) and
+  [Change sets and before-hooks](../change-sets-and-hooks/).
+- API: [`GanttEditSession`](../../../api/ganttlane/core/type-aliases/gantteditsession/),
+  [`SessionChanges`](../../../api/ganttlane/core/interfaces/sessionchanges/),
+  [`HistoryResult`](../../../api/ganttlane/core/type-aliases/historyresult/) and
+  [`HistoryOption`](../../../api/ganttlane/core/type-aliases/historyoption/).

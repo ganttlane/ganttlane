@@ -1,0 +1,277 @@
+---
+title: Links and link types
+description: 'How tasks depend on each other: the four link types, lags and leads, the dependencies shorthand, and what the chart reports about bad links.'
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A [`Link`](../../../api/ganttlane/core/interfaces/link/) ties an edge of one task to an edge of
+another. It is drawn as an arrow, it moves the successor when you edit the predecessor (unless
+`scheduling.propagation` is `'none'`), and it reports a conflict when the gap between the two gets
+too small. After this page you can choose a
+link type, express a gap or an overlap, write links in either of the two forms, and read what the
+chart says about links it could not use.
+
+## A link in one example
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+createGantt(container, {
+  tasks: [
+    { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06' },
+    { id: 'build', name: 'Build', start: '2026-03-09', duration: 10 },
+  ],
+  links: [{ source: 'design', target: 'build' }], // finish-to-start, no lag
+});
+```
+
+`source` is the **predecessor** and `target` the **successor**. They are the only required fields:
+
+| Field      | Type                           | Default                                             | Meaning                                            |
+| ---------- | ------------------------------ | --------------------------------------------------- | -------------------------------------------------- |
+| `source`   | `string \| number`             | required                                            | The predecessor: the id of a task                  |
+| `target`   | `string \| number`             | required                                            | The successor: the id of a task                    |
+| `type`     | `'FS' \| 'SS' \| 'FF' \| 'SF'` | `scheduling.defaultLinkType` (`'FS'`)               | Which edges the link ties together                 |
+| `lag`      | `number \| string \| object`   | the gap the data has now                            | The gap the link keeps between the two edges       |
+| `id`       | `string`                       | `source:type:target`, for example `design:FS:build` | Unique id of the link                              |
+| `editable` | `boolean`                      | `true`                                              | `false` keeps the link menu from removing the link |
+
+`source` and `target` are compared with `===` against the task ids, so keep them in the form of the
+`id` they name (`5` and `'5'` are different tasks).
+
+A link does not move anything when the data loads. Your dates are taken as they are; the link
+starts to act when a task is edited, and it flags a gap that is too small as a conflict.
+
+## Link types
+
+The four types differ in which edge of the predecessor is tied to which edge of the successor. An
+"end" here is the exclusive end of the bar: the moment it stops.
+
+| Type | Predecessor edge | Successor edge | In words                                           |
+| ---- | ---------------- | -------------- | -------------------------------------------------- |
+| `FS` | end              | start          | The successor starts when the predecessor ends     |
+| `SS` | start            | start          | They start together                                |
+| `FF` | end              | end            | They finish together                               |
+| `SF` | start            | end            | The successor finishes when the predecessor starts |
+
+```text
+FS   A  [=======]
+     B           [====]            B.start = A.end + lag
+
+SS   A  [=======]
+     B  [====]                     B.start = A.start + lag
+
+FF   A  [=======]
+     B      [===]                  B.end = A.end + lag
+
+SF   A      [=======]
+     B  [===]                      B.end = A.start + lag
+```
+
+`FS` is the common case and the default. Change the default for every link that names no type with
+`scheduling.defaultLinkType`.
+
+Two links of **different types** between the same pair are allowed, and together they tie both
+edges of the successor. An `SS` and an `FF` link make the successor stretch when the predecessor is
+resized. An `FS` and an `FF` link both hang from the predecessor's end, so with no lags the
+successor moves as a whole instead. Two links with the same source, target and type are duplicates
+(see below).
+
+The [link types example](../../../examples/link-types/) draws all four, and the
+[propagation example](../../../examples/propagation/) shows what an edit does to each.
+
+## Lags and leads
+
+The **lag** is the gap between the linked edges, measured from the predecessor's edge to the
+successor's edge. A positive lag is a gap; a negative lag is a **lead**, an overlap.
+
+| `lag`         | An `FS` link means                                                        |
+| ------------- | ------------------------------------------------------------------------- |
+| not given     | Keep the gap the data has now                                             |
+| `0`           | The successor starts the moment the predecessor ends                      |
+| `2` or `'2d'` | Two days between them                                                     |
+| `-1`          | The successor starts a day before the predecessor ends                    |
+| `'4h'`        | Four hours (needs a sub-day [granularity](../granularity-and-alignment/)) |
+| `0.5`         | Half a day, twelve hours (needs a sub-day granularity too)                |
+
+How a lag is written:
+
+- **A number is days.** Negative numbers are leads: `-1`, `-0.5`.
+- **A string or an object is a duration**: `'4h'`, `'1d 4h'`, `{ days: 1, hours: 4 }`. These cannot
+  be negative, so write a lead as a negative number of days. The units are in
+  [Dates and time](../dates-and-time/#durations).
+- **Months, quarters and years are not allowed in a lag** (`'1mo'`): the link is dropped with an
+  `invalid-duration` issue.
+- A lag is counted in the **successor's `durationMode`**: calendar time by default, working time
+  for a successor with `durationMode: 'working'`. There is no separate lag mode. See
+  [The work calendar](../work-calendar/).
+- A lag is a multiple of the [granularity](../granularity-and-alignment/). One that is not is
+  rounded to the nearest multiple (a tie goes up) with a `misaligned` warning, or, with
+  `alignInput: 'reject'`, the link is dropped.
+
+### A lag is a rule, a missing lag is a memory
+
+An edit puts the successor **exactly** at the lag from the predecessor, not at least that far. With
+no `lag`, the chart measures the gap in your data when it loads and keeps that gap, in both
+directions:
+
+```ts
+const tasks = [
+  { id: 'a', name: 'A', start: '2026-03-02', end: '2026-03-04' }, // ends at the start of Mar 5
+  { id: 'b', name: 'B', start: '2026-03-09', end: '2026-03-10' }, // starts Mar 9: a 4-day gap
+];
+const gantt = createGantt(container, { tasks, links: [{ source: 'a', target: 'b' }] });
+
+gantt.getLink('a:FS:b')?.lag; // { ms: 345600000, mode: 'calendar', derived: true, days: 4 }
+
+await gantt.updateTask('a', { start: '2026-03-03' }); // a moves one day later
+gantt.getTask('b')?.start; // Tue Mar 10: b followed, the gap is still 4 days
+```
+
+Give a `lag` when the gap is a rule of the plan. If the data already has a different gap, the first
+edit pulls the successor to the lag, so write dates that agree with it. A gap smaller than an
+explicit lag is reported as a `link-violated` conflict on the successor, with `requiredMs` and
+`actualMs`. Without a lag, only an overlap that the successor did not already have at load is
+flagged.
+
+## Two ways to write links
+
+### The `links` array
+
+The array is the canonical form. Each entry is a `Link` you own: it can carry an `id` of your
+choosing and `editable: false`, and the links a user draws are appended to it (in controlled data,
+you append them: see [Data ownership](../data-ownership/)).
+
+### The `dependencies` shorthand
+
+A task can list its predecessors itself. The entry is the id of the predecessor, or an object with
+the optional `type` and `lag`:
+
+```ts
+const tasks = [
+  { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06' },
+  { id: 'build', name: 'Build', start: '2026-03-09', duration: 10 },
+  {
+    id: 'ship',
+    name: 'Ship',
+    start: '2026-03-19',
+    duration: 1,
+    // design -> ship as finish-to-start, and build -> ship as finish-to-finish with a day of lag
+    dependencies: ['design', { id: 'build', type: 'FF', lag: 1 }],
+  },
+];
+```
+
+The entry names the **source**; the task that lists it is the **target**. Both forms end up in the
+same graph:
+
+- The list is `links` first, in array order, then each task's `dependencies`, in task order.
+- A shorthand link always gets the default id (`design:FS:ship`); you cannot name it, and it
+  cannot be `editable: false`.
+- The same default id used twice drops the later link with a `duplicate-id` error, also between the
+  two forms. Two links with different ids but the same source, target and type are a
+  `duplicate-link`.
+- `gantt.getLink(id)` finds a link from either form. A link from the shorthand has no `Link` of its
+  own: its record's `model.link` is `undefined`.
+- Deleting a shorthand link in uncontrolled data removes the entry from the target's
+  `dependencies` (the chart replaces that task object). In React with controlled `links`, such a
+  deletion is reported by `onLinkDelete` only, because there is no entry in `links` to remove.
+
+Use the shorthand for data that arrives with its dependencies on each task, and the array when
+people draw and delete links, because the array is what a controlled owner can keep in sync.
+
+## Link records
+
+`gantt.getLink(id)` returns a [`LinkRecord`](../../../api/ganttlane/core/type-aliases/linkrecord/),
+or `undefined` for an unknown or dropped id.
+
+| Field                                        | Meaning                                                                                                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `source`, `target`, `type`, `editable` | The link, with the defaults filled in                                                                                                                                     |
+| `active`                                     | `true` when both tasks have a bar. `false` for a link that touches a task without one                                                                                     |
+| `lag`                                        | `{ ms, mode, derived, days }`: the gap in milliseconds of the successor's `mode` time. `derived` is `true` when you gave no lag. Absent on an inactive link without a lag |
+| `inCycle`                                    | `true` when the link is on a cycle (always `false` when inactive)                                                                                                         |
+| `issues`                                     | The link's own issues: `inactive-link` or `cycle`                                                                                                                         |
+| `model`                                      | The normalized link: `model.link` is your `Link`, `model.path` says where it came from                                                                                    |
+
+An **inactive** link is kept as data but is neither drawn nor scheduled: a placeholder or an
+invalid task has no bar to attach to. It becomes active when the task gets one. A link to a task
+hidden by a collapsed parent is active and scheduled, but not drawn (see [Hierarchy](../hierarchy/)).
+
+## What the chart reports
+
+Bad links never throw. The chart drops them or marks them, and says so.
+
+| Issue               | Severity | What happened                                                                            | The link                              |
+| ------------------- | -------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
+| `unknown-link-task` | error    | `source` or `target` matches no task (one issue per missing end, with the id in `value`) | dropped                               |
+| `self-link`         | error    | `source` and `target` are the same task                                                  | dropped                               |
+| `duplicate-id`      | error    | The link id (also a default id) is used again                                            | the later one is dropped              |
+| `duplicate-link`    | error    | Same source, target and type as an earlier link, under another id                        | the later one is dropped              |
+| `invalid-shape`     | error    | Not a link: a missing `source`, a `type` that is not one of the four, ...                | dropped                               |
+| `invalid-duration`  | error    | A lag that is not a number or a valid duration, or one with months                       | dropped                               |
+| `misaligned`        | warning  | A lag off the granularity, rounded. With `alignInput: 'reject'` an error                 | corrected, or dropped on `'reject'`   |
+| `inactive-link`     | warning  | The source or the target has no bar                                                      | kept, inactive                        |
+| `cycle`             | error    | Links form a cycle                                                                       | kept and drawn, ignored by scheduling |
+
+Where to read them: `gantt.getIssues().data` and `onIssues` (with `source: 'data'`) list every
+issue; the record of a link carries its own `inactive-link` or `cycle`; an issue has `path`
+(`links[3]` or `tasks[5].dependencies[0]`), `linkId` and, for the shorthand, the `taskId` that
+listed it. The [issues](../issues/) page explains the shape of an issue.
+
+### Cycles
+
+Tasks that depend on each other in a loop (`a` to `b` to `c` to `a`) cannot be scheduled. The chart
+finds every cycle in the links between tasks that have bars, whatever their types. Each cycle is one
+issue that lists its tasks and its links:
+
+```ts
+gantt.getIssues().data.find((issue) => issue.code === 'cycle');
+// { code: 'cycle', severity: 'error', taskIds: ['a', 'b', 'c'],
+//   linkIds: ['a:FS:b', 'b:FS:c', 'c:FS:a'], message: '...' }
+```
+
+The links of a cycle stay in the data and are drawn (with `data-cycle` on the arrow), but an edit
+does not travel along them: `record.inCycle` is `true` and the rest of the graph is scheduled as
+usual. A link that would close a cycle is refused when a user draws it or you call `addLink`,
+whatever a hook answers.
+
+## Creating and deleting links
+
+Users draw a link by dragging from the handle at the edge of a bar to another bar, or by clicking
+a handle and then the target. The link is `{ source, target, type }` with the type from
+`scheduling.defaultLinkType` and no lag, so it keeps the gap the two bars have at that moment. It
+goes through the `onBeforeLinkCreate` hook, which can cancel it and is told when it would close a
+cycle. A click on an arrow selects the link and opens the link menu, which removes it.
+
+- A task with `linkable: false`, or a chart with `editing: { links: false }` (or `editing: false`),
+  shows no link handles. Dropping a link on such a task is refused and reported by `onEditRefused`,
+  as are a link to the same task, a duplicate and a link that would close a cycle.
+- `editable: false` on a link only hides the Remove action of the link menu. `removeLink(id)` from
+  code still deletes it.
+- From code, `addLink(link)` and `removeLink(id)` return a result: `created` or `deleted`, or
+  `rejected` with a reason (`invalid`, `unknown-task`, `duplicate`, `cycle`, `unknown-link`).
+
+The events and hooks are described on the [events](../../events/) and
+[methods](../../methods/) pages, and the hook and change flow in
+[Change sets and hooks](../change-sets-and-hooks/).
+
+<Aside type="tip">
+  How an edit spreads along links, and what the conflicts of a link mean, is the subject of
+  [Propagation and conflicts](../propagation-and-conflicts/).
+</Aside>
+
+## Related
+
+- [Tasks and records](../tasks-and-records/): `locked`, `linkable` and the other task switches.
+- Examples: the [link types example](../../../examples/link-types/), the
+  [propagation example](../../../examples/propagation/), the
+  [link editing example](../../../examples/link-editing/) and the
+  [link menu example](../../../examples/link-menu/); the
+  [working days at hourly granularity](../../../examples/working-calendar-hourly/) example has
+  a lag of one hour.
+- API reference: [`Link`](../../../api/ganttlane/core/interfaces/link/),
+  [`LinkType`](../../../api/ganttlane/core/type-aliases/linktype/),
+  [`LinkRecord`](../../../api/ganttlane/core/type-aliases/linkrecord/),
+  [`TaskDependency`](../../../api/ganttlane/core/interfaces/taskdependency/).

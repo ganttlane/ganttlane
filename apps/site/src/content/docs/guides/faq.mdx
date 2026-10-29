@@ -1,0 +1,250 @@
+---
+title: FAQ and troubleshooting
+description: The problems people meet first, with their causes and fixes - an empty chart, a chart that opens far from the data, missing styles, TypeScript errors, misaligned dates and dates shifted by a time zone.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Most first problems have one of a few causes. Find the symptom below; each answer says what the
+library does, why, and what to change. When nothing here fits, ask the chart: bad data and bad
+options never throw, they become [issues](../concepts/issues/), so
+`gantt.getIssues()` (or an `onIssues` handler) usually names the problem.
+
+```ts
+const issues = gantt.getIssues();
+console.table([...issues.data, ...issues.options]);
+```
+
+## The chart is empty, or has no height
+
+**Symptom.** Nothing is drawn, or the page shows a thin strip with a header and no rows.
+
+**Cause 1: the container has no height.** The chart fills its container and scrolls inside it, so a
+container whose height comes from its content (a plain `div` with no height) is zero pixels tall
+and the chart has nothing to fill.
+
+```html
+<!-- Wrong: no height. -->
+<div id="chart"></div>
+
+<!-- Right: the container has a height. -->
+<div id="chart" style="height: 420px"></div>
+```
+
+There are three ways to give the chart a height:
+
+- **CSS on the container.** `height: 420px`, or `flex: 1; min-height: 0` inside a column flex
+  layout (without `min-height: 0` a flex child may refuse to shrink and push the page instead), or
+  `height: 100%` inside a parent that has a height.
+- **React.** `<Gantt style={{ height: 420 }} />` or a `className` that sets a height. `<Gantt>`
+  renders a single `div` and applies both.
+- **The `layout.height` option.** A number of pixels (`layout: { height: 420 }`) gives the chart its
+  own height whatever its container does. `'auto'` makes the chart as tall as its rows and lets the
+  page scroll them; see [the layout options](../options/#layout) and the
+  [layout and sizes example](../../examples/layout-and-sizes/).
+
+**Cause 2: the stylesheet is not loaded.** Without `@ganttlane/dom/styles.css` the chart has no
+layout at all. See [The styles are missing](#the-styles-are-missing).
+
+**Cause 3: no tasks, or no valid tasks.** A task with an invalid date is a row without a bar and
+an issue. An empty `tasks` array draws an empty grid. Check `getIssues()`, and see
+[A task is a row without a bar](#a-task-is-a-row-without-a-bar).
+
+**Cause 4: the container was hidden or detached when the chart was created.** The chart measures
+its container when it is created, and follows its size afterwards. If the container is `display:
+none` (a closed tab or a collapsed panel) the chart has no width to draw on until it is shown; a
+`scrollToDate`, `scrollToToday` or `scrollToTask` made meanwhile is kept and performed when the
+first width arrives. Prefer creating the chart when its panel is first shown.
+
+**Cause 5: the container is not an element.** `createGantt` throws a `TypeError` for anything that
+is not an element (a selector string, or `null` from a `querySelector` that found nothing). It is
+the one thing it throws for. The container should also be empty: the chart owns what is inside it.
+
+## The chart opens at today, far from my data
+
+**Symptom.** The timeline is empty when the chart appears, and the tasks are somewhere to the left
+or the right.
+
+**Cause.** `scroll.initial` defaults to `'today'`. A plan from last year or next year has no tasks
+at today, and the chart opens at the nearest end of its range, not on the plan.
+
+**Fix.** Choose where the chart opens:
+
+```ts
+createGantt(container, {
+  tasks,
+  scroll: { initial: 'first-task' }, // or 'start', 'end', 'none', or a date: '2026-03-02'
+});
+```
+
+`'first-task'` opens on the earliest task start (on today when there are no tasks), `'start'` and
+`'end'` put the start of the range at the left edge or its end at the right edge, `'none'` leaves
+the chart where it is, and a date opens on that date. In React, pass `scroll={{ initial: 'first-task' }}` (object props are compared by
+content, so an inline object is fine). To move later, call `scrollToTask(id)`, `scrollToDate(date)`
+or `scrollToToday()`. See [the scroll options](../options/#scroll) and the
+[scrolling and today example](../../examples/scrolling-and-today/).
+
+<Aside type="note">
+  `scroll.initial` says where the chart opens. To move a chart that is already open, call a
+  `scrollTo*` method.
+</Aside>
+
+## The styles are missing
+
+**Symptom.** The chart is an unstyled pile of boxes, or a build error says it cannot resolve
+`@ganttlane/dom/styles.css`.
+
+**Cause 1: the stylesheet is never imported.** The JavaScript never imports it for you, so that
+bundlers, CSS-in-JS setups and plain `<link>` tags all work. Import it once per page, before the
+chart is created:
+
+```ts
+import '@ganttlane/dom/styles.css'; // vanilla
+```
+
+```ts
+import '@ganttlane/react/styles.css'; // React
+```
+
+**Cause 2: strict pnpm.** Strict pnpm (and Yarn Plug'n'Play) lets you import only the packages your
+own `package.json` lists. An app that installed only `@ganttlane/react` cannot reach
+`@ganttlane/dom`, which is the React package's dependency, not the app's own, so
+`import '@ganttlane/dom/styles.css'` fails to resolve. `@ganttlane/react` ships a byte-for-byte copy
+of the stylesheet for this reason: import `@ganttlane/react/styles.css` instead (one of the two,
+never both). The same applies to types and values of the core: `@ganttlane/dom` and
+`@ganttlane/react` re-export the types you meet around a chart, and `@ganttlane/react` re-exports
+`patchTasks`. For anything deeper, add `@ganttlane/core` to your own dependencies, on the same
+version.
+
+**Cause 3: the CSS is stripped as unused.** A bundler that drops imports of side-effect-free
+packages must keep CSS. Both packages declare `"sideEffects": ["**/*.css"]`, so a bundler that
+honours the field keeps the import. If you maintain your own `sideEffects` rules for `node_modules`,
+make sure `*.css` is not excluded.
+
+**Cause 4: the stylesheet loads after the chart is created.** The chart measures its container when
+it is created. A stylesheet that is still loading gives it the unstyled layout to measure, and a
+position that depends on the width (a date aligned to the middle of the viewport) is centred on the
+wrong number. Have the stylesheet in effect before you mount: import it at the top of the entry
+module, or put the `<link>` in the document head.
+
+**Your own CSS looks overridden, or does not apply.** The stylesheet is in `@layer gantt`, and
+declarations that are not in a layer beat layered ones whatever their specificity. Your plain CSS
+wins over the chart's without `!important`; CSS you put in a layer of your own competes by the
+order in which the layers are declared. See [Theming](../theming/).
+
+## TypeScript 6 and CSS imports
+
+**Symptom.** `error TS2882: Cannot find module or type declarations for side-effect import of
+'...css'`.
+
+**Cause.** TypeScript 6 checks side-effect imports (`noUncheckedSideEffectImports` is on by
+default), so an `import 'file.css'` needs a declaration TypeScript can find.
+
+- **The ganttlane stylesheets need nothing from you.** `@ganttlane/dom/styles.css` and
+  `@ganttlane/react/styles.css` ship an (empty) declaration file through the `types` condition of
+  their subpath, so the import type-checks as it is. If you still see TS2882 for them, TypeScript is
+  not reading the package's `exports`: see the next paragraph.
+- **Your own CSS files** need a declaration, which has nothing to do with ganttlane. In a Vite
+  project add `/// <reference types="vite/client" />` to a `.d.ts` of your project (or
+  `"types": ["vite/client"]` in `tsconfig.json`); elsewhere, a `declare module '*.css';` in a `.d.ts`
+  does it.
+- **TypeScript must resolve package `exports`.** The packages are ESM only, with `exports` and
+  declarations. Set `"moduleResolution": "bundler"` (for an app compiled by a bundler) or
+  `"node16"` / `"nodenext"`. The old `node10` / `classic` resolution cannot see subpaths such as
+  `@ganttlane/dom/styles.css` or `@ganttlane/react/core`.
+
+## `misaligned` issues
+
+**Symptom.** `getIssues()` has a `misaligned` entry, with a `suggested` value, and a task is
+shorter or longer than you wrote.
+
+**Cause.** Every date, duration and lag in the chart is a multiple of `scheduling.granularity`
+(`'1d'` by default). A task that starts at `'2026-03-02T09:30'` is off the step of a day, so the
+chart reports it and aligns it, according to `scheduling.alignInput`; the issue's `suggested` field
+is the value it used. It is a warning, not a failure: the task is drawn.
+
+**Fix.** Either change the data to match the step, or change the step to match the data:
+
+```ts
+createGantt(container, {
+  tasks: [{ id: 'a', name: 'Standup', start: '2026-03-02T09:30', end: '2026-03-02T10:00' }],
+  scheduling: { granularity: '15min' }, // '1h', '30min', '15min', ... a divisor of 24 hours
+});
+```
+
+Date-only strings (`'2026-03-02'`) are never misaligned. A time of day needs a granularity that
+divides it. See [Granularity and alignment](../concepts/granularity-and-alignment/) for the values
+of `alignInput` (including `'reject'`, which makes the task invalid instead of aligning it) and the
+[granularity and snapping example](../../examples/granularity-and-snapping/); the list of issue
+codes is in [Issues instead of exceptions](../concepts/issues/).
+
+## Dates are shifted by a time zone
+
+**Symptom.** A task starts a day early, or an hour off, for some viewers.
+
+**Cause.** ganttlane has no time zones: dates are floating wall-clock time. What shifts them is a
+conversion that happens before the chart sees the date.
+
+- `new Date('2026-03-02')` is **UTC** midnight. In a time zone behind UTC (New York, for one) that
+  is the evening of March 1 on the local clock, which is what the chart reads.
+- `date.toISOString()` ends with `Z` and is rejected (strings with `Z` or an offset are, because
+  they name an instant, not a wall-clock time).
+
+**Fix.** Pass strings without an offset, or `Date`s built from local fields:
+
+```ts
+start: '2026-03-02'; // a day
+start: '2026-03-02T09:30'; // a time (needs a granularity that divides 09:30)
+start: new Date(2026, 2, 2); // local midnight; the month is counted from 0
+```
+
+If your server sends instants, decide which wall clock the plan lives on, convert once on the way
+in, and pass the result as a string with no offset. Read dates back with local getters, never
+`toISOString()`. See [Dates and time](../concepts/dates-and-time/#dates-shifted-by-a-time-zone).
+
+## Other questions
+
+### My drag snaps back (controlled data)
+
+With `dataMode: 'controlled'` (in React: a `tasks` prop) the chart does not own the tasks: a drag
+produces a `ChangeSet` and the chart waits for you to hand back new tasks. If your `onTasksChange`
+does not write the change into your state (`patchTasks(tasks, changeSet)`), the bars return to where
+your data says they are. A rejected or slow save behaves the same way. See
+[Who owns the data](../concepts/data-ownership/) and the
+[controlled data example](../../examples/controlled-data/).
+
+### A before-hook throws and nothing happens
+
+If an `onBeforeTaskChange` or `onBeforeLinkCreate` hook throws or rejects during a drag, the change
+is cancelled, and with no `error` listener nothing is reported. Give the chart an `onError` handler
+while you develop. Calls from code (`updateTask`, `addLink`) hand the error back in their result
+instead. See [Change sets and before-hooks](../concepts/change-sets-and-hooks/).
+
+### I passed an option and nothing changed
+
+Unknown options are ignored silently: an old key such as `view_mode` or `bar_height` does nothing
+and says nothing. Check the spelling against [Options](../options/), and see
+[Migration](../migration/) if the key comes from frappe-gantt. A value of the wrong type is not
+ignored: it is an option issue in `getIssues().options`, and the default is used.
+
+### A task is a row without a bar
+
+Three things give a row without a bar. A task with no dates at all becomes a placeholder and gets a
+`no-dates` warning. A task with only one of `start`, `end` and `duration`, with an `end` before its
+`start`, or with an unreadable date is invalid (`incomplete-dates`, `end-before-start`, ...). And
+`type: 'placeholder'` asks for it, with no warning. `TaskRecord.issues` and `getIssues().data` say
+which; see [Tasks and records](../concepts/tasks-and-records/).
+
+### Should I use `<Gantt>` or `useGantt` in React?
+
+`<Gantt>` for a chart; `useGantt` when you need the instance next to a chart of your own markup,
+or `useGanttState` to read the chart's state in another component. See [React](../react/).
+
+## Related
+
+- [Issues instead of exceptions](../concepts/issues/): every issue code and where it is delivered.
+- [Options](../options/): the `layout`, `scroll` and `scheduling` groups mentioned above.
+- [Installation](../../getting-started/installation/): requirements, the stylesheet and strict pnpm.
+- Examples: [layout and sizes](../../examples/layout-and-sizes/),
+  [scrolling and today](../../examples/scrolling-and-today/),
+  [issues](../../examples/issues/), [controlled data](../../examples/controlled-data/).

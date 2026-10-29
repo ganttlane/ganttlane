@@ -1,0 +1,244 @@
+---
+title: Dates and time
+description: Floating wall-clock time, how dates, durations and the end of a task are read, and how time maps to pixels.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Every date in ganttlane is a **wall-clock** date with no time zone. `'2026-03-02T09:30'` is 09:30
+for every viewer, in every zone, in every season. This page lists what a date can be, how the end
+of a task is read, how durations are written, what comes back from the chart and how to avoid the
+one mistake that shifts dates: passing instants where the chart expects wall-clock time.
+
+## Floating wall-clock time
+
+The chart keeps no zone and no daylight saving. A day is always 24 hours, a week 7 days, and
+arithmetic on dates never depends on where the code runs. Three consequences:
+
+- **A plan is the same for everybody.** A kick-off at 09:00 is at 09:00 in Kyiv and in New York.
+- **A string with a zone is rejected.** `'2026-03-02T09:30Z'` and `'2026-03-02T09:30+02:00'` give an
+  `unsupported-offset` issue and the task is invalid. Convert the value first.
+- **A `Date` or an epoch number is read through the local clock** of the runtime: its year, month,
+  day, hour and minute as `getFullYear()`, `getHours()` and so on. They become the wall-clock values
+  of the task. Different viewers can read the same instant as different wall-clock times, so
+  prefer strings for a fixed plan (see [the trap below](#dates-shifted-by-a-time-zone)).
+
+## What a date can be
+
+A date input (`DateInput`) is a string, a number or a `Date`. Objects are not accepted.
+
+| Input                          | Example                                  | Precision | What it becomes                                            |
+| ------------------------------ | ---------------------------------------- | --------- | ---------------------------------------------------------- |
+| Date-only string               | `'2026-03-02'`                           | day       | Midnight of that day                                       |
+| Date and time, `T`             | `'2026-03-02T09:30'`                     | time      | 09:30 that day                                             |
+| Date and time, a space         | `'2026-03-02 09:30'`                     | time      | The same                                                   |
+| With seconds                   | `'2026-03-02T09:30:15'`                  | time      | Read, then reported as `misaligned` and rounded: see below |
+| `Date` at local midnight       | `new Date(2026, 2, 2)`                   | day       | The local day, midnight                                    |
+| `Date` with a time             | `new Date(2026, 2, 2, 9, 30)`            | time      | The local wall-clock time, 09:30                           |
+| Epoch milliseconds             | `Date.now()`                             | as `Date` | `new Date(ms)` read through the local clock                |
+| A zone designator or an offset | `'2026-03-02T09:30Z'`                    | none      | `unsupported-offset`: the task is invalid                  |
+| Another format                 | `'2026-3-2'`, `'03/02/2026'`             | none      | `invalid-date`                                             |
+| Not a real date                | `'2026-02-30'`, an invalid `Date`, `NaN` | none      | `invalid-date`                                             |
+
+Strings need a four-digit year, a two-digit month and day, and, for a time, hours and minutes.
+Seconds and milliseconds are accepted by the parser, but the smallest step of the chart is one
+minute, so a value with seconds is reported as `misaligned` and aligned
+([Granularity and alignment](../granularity-and-alignment/)). A bad date never throws: the task
+becomes a row without a bar and carries the issue.
+
+## Day precision and time precision
+
+Every task has a **precision**:
+
+- `'day'`: the task sits on whole days. All its values are midnights.
+- `'time'`: the task has exact moments, aligned to the [granularity](../granularity-and-alignment/).
+
+The chart derives it from the input. A task is `'time'` when any `start` or `end` it uses carries a
+time of day, or when its `duration` has a part shorter than a day (`'6h'`, `0.5`); otherwise it is
+`'day'`. `task.precision` overrides that:
+
+| Input                                              | Derived precision | Note                                               |
+| -------------------------------------------------- | ----------------- | -------------------------------------------------- |
+| `start: '2026-03-02', end: '2026-03-06'`           | day               |                                                    |
+| `start: '2026-03-02T00:00', end: '2026-03-06'`     | time              | `T00:00` is a time, even at midnight               |
+| `start: new Date(2026, 2, 2)`                      | day               | A `Date` at local midnight counts as date-only     |
+| `start: '2026-03-02', duration: '1d 4h'`           | time              | A part shorter than a day                          |
+| `start: new Date(2026, 2, 2)`, `precision: 'time'` | time              | Forced: the `Date` is an exact moment              |
+| `start: '2026-03-02T10:00'`, `precision: 'day'`    | day               | Forced: 10:00 is rounded to the day, with an issue |
+
+What the precision changes:
+
+- **Alignment.** A day task is always aligned to whole days, even when the granularity is `'1h'`.
+  A time task is aligned to the granularity.
+- **The end of a task.** The inclusive date-only `end` (next section) is a rule for day tasks. With
+  `precision: 'time'` set on the task, every value is an exact moment, so a date-only `end` is
+  that midnight and no longer covers its day.
+- **Dragging.** With `scheduling.keepDayPrecision` (on by default) a day task stays on whole days
+  when dragged, whatever the snap step. With `false` a drag can turn it into a time task.
+- **Working time.** A working-day count in `'working'` mode uses the day rule for day tasks and
+  exact working time for time tasks: [The work calendar](../work-calendar/).
+
+`record.precision` shows the result. A task that has both date-only and timed values, such as
+`start: '2026-03-02T10:00', end: '2026-03-04'`, is a time task whose date-only `end` still covers
+its whole day: it stops at the start of March 5.
+
+## The end of a task
+
+A bar covers the half-open interval from `start` to `endExclusive`. How you write the end differs:
+
+- **A date-only `end` is the last day, inclusive.** `start: '2026-03-02', end: '2026-03-06'` covers
+  five days, Monday to Friday, and the bar stops at the start of March 7. This is how people write
+  ranges.
+- **An `end` with a time is the exact moment** the task ends, exclusive.
+  `end: '2026-03-02T11:00'` stops at 11:00.
+
+`dates.endInclusive` (default `true`) switches the first rule: with `false` a date-only `end` is
+the first day **after** the task, like an exclusive end.
+
+| Input                                                | `endInclusive: true` (default)             | `endInclusive: false`                     |
+| ---------------------------------------------------- | ------------------------------------------ | ----------------------------------------- |
+| `start: '2026-03-02', end: '2026-03-06'`             | Mar 2 to Mar 6: 5 days, stops Mar 7 00:00  | Mar 2 to Mar 5: 4 days, stops Mar 6 00:00 |
+| `start: '2026-03-02', duration: 3`                   | Mar 2 to Mar 4, stops Mar 5 00:00          | The same                                  |
+| `start: '2026-03-02T09:00', end: '2026-03-02T11:00'` | Two hours, stops 11:00                     | The same                                  |
+| `start: '2026-03-02T09:00', end: '2026-03-04'`       | Stops Mar 5 00:00: the date covers its day | Stops Mar 4 00:00                         |
+| `start: '2026-03-02', end: '2026-03-02'`             | One day                                    | Zero length                               |
+
+The rows with a time of day assume a sub-day `scheduling.granularity`; at the default `'1d'` the
+times are rounded to whole days. The same semantics apply when the chart gives dates back:
+
+- `record.end` and `TaskDates.end` (the second argument of `onTaskDatesChange`) are the last day,
+  at midnight, for a day task of non-zero length, and the exact end otherwise.
+- `record.endExclusive` is always the half-open end, whatever the option says. Draw and compute with
+  it; show `end` to people.
+- `updateTask(id, { end })` reads a date-only `end` as an input does.
+- `patchTasks` writes dates back in the form the task already has (a `Date` stays a `Date`, a string
+  stays a string of the same precision), so a round trip keeps your `end` form.
+
+An `end` before the `start` is an `end-before-start` error. Equal values are fine: with the default
+option a date-only pair on one day is a one-day task.
+
+## Durations
+
+A `duration` (and a link `lag`) is how long something lasts. Four forms are accepted:
+
+| Form                 | Examples                             | Rules                                                                                                  |
+| -------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| A number             | `3`, `0.5`                           | **Days.** Only in a task `duration` and a link `lag`. A lag can be negative                            |
+| A string             | `'3d'`, `'6h'`, `'1d 4h'`, `'30min'` | Whole numbers followed by a unit, separated by single spaces, each unit at most once                   |
+| An ISO 8601 duration | `'P1DT4H'`, `'PT90M'`, `'P2W'`       | Years, months, weeks, days, hours, minutes. No seconds, no fractions, no sign                          |
+| An object            | `{ days: 1, hours: 4 }`              | Fields `years`, `quarters`, `months`, `weeks`, `days`, `hours`, `minutes`: whole numbers, at least one |
+
+The string units:
+
+| Unit | Means                        | Unit  | Means           |
+| ---- | ---------------------------- | ----- | --------------- |
+| `y`  | calendar years (12 months)   | `d`   | days (24 hours) |
+| `q`  | calendar quarters (3 months) | `h`   | hours           |
+| `mo` | calendar months              | `min` | minutes         |
+| `w`  | weeks of 7 days              |       |                 |
+
+- **`mo` is months and `min` is minutes.** A bare `'m'` is rejected as ambiguous, as are seconds
+  (`'30s'`), fractions (`'1.5d'`) and signs (`'-2d'`).
+- **Months, quarters and years are calendar parts.** They are added first, with the day clamped to
+  the end of the month: `start: '2026-01-31', duration: '1mo'` stops at the start of February 28
+  ([`Duration`](../../../api/ganttlane/core/interfaces/duration/) keeps them apart from the fixed
+  part for this reason). They are not allowed in a lag.
+- **A number is days only where it says so.** A task `duration` and a link `lag` take a number.
+  Other durations, such as `scheduling.granularity`, take a string or an object, so `granularity: 1`
+  is an `invalid-duration` issue.
+- A malformed duration is an `invalid-duration` issue and the task is invalid, or the link is
+  dropped.
+
+A task has either an `end` or a `duration`, never both in effect: with both, `end` wins. The length
+of a duration depends on `durationMode`: calendar time by default, or only working time with
+`'working'`. A task cannot be longer than ten years (`too-long`).
+
+## Minute resolution
+
+The smallest unit is the minute. `scheduling.granularity` goes down to `'1min'`, and a duration
+cannot have seconds. A string with seconds is parsed and then rounded by the same rules as any
+misaligned value, with a `misaligned` warning.
+
+## What comes back
+
+| Where                                                               | Form                                                                  |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `TaskRecord` (`start`, `end`, `endExclusive`, `progressDate`)       | Local `Date`s with the wall-clock values of the task                  |
+| `onTaskDatesChange`, `onRangeChange`, `getVisibleRange`, `onScroll` | `Date`s                                                               |
+| `ChangeSet`, `SessionChanges`, `state.derived.model`                | Floating numbers, so that they go back into the core and `patchTasks` |
+
+`toDate(value)` from `@ganttlane/core` turns a floating number into a local `Date`;
+`parseDateInput(input)` goes the other way and returns the number with the precision, or an issue.
+
+One daylight-saving detail: a wall-clock time that does not exist in the viewer's zone is moved
+forward by the gap. In New York, `'2026-03-08T02:30'` comes back as a `Date` for 03:30 EDT. The
+chart's own arithmetic is not affected: a floating day stays 24 hours.
+
+## Dates shifted by a time zone
+
+<Aside type="caution" title="new Date('2026-03-02') is not March 2">
+  A date-only string handed to the `Date` constructor means **UTC** midnight. In a zone behind UTC
+  that instant is the evening before, and the chart reads the local wall clock. In New York, `start:
+  new Date('2026-03-02')` is March 1 at 19:00: a time task that is reported as `misaligned` and
+  rounded down to March 1.
+</Aside>
+
+How to pass dates without a shift:
+
+| Do                                                  | Don't                                                 |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| `start: '2026-03-02'`                               | `start: new Date('2026-03-02')`                       |
+| `start: new Date(2026, 2, 2)` (local, month from 0) | `start: date.toISOString()` (ends with `Z`: rejected) |
+| `start: '2026-03-02T09:30'`                         | `start: '2026-03-02T09:30:00Z'`                       |
+
+If your source gives instants, such as UTC timestamps from a server, decide which wall clock the
+plan lives on and convert once, before the chart: format the instant in that zone (for example with
+`Intl.DateTimeFormat` or your date library) and pass the resulting string without an offset. If you
+pass `new Date(instant)` instead, each viewer sees the instant on their own clock, which is what
+you want for "when is this meeting for me" and not for a shared plan.
+
+The same applies to the dates you read back: `record.start` is a local `Date` with the wall-clock
+fields of the task. Format it with its local getters or with a formatter that uses the local zone;
+`toISOString()` converts to UTC and shifts it again.
+
+## The DateAdapter and its engine
+
+Calendar-aware arithmetic goes through a `DateAdapter`: adding months, the start of a week, a month
+or a year, the day of the week, ISO weeks, and locale formatting. The default engine is
+`@internationalized/date` (Gregorian calendar, no zone), which also validates ISO strings and knows
+the length of every month. `createFloatingAdapter({ weekStartsOn })` creates one: weeks start on
+Monday unless you say otherwise, and formatting runs `Intl` over the wall-clock fields, ignoring
+the zone, so header labels and tooltips show the same numbers everywhere.
+
+The chart builds its own adapter. There is no option to replace it, and the first day of the week
+is Monday; the adapter is for the building blocks of `@ganttlane/core` (`createTimeScale`,
+`headerRows`, `snapTime`) that take one. Fixed-length work, such as days and hours, is plain
+arithmetic on the numbers.
+
+## How time becomes pixels
+
+The time scale is linear: `x = (t - origin) * pxPerDay / 24 hours`. Only `pxPerDay` changes between
+[view modes](../../options/#view-modes). Because a day is a fixed width, months and years get their
+**real length** on screen: with the `month` view mode at 4 px per day, February is 112 px wide and
+March 124 px. The `hour` mode at 960 px per day is 40 px per hour. Pixel values are not rounded;
+snapping a drag to a step is a separate rule (see
+[Granularity and alignment](../granularity-and-alignment/)). The
+[view modes example](../../../examples/view-modes/) and the
+[custom view mode example](../../../examples/custom-view-mode/) show the scale at work.
+
+"Today" is read from the runtime's local clock (or from your `now` option, which returns a
+`DateInput`) and truncated to the minute, so the today line follows the viewer's local time.
+
+## Related
+
+- [Granularity and alignment](../granularity-and-alignment/): the data step, and what happens to
+  a minute that is off it.
+- [The work calendar](../work-calendar/): how working days count, in days and in hours.
+- [Tasks and records](../tasks-and-records/): the fields that take dates.
+- Options: [Dates](../../options/#dates) and [Scheduling](../../options/#scheduling).
+- Examples: [working days at hourly granularity](../../../examples/working-calendar-hourly/),
+  [data formats](../../../examples/data-formats/), [scrolling and today](../../../examples/scrolling-and-today/).
+- API reference: [`DateInput`](../../../api/ganttlane/core/type-aliases/dateinput/),
+  [`DurationInput`](../../../api/ganttlane/core/type-aliases/durationinput/),
+  [`DatePrecision`](../../../api/ganttlane/core/type-aliases/dateprecision/),
+  [`DateAdapter`](../../../api/ganttlane/core/interfaces/dateadapter/).

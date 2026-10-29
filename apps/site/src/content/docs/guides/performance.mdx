@@ -1,0 +1,180 @@
+---
+title: Performance and size
+description: How the chart stays smooth with thousands of tasks, what each package weighs, the budgets the build enforces, and how to measure both.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A chart that draws only what is on screen stays smooth whether the plan has a hundred tasks or ten
+thousand, and a library that ships in about 80 kB (minified and gzipped, everything included) does
+not weigh on a page. This guide explains how the renderer keeps its work proportional to what the
+viewer sees, what each package costs, the budgets the repository enforces on every change, and how
+to take the same measurements yourself.
+
+## How the chart stays fast
+
+The renderer does work in proportion to the **window** (the rows and the time range that are
+visible, plus a margin), not to the size of the plan.
+
+- **The window.** The core publishes `snapshot.window`: the visible rows and time range plus an
+  overscan of 5 rows and 400 px. Header cells, grid rows, day columns and lines, bars and links
+  exist only for the window, so the DOM holds a few hundred elements whether the plan has 100 or
+  10 000 tasks. Bars and links follow the window exactly. The header and the grid, which redraw
+  many small nodes at once, keep what they drew until the viewport comes within half an overscan of
+  its edge, so a few pixels of scrolling write nothing to the DOM.
+- **One render per frame.** Every change (data, options, scroll position, the clock, display
+  options) only asks the frame scheduler for a render, and the scheduler coalesces them: any number
+  of changes before a frame make one render of the latest snapshot. The exception is the
+  compensation scroll of the [infinite timeline](../../examples/infinite-timeline/), which renders
+  at once, in the scroll handler, so that the date under the left edge does not move before paint.
+- **No layout reads.** Nothing on the scroll or render path measures the DOM (`getBBox`,
+  `getBoundingClientRect`, `offsetWidth`, `getComputedStyle`). The scroll handler reads
+  `scrollLeft` and `scrollTop`, label widths are estimated, and all geometry comes from the core.
+  The package's tests fail on any such read, so forced reflows cannot creep in.
+- **One timer.** The renderer asks the core to read its clock once a minute, from a single timeout
+  aligned to the minute boundary, so the today line follows the real time. `destroy()` clears it.
+- **Derived state is recomputed by stage.** The core's store derives the model, the hierarchy, the
+  layout and the rest from its inputs, and recomputes each stage only when its own inputs changed:
+  a scroll does not redo the schedule.
+
+The [large dataset example](../../examples/large-dataset/) shows a chart with thousands of tasks.
+
+## Targets
+
+The repository states its performance targets and checks them with `pnpm bench`. They are budgets
+for a typical development machine, not guarantees for yours:
+
+| What                                                      | Target                 |
+| --------------------------------------------------------- | ---------------------- |
+| Core layout of 1 000 or 10 000 tasks (rows and every bar) | 50 ms or less          |
+| One drag frame in the core, 50 dependents, 10 000 tasks   | 8 ms or less           |
+| Core initialisation (`createGanttCore`), 1 000 tasks      | 50 ms or less          |
+| First paint of a chart of 1 000 tasks                     | 300 ms or less         |
+| Script work of a scroll frame, horizontal or vertical     | within a 16.7 ms frame |
+| Scroll frame time on a plan of 10 000 tasks (p95)         | 20 ms or less          |
+
+A scroll frame costs a fraction of a frame because most scrolling changes nothing that is drawn.
+After a fling that moves past everything that was drawn, the window is redrawn within a frame.
+
+## Keeping your own code fast
+
+The library's budget is spent when your code is cheap too. A few rules of thumb:
+
+- **Handlers run synchronously.** An `onTasksChange` handler that does heavy work delays the frame
+  after the drop. Hand the work to a queue and return. Events such as `onTaskHoverChange` and
+  `onScroll` can fire often: keep their handlers cheap, or do not set them.
+- **Tooltip and label content is built for what is shown.** A tooltip is built for the bar the
+  pointer is on; build a text section or a small node, not a large tree. In React, each visible
+  bar's label is one portal, so a bar label slot of a dozen components per bar multiplies by the
+  number of visible bars.
+- **Prefer a fixed height** (a container height, or `layout.height` as a number). With
+  `layout.height: 'auto'` the chart is as tall as its rows and the page scrolls them; in that mode
+  the host's scroll and resize handlers only set a flag, and the next frame reads a little geometry
+  (a `getBoundingClientRect` of the scroller, and of the host when it is not the page). It is
+  meant for short plans or plans that should flow with the page.
+- **Pass stable data.** In React, `tasks` and `links` are compared by identity: the same array
+  again is nothing, and a new array is diffed by id. Keep them in state or memoize them, and update
+  controlled tasks with `patchTasks`, which returns the same array when no task changes. Object
+  props such as `scroll` are compared by content, so an inline object is fine; an object that
+  holds a function (`tooltip.render`) is compared by identity, so memoize it.
+- **One chart per container, and `destroy()` when it goes.** Several charts on a page are fine,
+  each as cheap as its window.
+
+### Limits that come with it
+
+- The infinite timeline trims its content down to about 4 000 000 px and never grows past twice
+  that, because browsers cap the size of an element.
+- A task spans at most 10 years (a longer one is reported as `too-long`).
+- Rows have one height, and a row holds one task.
+
+## Size
+
+Sizes are minified and gzipped, with every dependency (`@internationalized/date` and `valibot` for
+the core) included. `pnpm size` measures them from the built `dist` of each package and fails when
+an entry is over its **budget**:
+
+| Entry                                                                 | Size     | Budget |
+| --------------------------------------------------------------------- | -------- | ------ |
+| `@ganttlane/core`, the whole entry                                    | 59.81 kB | 62 kB  |
+| `@ganttlane/core`, `createGanttCore` only                             | 56.43 kB | 58 kB  |
+| `@ganttlane/core`, development build (`development` condition)        | 64.09 kB | 66 kB  |
+| `@ganttlane/dom`, on top of the core                                  | 20.46 kB | 22 kB  |
+| `@ganttlane/react`, on top of the core and dom, without React         | 6.53 kB  | 10 kB  |
+| `@ganttlane/dom/styles.css` (`@ganttlane/react/styles.css` is a copy) | 6.17 kB  | 8 kB   |
+
+What an app ships is the sum of what it imports. A vanilla chart is `@ganttlane/dom` on top of the
+core: about 56 kB (the part `createGantt` uses) plus 20 kB plus the stylesheet, so about 83 kB
+including CSS. A React chart adds about 6.5 kB for the bindings, React itself excluded. The
+stylesheet is shipped as written, not minified: 24 kB, 6.2 kB gzipped. A build that minifies your
+CSS brings it to about 13.7 kB, under 3 kB gzipped.
+
+### Single utilities tree-shake
+
+The core is built so that importing one function pulls in only what it needs. A bundler removes the
+rest, because every call that would run at import time is marked as pure (a test reads the sources
+and fails on any that is not):
+
+| Import               | Size (gzip) | Budget |
+| -------------------- | ----------- | ------ |
+| `createTimeScale`    | 0.43 kB     | 0.5 kB |
+| `parseDuration`      | 1.20 kB     | 1.4 kB |
+| `createWorkCalendar` | 7.06 kB     | 7.8 kB |
+| `patchTasks`         | 7.08 kB     | 7.8 kB |
+| `normalizeModel`     | 10.90 kB    | 12 kB  |
+
+Functions that need the date library (about 3.3 kB of the 7) cost about 7 kB. This is what a server
+pays that imports only `patchTasks` to apply a `ChangeSet`. See [Custom renderers](../custom-renderers/)
+for the building blocks.
+
+### Development and production builds
+
+The core ships two builds of the same code. They behave identically and report the same issues
+(`code`, `severity`, `path`, `value`, `suggested`); only the issue `message` differs: short in
+production, a full English explanation in the development build (selected by the `development`
+export condition, which Vite and webpack choose in development mode). The development build is
+about 4 kB larger, and your production bundle does not contain it. See
+[Custom renderers](../custom-renderers/#development-and-production-builds) for how to select it
+elsewhere.
+
+<Aside type="tip" title="Where the weight is">
+  About 3.3 kB of the core is the date library and a good part of the rest is validation (the option
+  and data checking that turns bad input into issues instead of exceptions). A renderer that only
+  needs scheduling on a server (`patchTasks`, `createWorkCalendar`) pays for those parts alone.
+</Aside>
+
+## Measuring
+
+All of these are commands in the repository (run `pnpm install` and `pnpm build` first):
+
+| Command                        | What it does                                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `pnpm size`                    | Every entry against its budget, as above. Part of `pnpm check`                            |
+| `pnpm size:each`               | The size of `import { name }` for every export of the core, largest first                 |
+| `pnpm size:report`             | A build broken down by module and dependency (`--package dom` for the DOM package)        |
+| `pnpm bench`                   | The performance suites, the benchmark page in Chromium, Firefox and WebKit, and the sizes |
+| `pnpm bench --only perf,size`  | A subset of the steps: `perf`, `browser`, `size` (`--project chromium` picks one engine)  |
+| `pnpm bench --runs 3`          | Each timing three times, reporting the best (other processes only ever add time)          |
+| `pnpm bench --json bench.json` | Also writes the numbers as JSON                                                           |
+| `pnpm test:perf`               | Only the performance budget tests (`*.perf.test.ts`)                                      |
+
+`pnpm bench` prints one table with every row next to its target and exits with 1 if a target is
+missed. The numbers depend on the machine, so compare runs of one machine, never machines; the
+header of the table says which machine this is and how busy it was.
+
+The playground has the benchmark page: run `pnpm dev`, then open `/bench/?bench=1k` or
+`/bench/?bench=10k` (add `&run=1` to start at load). It generates a plan, auto-scrolls and drags
+it, and shows the first paint, the frame times, the script work per frame, the node count and the
+DOM churn per frame, and the cost of `core.send` for a drag. The same page runs in the end-to-end
+tests in all three engines.
+
+To measure your own chart, use the browser's performance panel: you should see the work of a
+scroll frame stay small, the node count stay flat while you scroll, and no forced reflow
+(`Layout` entries caused by the chart's scripts) on the scroll path.
+
+## Related
+
+- [Custom renderers](../custom-renderers/): the building blocks and the development build.
+- [Options](../options/#layout): `layout.height` and the other sizes.
+- Examples: [large dataset](../../examples/large-dataset/),
+  [infinite timeline](../../examples/infinite-timeline/),
+  [layout and sizes](../../examples/layout-and-sizes/).

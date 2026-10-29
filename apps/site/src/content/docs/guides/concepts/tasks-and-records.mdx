@@ -1,0 +1,362 @@
+---
+title: Tasks and records
+description: The Task you pass in, the TaskRecord the chart computes from it, the task types, and how your data reaches every handler.
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A chart is made of tasks. A [`Task`](../../../api/ganttlane/core/interfaces/task/) is the plain
+object you give the chart: an `id`, a `name`, some dates and any of the optional fields below. A
+[`TaskRecord`](../../../api/ganttlane/core/interfaces/taskrecord/) is the read-only form the chart
+computes from it: real `Date`s, lengths in calendar and working days, the place in the tree, the
+problems found. You write tasks; you read records. After this page you can tell which field does
+what, what each task type means, and where to read a record back.
+
+## The smallest chart
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  tasks: [
+    { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06', progress: 60 },
+    { id: 'build', name: 'Build', start: '2026-03-09', duration: 10 },
+  ],
+});
+
+const design = gantt.getTask('design');
+design?.start; //        Mon Mar 02 2026 00:00, a local Date
+design?.end; //          Fri Mar 06 2026 00:00, the last day (a date-only end is inclusive)
+design?.endExclusive; // Sat Mar 07 2026 00:00, where the bar stops
+design?.duration?.calendarDays; // 5
+design?.progressDate; // Thu Mar 05 2026 00:00, 60 % of the way
+
+gantt.getTask('build')?.duration; // calendarDays: 10, workingDays: 8, nonWorkingDays: 2, ...
+```
+
+`id` and `name` are the only required fields. Everything else is optional, and a bad value is never
+a throw: it becomes an [issue](../issues/) and the chart repairs or skips the task.
+
+## The Task you pass in
+
+Optional fields accept an explicit `undefined`, which counts as absent.
+
+### Identity
+
+| Field  | Type               | Default  | Meaning                                                       |
+| ------ | ------------------ | -------- | ------------------------------------------------------------- |
+| `id`   | `string \| number` | required | Stable and unique. Never changed by the library               |
+| `name` | `string`           | required | The label of the bar. A task without a string name is invalid |
+
+An id is compared with `===`, so `5` and `'5'` are different tasks. Keep `parentId`, link
+`source`/`target` and `dependencies` in the same form as the `id` they point at. A repeated id
+drops the later task (`duplicate-id`); a task without a usable id is dropped (`invalid-shape`).
+
+### Dates
+
+| Field          | Type                         | Default                   | Meaning                                                           |
+| -------------- | ---------------------------- | ------------------------- | ----------------------------------------------------------------- |
+| `start`        | `string \| number \| Date`   | none                      | First moment of the task                                          |
+| `end`          | `string \| number \| Date`   | none                      | End of the task. A date-only value is the last day, inclusive     |
+| `duration`     | `number \| string \| object` | none                      | Length from `start` when there is no `end`; a bare number is days |
+| `precision`    | `'day' \| 'time'`            | derived from the input    | Forces whole days or exact moments                                |
+| `durationMode` | `'calendar' \| 'working'`    | `scheduling.durationMode` | Whether `duration` counts all time or only working time           |
+
+The rules for each are on [Dates and time](../dates-and-time/) and
+[The work calendar](../work-calendar/). Which of the three date fields a task needs depends on its
+type:
+
+| You give                                    | The chart draws                                                                  |
+| ------------------------------------------- | -------------------------------------------------------------------------------- |
+| `start` and `end`                           | A bar from `start` to `end`. If `duration` is also set, `end` wins               |
+| `start` and `duration`                      | A bar from `start`, `duration` long                                              |
+| `type: 'milestone'` and `start`             | A point at `start`. `end` and `duration` are ignored                             |
+| `type: 'placeholder'`                       | A row without a bar. Dates are ignored and there is no issue                     |
+| no date at all                              | A row without a bar, and a `no-dates` warning                                    |
+| only `start`, only `end` or only `duration` | An invalid task: an `incomplete-dates` error. Ends are never projected backwards |
+
+### Progress
+
+| Field            | Type               | Default   | Meaning                                                                   |
+| ---------------- | ------------------ | --------- | ------------------------------------------------------------------------- |
+| `progress`       | `number`           | `0`       | Percent done, `0` to `100`                                                |
+| `progressAnchor` | `'start' \| 'end'` | `'start'` | What a resize keeps: the done part (`'start'`) or the remainder (`'end'`) |
+
+### Kind and tree
+
+| Field          | Type                                     | Default                 | Meaning                                         |
+| -------------- | ---------------------------------------- | ----------------------- | ----------------------------------------------- |
+| `type`         | `'task' \| 'milestone' \| 'placeholder'` | `'task'`                | The kind of row, see [Task types](#task-types)  |
+| `parentId`     | `string \| number`                       | none                    | The parent task. See [Hierarchy](../hierarchy/) |
+| `parentAnchor` | link type or list of link types          | `hierarchy.childAnchor` | Which parent edges a pinned child follows       |
+| `followParent` | `boolean`                                | `false`                 | Makes the child follow its parent's edges       |
+
+### Scheduling and editing switches
+
+| Field           | Type                                           | Default            | Meaning                                                        |
+| --------------- | ---------------------------------------------- | ------------------ | -------------------------------------------------------------- |
+| `locked`        | `boolean`                                      | `false`            | Cannot be dragged, and propagation never moves it              |
+| `fixedDuration` | `boolean`                                      | `false`            | Cannot be resized, and keeps its length when an edge is pushed |
+| `linkable`      | `boolean`                                      | `true`             | `false` forbids drawing links from and to the task             |
+| `editable`      | `boolean \| { move, resize, progress, links }` | inherits `editing` | Overrides the chart's `editing` option for this task           |
+
+### Links, appearance and payload
+
+| Field           | Type                          | Default | Meaning                                                                     |
+| --------------- | ----------------------------- | ------- | --------------------------------------------------------------------------- |
+| `dependencies`  | `(id \| { id, type, lag })[]` | none    | Shorthand for links that end at this task, see [Links](../links-and-types/) |
+| `className`     | `string`                      | none    | CSS classes added to the bar                                                |
+| `rowClassName`  | `string`                      | none    | CSS classes added to the row                                                |
+| `color`         | `string`                      | none    | Bar colour, written as the `--gantt-bar-color` custom property on the bar   |
+| `progressColor` | `string`                      | none    | Colour of the done part, written as `--gantt-bar-progress-color`            |
+| `description`   | `string`                      | none    | Free text, kept in `record.task`. The built-in tooltip does not show it     |
+| `data`          | your type `TData`             | none    | Your payload. The library never reads it                                    |
+
+`className` and `rowClassName` take several classes separated by spaces. Colours are any CSS colour
+string. [Theming](../../theming/) and the
+[task colours and classes example](../../../examples/task-colors-and-classes/) show them at work.
+
+## Task types
+
+`type` says what kind of row a task is.
+
+| `type`          | The row                                                      |
+| --------------- | ------------------------------------------------------------ |
+| `'task'`        | The default: a bar from `start` to `end`                     |
+| `'milestone'`   | A zero-length point at `start`, drawn as a diamond           |
+| `'placeholder'` | A row without a bar: a heading, a group or a gap in the list |
+
+- **A milestone** needs only a `start`; `end` and `duration` are ignored. It can be moved and
+  linked, but it has no resize handles and no progress handle. Its record has `start`, `end` and
+  `endExclusive` equal and `duration.ms` of `0`.
+- **A placeholder** keeps its row, its place in the tree and its `progress`, but it has no dates
+  and no bar. A link to it is kept and reported as inactive: it is neither drawn nor propagated.
+  A placeholder can be a parent, which makes a group heading.
+- **A task with no dates** at all becomes a placeholder, and its record reports
+  `type: 'placeholder'` with a `no-dates` warning. Say `type: 'placeholder'` yourself to get the
+  same row without the warning.
+- **An invalid task** (`incomplete-dates`, `end-before-start`, an unreadable date, ...) keeps its
+  row and its issues but has no bar. Its record keeps `type: 'task'`, and `start`, `end` and
+  `duration` are `undefined`.
+- **A parent** is not a type. Any task that other tasks name in `parentId` is a parent; see
+  [Hierarchy](../hierarchy/).
+
+The [milestones and placeholders example](../../../examples/milestones-and-placeholders/) shows
+all three.
+
+## Progress
+
+`progress` is a percentage from `0` to `100`. A value outside the range is clamped and reported as
+`progress-out-of-range`; a missing one is `0`.
+
+- **`progressDate`** on the record is where the done part ends. It is measured along calendar time
+  or, for `durationMode: 'working'`, along working time, and aligned down to the
+  [granularity](../granularity-and-alignment/). The percentage itself is never rounded, so repeated
+  resizes do not drift.
+- **A move keeps the percentage.** A resize rebases it to the new length. `progressAnchor: 'start'`
+  keeps the completed amount, so stretching the end lowers the percentage; `'end'` keeps the
+  remainder, so stretching the end raises it.
+- A milestone has no progress handle. A locked task cannot have its progress dragged.
+
+See the [progress example](../../../examples/progress/).
+
+## Editing switches per task
+
+The chart's `editing` option switches editing from the UI on or off for every task: `false`, or
+`{ move, resize, progress, links }` with each flag on unless it is `false`. A task can override it
+with `editable`, in both directions. The other flags then narrow what the task allows:
+
+| Task                       |     Move     |    Resize    |   Progress   |    Links     |
+| -------------------------- | :----------: | :----------: | :----------: | :----------: |
+| `editable: true`           |     yes      |     yes      |     yes      |     yes      |
+| `editable: false`          |      no      |      no      |      no      |      no      |
+| `editable: { move: true }` |     yes      | as `editing` | as `editing` | as `editing` |
+| `locked: true`             |      no      |      no      |      no      | as `editing` |
+| `fixedDuration: true`      | as `editing` |      no      | as `editing` | as `editing` |
+| `type: 'milestone'`        | as `editing` |      no      |      no      | as `editing` |
+| `linkable: false`          | as `editing` | as `editing` | as `editing` |      no      |
+| a row without a bar        |      no      |      no      |      no      |      no      |
+
+The switches combine: a task with both `locked: true` and `editable: true` still cannot be moved.
+Editing from code is a separate thing: `updateTask`, `addLink` and `removeLink` commit whatever
+`editing` says, except that a locked task is never changed. `locked` also keeps propagation away
+from the task, and stops it there.
+
+```ts
+createGantt(container, {
+  tasks: [
+    { id: 'plan', name: 'Plan', start: '2026-03-02', end: '2026-03-06', locked: true },
+    // The chart is read-only, but this one task may be moved and nothing else.
+    { id: 'fix', name: 'Fix', start: '2026-03-09', end: '2026-03-10', editable: { move: true } },
+  ],
+  editing: false,
+});
+```
+
+## The TaskRecord
+
+A record is what the chart makes of a task. It is frozen, and it is the same object for as long as
+nothing it shows has changed, so it is safe to compare by identity (for example in a `memo`).
+
+| Field          | Type                        | What it is                                                                         |
+| -------------- | --------------------------- | ---------------------------------------------------------------------------------- |
+| `id`, `name`   | as in the task              | The task's own `id` and `name`                                                     |
+| `task`         | `Task<TData>`               | Your own object, as you passed it. `record.task.data` is your payload              |
+| `type`         | `TaskType`                  | The effective type: `'placeholder'` also for a task without dates                  |
+| `precision`    | `'day' \| 'time'`           | Whole days or exact moments, see [Dates and time](../dates-and-time/)              |
+| `start`        | `Date \| undefined`         | First moment, as a local `Date`                                                    |
+| `end`          | `Date \| undefined`         | The end as you wrote it: the last day for a day task, else the exact end           |
+| `endExclusive` | `Date \| undefined`         | Where the bar stops: the half-open end, always                                     |
+| `duration`     | `TaskDuration \| undefined` | Lengths, see below                                                                 |
+| `progress`     | `number`                    | `0` to `100`                                                                       |
+| `progressDate` | `Date \| undefined`         | Where the done part ends                                                           |
+| `level`        | `number`                    | Depth in the tree, `0` for a root                                                  |
+| `parentId`     | `TaskId \| undefined`       | The resolved parent; `undefined` for a root, also for an unknown parent            |
+| `childIds`     | `TaskId[]`                  | Direct children, in input order                                                    |
+| `rowIndex`     | `number \| undefined`       | Index among the visible rows; `undefined` while a collapsed ancestor hides the row |
+| `isExpanded`   | `boolean`                   | Whether its children are shown; `false` without children                           |
+| `issues`       | `Issue[]`                   | Problems of the task's own input, and its tree issues                              |
+| `conflicts`    | `Conflict[]`                | Scheduling conflicts shown on the task                                             |
+
+A row without a bar (a placeholder or an invalid task) has no `start`, `end`, `endExclusive`,
+`duration` or `progressDate`. A record has no `data` field of its own: your payload stays in
+`record.task.data`.
+
+`duration` is a [`TaskDuration`](../../../api/ganttlane/core/interfaces/taskduration/):
+
+| Field             | Meaning                                                              |
+| ----------------- | -------------------------------------------------------------------- |
+| `calendarDays`    | All days from `start` to `endExclusive` (fractional for timed tasks) |
+| `workingDays`     | The part that falls on working days of the calendar                  |
+| `nonWorkingDays`  | `calendarDays - workingDays`                                         |
+| `ms`, `workingMs` | The same lengths in milliseconds                                     |
+
+`issues` and `conflicts` are different things. An issue is a problem with your input (an
+unreadable date, an unknown parent). A conflict is accepted data that breaks a rule of the plan: a
+bar that starts on a day off (`non-working-start`, `non-working-end`), a child outside its parent
+(`outside-parent`), a link whose gap is too small (`link-violated`). Issues about links are on the
+link, not on the task: see [Links and link types](../links-and-types/).
+
+### Where you read a record
+
+| Where                                                   | What you get                                                                                 |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `gantt.getTask(id)`                                     | The record of one task, or `undefined` for an unknown id                                     |
+| `onTaskClick`, `onTaskDoubleClick`, `onTaskHoverChange` | `(record, event)`; the hover handler gets `null` when the pointer leaves                     |
+| `onTaskDatesChange`, `onTaskProgressChange`             | The record with the new `{ start, end, endExclusive }` or the new progress                   |
+| the tooltip, the link menu, the bar label               | `TaskRecord`s in the context (the bar label gets the plain `task` and the progress)          |
+| `gantt.core.getSnapshot().state`                        | `tasks` (yours, as patched in uncontrolled mode) and `derived.model.tasks`, the numeric form |
+
+There is no `getTasks()`: you own the list, so map your own ids through `getTask`. The change
+events are [`ChangeSet`s](../change-sets-and-hooks/), which carry floating numbers instead of
+`Date`s; `toDate` from `@ganttlane/core` turns one into a `Date`. The [events](../../events/) and
+[methods](../../methods/) guides list every payload.
+
+A record is `TaskRecord<TData>`, so `record.task.data` has your type. In controlled data mode a
+committed change appears in the record only once you hand the new tasks back with `setTasks`; until
+then the snapshot's draft shows it.
+
+## Your payload: TData
+
+`data` is yours. The library never reads it, and its type flows from the tasks into every handler
+and render function.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+import { createGantt, type Task } from '@ganttlane/dom';
+
+interface Meta {
+  owner: string;
+  budget: number;
+}
+
+const tasks: Task<Meta>[] = [
+  {
+    id: 'build',
+    name: 'Build',
+    start: '2026-03-09',
+    end: '2026-03-20',
+    data: { owner: 'Ann', budget: 12000 },
+  },
+];
+
+createGantt<Meta>(container, {
+  tasks,
+  onTaskClick: (record) => {
+    console.log(record.task.data?.owner); // string | undefined
+  },
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { Gantt, type Task } from '@ganttlane/react';
+
+interface Meta {
+  owner: string;
+  budget: number;
+}
+
+const tasks: Task<Meta>[] = [
+  {
+    id: 'build',
+    name: 'Build',
+    start: '2026-03-09',
+    end: '2026-03-20',
+    data: { owner: 'Ann', budget: 12000 },
+  },
+];
+
+export function Plan() {
+  return (
+    <Gantt<Meta>
+      style={{ height: 420 }}
+      tasks={tasks}
+      onTaskClick={(record) => console.log(record.task.data?.owner)}
+    />
+  );
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+Without a type argument, `TData` is inferred from `tasks`. The [release plan
+example](../../../examples/release-plan/) types its payload and reads it in the tooltip.
+
+## Your objects are never mutated
+
+The chart does not change the tasks, links or options you pass in, and it accepts them deep-frozen.
+It keeps a reference to your task objects (that is what `record.task` is), so:
+
+- **Uncontrolled data** (the default): a drag changes the chart's own copy, as new task objects. Your
+  array and your objects stay as they were; `getTask` shows the change.
+- **Controlled data**: the chart reports a `ChangeSet` and waits. You write it into your own tasks,
+  usually with `patchTasks`, and hand them back with `setTasks`.
+- **Changing a task yourself**: give the chart a new object (and a new array) with
+  `setTasks`, rather than editing an object it already holds.
+
+<Aside type="note">
+  Who owns the data, and how a change gets back to your state, is the subject of [Data
+  ownership](../data-ownership/).
+</Aside>
+
+## Related
+
+- [Links and link types](../links-and-types/) and [Hierarchy](../hierarchy/): the two ways tasks
+  relate to each other.
+- [Dates and time](../dates-and-time/): what `start`, `end`, `duration` and `precision` accept.
+- [Issues](../issues/): every problem a task can report, and where to read it.
+- Examples: the [basic chart](../../../examples/basic/), the
+  [release plan](../../../examples/release-plan/), and the
+  [milestones and placeholders](../../../examples/milestones-and-placeholders/) example.
+- API reference: [`Task`](../../../api/ganttlane/core/interfaces/task/),
+  [`TaskRecord`](../../../api/ganttlane/core/interfaces/taskrecord/),
+  [`TaskId`](../../../api/ganttlane/core/type-aliases/taskid/).

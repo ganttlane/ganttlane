@@ -8,6 +8,11 @@ dist/
 .vite/
 # Astro (apps/site): generated types and the content cache
 .astro/
+# Pages the site generates each time Astro starts: the API reference (TypeDoc, `typedoc/options.ts`)
+# and the migration guide (from the root `MIGRATION.md`). `api/index.mdx` is hand-written.
+apps/site/src/content/docs/api/*
+!apps/site/src/content/docs/api/index.mdx
+apps/site/src/content/docs/guides/migration.md
 
 # tests & tooling
 coverage/

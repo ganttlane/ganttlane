@@ -1,19 +1,708 @@
 ---
 title: Methods
-description: What you can call on a chart after it is created.
+description: Every method of a chart, what it returns, and every result status it can report.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+Everything you can call on a chart after it is created: change the data, the options and the view,
+scroll, select, run an edit session, undo, and read the state back. This page gives each method's
+signature, parameters, return value and, for the methods that can refuse, every result status with
+the payload it carries. The methods that cause [events](../events/) say which ones.
 
-<Aside title="Coming soon">
-  This guide is not written yet. The methods are listed in the references:
-  [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#methods),
-  [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#methods)
-  and
-  [`@ganttlane/react`](https://github.com/ganttlane/ganttlane/blob/main/packages/react/README.md#methods).
-</Aside>
+The methods are the members of the [`Gantt`](../../api/ganttlane/dom/interfaces/gantt/) object that
+`createGantt` returns. Most are the members of the headless
+[`GanttCore`](../../api/ganttlane/core/interfaces/ganttcore/) as they are (it is `gantt.core`); the
+[last sections](#what-gantt-and-ganttcore-do-not-share) say what differs, and
+[Methods in React](#methods-in-react) says where to find them there.
 
-All of them are on the object `createGantt` returns (in React: the `ref` of `<Gantt>`, or the
-instance of `useGantt`) and need no `this`. The [basic chart](../../examples/basic/) calls
-`setViewMode` and `scrollToTask`; the [edit session](../../examples/edit-session/) uses
-`edit.begin()`, `commit()` and `rollback()`.
+## Conventions
+
+- **No `this`.** Every member is a plain function, so `const { getTask, select } = gantt` works.
+  Properties (`canUndo`, `canRedo`, `edit.isOpen`, `edit.isDirty`) are getters: read them when you
+  need them, because destructuring copies the value once.
+- **Results, not exceptions.** A method that can fail returns a result with a `status`, so you can
+  narrow it with `switch (result.status)`. Bad input is an [issue](../concepts/issues/) or a
+  `rejected` result; it is never thrown.
+- **What can throw.** `createGantt` throws a `TypeError` when its container is not an element (a
+  selector string, `null` from a `querySelector` that found nothing). Nothing else throws on bad
+  input. A method rethrows what your own event handlers threw, once its work is done, when no
+  `error` listener is registered (see
+  [When a handler throws](../events/#when-a-handler-throws)): a synchronous method throws, a
+  promise rejects.
+- **Sync and async.** `updateTask`, `addLink` and `removeLink` return a promise. Everything else is
+  synchronous and has finished when it returns. The promise methods apply their change inside the
+  call too, unless a [before-hook](../events/#before-hooks) returns a promise; they are asynchronous
+  because a hook may be. Await them to get the result.
+- **Two statuses are shared.** `busy` and `cancelled` mean the same wherever they appear.
+- **After `destroy()`.** The commands do nothing (the ones with a result resolve
+  `{ status: 'cancelled', reason: 'disposed' }`), no event fires, and the queries keep answering from
+  the state the chart had, so a clean-up can still read what the user left behind.
+
+| Status      | Shape                                     | Meaning                                                                                                                                                                                                          |
+| ----------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `busy`      | `{ status: 'busy' }`                      | Another change waits for a before-hook's answer, or (not for `edit.*`) controlled data holds a committed change that you have not applied yet, until your next `setTasks`. Nothing was changed. Try again later. |
+| `cancelled` | `{ status: 'cancelled', reason, error? }` | `reason: 'hook'`: a before-hook answered `false`. `'error'`: a hook threw, rejected or answered something invalid, and `error` holds what it threw. `'disposed'`: the chart was destroyed.                       |
+
+### Results at a glance
+
+| Method             | Statuses it can report                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `updateTask`       | `committed`, `unchanged`, `rejected` (`unknown-task`, `invalid-value`), `cancelled` (`hook`, `error`, `disposed`), `busy`  |
+| `addLink`          | `created`, `rejected` (`invalid`, `unknown-task`, `duplicate`, `cycle`), `cancelled` (`hook`, `error`, `disposed`), `busy` |
+| `removeLink`       | `deleted`, `rejected` (`unknown-link`), `cancelled` (`disposed`), `busy`                                                   |
+| `edit.begin()`     | `begun`, `already-open`, `busy`, `cancelled` (`disposed`)                                                                  |
+| `edit.commit()`    | `committed`, `no-session`, `busy`, `cancelled` (`disposed`)                                                                |
+| `edit.rollback()`  | `rolled-back`, `no-session`, `busy`, `cancelled` (`disposed`)                                                              |
+| `undo()`, `redo()` | `undone` or `redone`, `empty`, `stale`, `busy`, `cancelled` (`disposed`)                                                   |
+
+## All methods
+
+| Group        | Method                                                                | Returns                               |
+| ------------ | --------------------------------------------------------------------- | ------------------------------------- |
+| Lifecycle    | [`destroy()`](#destroy)                                               | `void`                                |
+| Options      | [`setOptions(patch)`](#setoptions)                                    | `readonly Issue[]`                    |
+| Data         | [`setTasks(tasks)`, `setLinks(links)`](#settasks-and-setlinks)        | `void`                                |
+|              | [`updateTask(id, update)`](#updatetask)                               | `Promise<UpdateTaskResult>`           |
+|              | [`addLink(link)`](#addlink)                                           | `Promise<LinkCreateResult>`           |
+|              | [`removeLink(id)`](#removelink)                                       | `Promise<LinkDeleteResult>`           |
+| View         | [`setViewMode(id, options?)`](#setviewmode)                           | `void`                                |
+|              | [`zoomTo(pxPerDay, options?)`](#zoomto)                               | `void`                                |
+| Scrolling    | [`scrollToDate(date, options?)`](#scrolltodate-and-scrolltotoday)     | `void`                                |
+|              | [`scrollToToday(options?)`](#scrolltodate-and-scrolltotoday)          | `void`                                |
+|              | [`scrollToTask(id, options?)`](#scrolltotask)                         | `void`                                |
+| Rows         | [`expand(id)`, `collapse(id)`, `expandAll()`, `collapseAll()`](#rows) | `void`                                |
+| Selection    | [`select(ids)`, `selectLink(id)`, `clearSelection()`](#selection)     | `void`                                |
+| Edit session | [`edit.begin()`](#edit-session)                                       | `SessionBeginResult`                  |
+|              | [`edit.commit()`](#edit-session)                                      | `SessionCommitResult`                 |
+|              | [`edit.rollback()`](#edit-session)                                    | `SessionRollbackResult`               |
+|              | [`edit.getChanges()`](#edit-session)                                  | `SessionChanges \| undefined`         |
+|              | `edit.isOpen`, `edit.isDirty`                                         | `boolean` (getters)                   |
+| History      | [`undo()`, `redo()`](#history)                                        | `HistoryResult`                       |
+|              | `canUndo`, `canRedo`                                                  | `boolean` (getters)                   |
+| Reading      | [`getTask(id)`](#reading-the-state)                                   | `TaskRecord \| undefined`             |
+|              | [`getLink(id)`](#reading-the-state)                                   | `LinkRecord \| undefined`             |
+|              | [`getVisibleRange()`](#reading-the-state)                             | `{ start: Date; end: Date }`          |
+|              | [`getRowMetrics(id)`](#reading-the-state)                             | `RowMetrics \| undefined`             |
+|              | [`getBarRect(id)`](#reading-the-state)                                | `BarGeometry \| undefined`            |
+|              | [`getIssues()`](#reading-the-state)                                   | `{ data: Issue[]; options: Issue[] }` |
+| Events       | [`on(name, handler)`](#on)                                            | `() => void` (unsubscribe)            |
+| Popovers     | [`hideTooltip()`](#hidetooltip)                                       | `void`                                |
+| Escape hatch | [`core`](#core)                                                       | `GanttCore`                           |
+
+## Lifecycle and options
+
+### `destroy`
+
+```ts
+destroy(): void
+```
+
+Removes everything the chart added to its container (nodes, listeners, observers, the timer), then
+destroys its core. It is safe to call twice. Afterwards nothing fires and the commands do nothing.
+Call it when your page is done with the chart; in React the component does it for you.
+
+### `setOptions`
+
+```ts
+setOptions(patch: GanttOptionsPatch<TData>): readonly Issue[]
+```
+
+Changes options without recreating the chart. `patch` takes any option of `createGantt` except
+`renderer`, which is read once at creation. The full list is in [Options](../options/).
+
+- A key left out keeps its value. A key set to `undefined` goes back to its default.
+- The groups `calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`,
+  `interaction`, `display` and `strings` merge field by field with what was set before.
+  `tooltip`, `linkMenu`, `highlightTooltip`, `editing`, `history` and `viewModes` as objects, and
+  every list (`tasks`, `links`, `highlights`, `calendar.holidays`, ...) are replaced whole: a field
+  you leave out is back to its default.
+- Each key goes only to what depends on it. Swapping an `on<Event>` handler is O(1) and redraws
+  nothing.
+- **Returns** the issues of the options now in use, the core's and the renderer's in one list. It is
+  the same list as `getIssues().options`. A value that cannot be used is an issue and the default
+  stays in effect; nothing throws.
+
+```ts
+gantt.setOptions({ theme: 'dark', locale: 'uk' }); // renderer and core options in one call
+gantt.setOptions({ scheduling: { propagation: undefined } }); // one field back to its default
+gantt.setOptions({ editing: false }); // a read-only chart
+
+const issues = gantt.setOptions({ viewMode: 'fortnight' }); // no such mode
+console.log(issues.map((issue) => issue.code)); // ['unknown-view-mode']; the chart uses 'day'
+```
+
+Changing the view mode this way (`setOptions({ viewMode: 'week' })`) fires
+[`viewModeChange`](../events/#viewmodechange), exactly as `setViewMode` does.
+
+## Data
+
+### `setTasks` and `setLinks`
+
+```ts
+setTasks(tasks: readonly Task<TData>[]): void
+setLinks(links: readonly Link[] | undefined): void
+```
+
+Replace the tasks or the links. The chart diffs the new list by id and recomputes only what changed.
+They never mutate what you pass.
+
+- With **uncontrolled** data (the default) the new tasks replace the chart's own, and the undo
+  history is cleared: its entries describe data that is gone.
+- With **controlled** data this is how you answer a change: pass the tasks with the change applied
+  (`patchTasks` writes a change set into tasks of any shape), or a new array without it to reject
+  the change. A new array always ends the draft the chart was showing, even with the same content.
+  The chart is `busy` until you do.
+- An open edit session keeps its base; the new tasks are diffed against it.
+
+They fire no change events. They can fire `rangeChange`, `issues`, `selectionChange` (when a
+selected task left the data) and `historyChange`. See
+[Data ownership](../concepts/data-ownership/) and the
+[controlled data example](../../examples/controlled-data/).
+
+### `updateTask`
+
+```ts
+updateTask(id: TaskId, update: TaskUpdate): Promise<UpdateTaskResult>
+```
+
+Changes a task's dates or progress from code. `update` is `{ start?, end?, progress? }`; dates take
+a `Date`, an ISO string or epoch milliseconds.
+
+| You pass          | What happens                                                  |
+| ----------------- | ------------------------------------------------------------- |
+| `start` alone     | The task moves there and keeps its length, like a bar drag    |
+| `end` alone       | The end edge moves and the start stays, like an end-edge drag |
+| `start` and `end` | Both edges are set                                            |
+| `progress`        | The progress, a number from `0` to `100`                      |
+
+The update behaves like the drag it stands for:
+
+- It **propagates** through links and children (`scheduling.propagation`,
+  `hierarchy.moveChildren`), so one call can move several tasks. All of them are in the one
+  `ChangeSet` of the `tasksChange` event, whose `reason` is `'api'`.
+- It runs **`onBeforeTaskChange`**, which sees `reason: 'api'` and may pass, cancel or rewrite it.
+- Undo restores it like any other action.
+- Values are **exact**: no snapping to the view mode and no rolling onto working days. A value off
+  `scheduling.granularity` is aligned as `scheduling.alignInput` says and reported as a
+  `misaligned` issue (with `alignInput: 'reject'` the update is refused). A day-precision task
+  stays on whole days unless `scheduling.keepDayPrecision` is `false`.
+- `end` is read as the task's own `end` is: a date-only value is the last day, inclusive, unless the
+  task has `precision: 'time'`. It must come after the start (a milestone may end at its start).
+- `editing: false` does not stop it: that option is about the UI. A `locked` task is the one thing
+  it leaves alone.
+
+| `status`      | Other fields                                                | When                                                                                                                                                                                                                                                                                                                          |
+| ------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'committed'` | `changeSet: ChangeSet`, `issues: readonly ChangeSetIssue[]` | The change was applied and `tasksChange` fired. `changeSet` is the final one (after hooks and alignment). `issues` are the corrections made, such as an aligned date                                                                                                                                                          |
+| `'unchanged'` | `issues`                                                    | There was nothing to change: `update` has no fields, the values equal the current ones, or a hook or re-validation left nothing. A `locked` task is reported here, with a `locked-task` issue                                                                                                                                 |
+| `'rejected'`  | `reason: 'unknown-task' \| 'invalid-value'`, `issues`       | Refused before a change was computed. `'unknown-task'`: no such id, or the task has no bar (a placeholder, an invalid task); `issues` is empty. `'invalid-value'`: an unreadable value, an end that is not after the start, a misaligned value with `alignInput: 'reject'`, or `update` is not an object; `issues` says which |
+| `'cancelled'` | `reason: 'hook' \| 'error' \| 'disposed'`, `error?`         | A before-hook answered `false` (`'hook'`), threw, rejected or answered something invalid (`'error'`, with `error`), or the chart was destroyed (`'disposed'`)                                                                                                                                                                 |
+| `'busy'`      | none                                                        | The chart is busy (see [the table above](#conventions)). The update is neither read nor reported                                                                                                                                                                                                                              |
+
+For `'invalid-value'` the issues are also emitted as an `issues` event with `source: 'change-set'`.
+
+```ts
+const result = await gantt.updateTask('design', { start: '2026-03-09', end: '2026-03-13' });
+
+switch (result.status) {
+  case 'committed':
+    console.log(`${result.changeSet.changes.length} tasks moved`);
+    console.log(gantt.getTask('design')?.start); // the new date (uncontrolled data)
+    break;
+  case 'unchanged':
+    console.log(
+      'Nothing to do',
+      result.issues.map((issue) => issue.code),
+    );
+    break;
+  case 'rejected':
+    console.warn(result.reason, result.issues); // 'unknown-task' or 'invalid-value'
+    break;
+  case 'cancelled':
+    console.warn('A hook said no, or the chart is gone:', result.reason);
+    break;
+  case 'busy':
+    console.warn('Another change is waiting; try again later');
+    break;
+}
+```
+
+With controlled data, a `'committed'` update leaves the chart busy until your next `setTasks`; the
+next `updateTask` before that resolves `'busy'`. See the
+[programmatic updates example](../../examples/programmatic-updates/).
+
+### `addLink`
+
+```ts
+addLink(link: Link): Promise<LinkCreateResult>
+```
+
+Creates a link from code. `link` is `{ source, target, type?, lag?, id?, editable? }`. The chart
+checks the link, runs `onBeforeLinkCreate` and appends it (uncontrolled data) or leaves it to you
+(controlled data), then fires `linkCreate`. Permissions such as `linkable` apply to the user's
+gestures, not to this call.
+
+| `status`      | Other fields                                        | When                                                                                                                |
+| ------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `'created'`   | `id: string`, `link: Link`                          | The link was created. `link` is the one written: yours, or a copy with a free `id` when its default id was taken    |
+| `'rejected'`  | `reason`, and `issues` for `'invalid'`              | Refused; nothing was changed or emitted. The reasons are below                                                      |
+| `'cancelled'` | `reason: 'hook' \| 'error' \| 'disposed'`, `error?` | `onBeforeLinkCreate` answered `false`, or threw, rejected or answered something invalid, or the chart was destroyed |
+| `'busy'`      | none                                                | The chart is busy                                                                                                   |
+
+The `reason` of a rejection:
+
+| `reason`         | The link was refused because                                                                                                                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'invalid'`      | The model would drop it: a malformed field (an unknown `type`), a lag that is invalid or has months, or a misaligned lag with `alignInput: 'reject'`. `issues` lists the problems with their `path`, such as `link.lag` |
+| `'unknown-task'` | The source or the target is not a task (also when the argument is not an object)                                                                                                                                        |
+| `'duplicate'`    | A link with the same source, target and type exists, whatever its `id`, or the explicit `id` is in use                                                                                                                  |
+| `'cycle'`        | It would close a cycle of links, or links a task to itself                                                                                                                                                              |
+
+The first three are decided without asking the hooks. A cycle is rejected whatever the hooks answer:
+`onBeforeLinkCreate` is told through `wouldCreateCycle` so it can explain.
+
+```ts
+const result = await gantt.addLink({ source: 'design', target: 'build', type: 'SS', lag: 1 });
+
+if (result.status === 'created') {
+  console.log('Created', result.id); // 'design:SS:build'
+} else if (result.status === 'rejected') {
+  console.warn(result.reason); // 'invalid', 'unknown-task', 'duplicate' or 'cycle'
+}
+```
+
+### `removeLink`
+
+```ts
+removeLink(id: string): Promise<LinkDeleteResult>
+```
+
+Deletes a link by its id (`LinkRecord.id`, as `getLink` and the events give it). Uncontrolled data
+loses the link: it is removed from `links`, or, for a link that came from `Task.dependencies`, the
+entry is removed from its target task. Controlled data stays yours to change. Then `linkDelete`
+fires. No hook is asked and `editable: false` does not stop the call.
+
+| `status`      | Other fields                     | When                                                             |
+| ------------- | -------------------------------- | ---------------------------------------------------------------- |
+| `'deleted'`   | `id: string`, `link: LinkRecord` | The link was deleted. `link` is the record it had                |
+| `'rejected'`  | `reason: 'unknown-link'`         | No link has that id                                              |
+| `'cancelled'` | `reason: 'disposed'`             | The chart was destroyed (the only way `removeLink` is cancelled) |
+| `'busy'`      | none                             | The chart is busy                                                |
+
+See [Links and types](../concepts/links-and-types/) and the
+[link editing example](../../examples/link-editing/).
+
+## View and scrolling
+
+On the vanilla `Gantt` these methods return nothing: the chart scrolls itself in its next frame and
+there is nothing for you to apply. On `GanttCore` they return the [`ScrollRequest`](#scroll-requests)
+a renderer performs. The tables below describe the options and when the core returns `undefined`.
+
+### `setViewMode`
+
+```ts
+setViewMode(id: string, options?: SetViewModeOptions): void
+```
+
+Switches the view mode: `'hour'`, `'quarter-day'`, `'half-day'`, `'day'`, `'week'`, `'month'`,
+`'year'`, or an id of your own from `viewModes`.
+
+| Option       | Type      | Default | Meaning                                                                                                                 |
+| ------------ | --------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `keepScroll` | `boolean` | `true`  | `true`: the date at the centre of the viewport stays in place. `false`: scroll as `scroll.initial` says, as at creation |
+
+An unknown id falls back to `'day'` with an `unknown-view-mode` issue. A non-string `id` does
+nothing. Fires `viewModeChange`, and `rangeChange` with `'view-mode'` when the range changes. Any
+zoom set by `zoomTo` is dropped.
+
+```ts
+gantt.setViewMode('week'); // the centre date stays put
+gantt.setViewMode('month', { keepScroll: false }); // as at creation: scroll.initial decides
+```
+
+### `zoomTo`
+
+```ts
+zoomTo(pxPerDay: number, options?: ZoomToOptions): void
+```
+
+Sets the zoom level of the current view mode, in pixels per day. The view mode stays the same.
+
+| Option   | Type     | Default    | Meaning                                                                        |
+| -------- | -------- | ---------- | ------------------------------------------------------------------------------ |
+| `anchor` | `number` | the centre | The x of the date that stays in place, in pixels from the viewport's left edge |
+
+A value that is not a finite number above zero does nothing. Another view mode drops the zoom.
+Fires `rangeChange` with `'zoom'` when the range changes.
+
+```ts
+const { pxPerDay } = gantt.core.getSnapshot().timeline.scale;
+gantt.zoomTo(pxPerDay * 1.5); // zoom in, keeping the centre date
+gantt.zoomTo(pxPerDay / 2, { anchor: 0 }); // zoom out, keeping the left-edge date
+```
+
+### `scrollToDate` and `scrollToToday`
+
+```ts
+scrollToDate(date: DateInput, options?: ScrollToDateOptions): void
+scrollToToday(options?: ScrollToDateOptions): void
+```
+
+Scroll a date, or today, into view. With the infinite timeline the range grows first.
+
+| Option     | Type                                     | Default                        | Meaning                                                                                                                                                                           |
+| ---------- | ---------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `align`    | `number \| 'start' \| 'center' \| 'end'` | `scroll.align` (`'start'`)     | Where the date lands in the viewport. A number from `0` (left edge) to `1` (right edge); `'start'`, `'center'` and `'end'` are `0`, `0.5` and `1`. Anything else uses the default |
+| `behavior` | `'smooth' \| 'instant' \| 'auto'`        | `scroll.behavior` (`'smooth'`) | How to scroll. `'auto'` leaves it to the browser (the scroller's CSS `scroll-behavior`)                                                                                           |
+
+```ts
+gantt.scrollToDate('2026-03-16'); // smooth, the date at the left edge
+gantt.scrollToDate(new Date(2026, 2, 16), { align: 'center', behavior: 'instant' });
+gantt.scrollToToday({ align: 0.25 }); // today a quarter of the way in
+```
+
+An unreadable date does nothing. A call made **before the chart has a width** (it is created in a
+hidden container, say) is not lost: the latest one is kept and performed at the first width, in
+place of `scroll.initial`, which a later change of the option cannot override.
+
+### `scrollToTask`
+
+```ts
+scrollToTask(id: TaskId, options?: ScrollToTaskOptions): void
+```
+
+Scrolls a task's row and bar into view, on both axes. It takes the options of `scrollToDate` and:
+
+| Option   | Type                                     | Default | Meaning                                                                       |
+| -------- | ---------------------------------------- | ------- | ----------------------------------------------------------------------------- |
+| `alignY` | `number \| 'start' \| 'center' \| 'end'` | `align` | Where the row lands vertically                                                |
+| `expand` | `boolean`                                | `true`  | Expand the collapsed ancestors of a hidden row first (fires `expandedChange`) |
+
+An unknown id scrolls nowhere, and neither does a task whose row is hidden by a collapsed parent
+when `expand` is `false`. A task without a bar (a placeholder) scrolls vertically only.
+
+```ts
+gantt.scrollToTask('build'); // smooth, aligned at the start
+gantt.scrollToTask('build', { align: 'center', alignY: 'center', behavior: 'instant' });
+gantt.scrollToTask('qa', { expand: false }); // nothing if its parent is collapsed
+```
+
+Scrolling and view methods fire `scroll` and, with an infinite timeline, `rangeChange`. See the
+[scrolling example](../../examples/scrolling-and-today/) and the
+[view modes example](../../examples/view-modes/).
+
+### Scroll requests
+
+On `GanttCore`, `setViewMode`, `zoomTo` and the `scrollTo*` methods return a `ScrollRequest`, or
+`undefined` when there is nothing to scroll: the chart is destroyed, the input is unusable (an
+unreadable date, a non-string view mode id, a zoom that is not above zero), the request would not move
+anything (the same view mode or zoom again), the task has no visible row, or the chart has no width
+yet. A request is also kept in the snapshot as `scrollRequest`, so a renderer sees the requests of
+calls it did not make.
+
+| Field      | Type                                                                                             | Meaning                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `id`       | `number`                                                                                         | Grows by one with every request of the chart. Apply each id once                         |
+| `reason`   | `'initial' \| 'scroll-to' \| 'view-mode' \| 'zoom' \| 'data' \| 'options' \| 'resize' \| 'drag'` | Why the core asks for the scroll                                                         |
+| `from`     | `number \| undefined`                                                                            | A smooth request: jump here instantly first, so the animation starts without a jump      |
+| `left`     | `number \| undefined`                                                                            | The horizontal offset to scroll to, in content pixels; `undefined` keeps it              |
+| `top`      | `number \| undefined`                                                                            | The vertical offset to scroll to, in body pixels; `undefined` keeps it                   |
+| `behavior` | `'smooth' \| 'instant' \| 'auto'`                                                                | How to scroll. A `scrollTo*` whose range change cut the current view away is `'instant'` |
+
+The DOM renderer applies requests for you. You only meet them when you write your own renderer; see
+[Custom renderers](../custom-renderers/).
+
+## Rows and selection
+
+### Rows
+
+```ts
+expand(id: TaskId): void
+collapse(id: TaskId): void
+expandAll(): void
+collapseAll(): void
+```
+
+Open or close the parents of the task tree. `expandAll` expands every parent that exists now;
+parents that appear later start collapsed. Each fires `expandedChange` when the expanded set
+changes, and does nothing when it does not. `setOptions({ hierarchy: { expandedKeys } })` sets the
+state outright and fires nothing. See [Hierarchy](../concepts/hierarchy/).
+
+### Selection
+
+```ts
+select(ids: readonly TaskId[]): void
+selectLink(id: string | undefined): void
+clearSelection(): void
+```
+
+- `select` **replaces** the selected tasks. Ids that are not tasks are left out, duplicates are
+  dropped, the order you gave is kept, and the selected link is kept.
+- `selectLink` selects a link, or none with `undefined`. An unknown id selects none. The selected
+  tasks are kept.
+- `clearSelection` clears both.
+
+Each fires `selectionChange` when the selection changes. The chart never selects a task by itself: a
+click on a bar only fires `taskClick`. A click on a link selects it.
+
+```ts
+gantt.select(['design', 'build']);
+gantt.selectLink('design:FS:build');
+gantt.core.getSnapshot().selection; // { tasks: ['design', 'build'], link: 'design:FS:build' }
+gantt.clearSelection();
+```
+
+## Edit session
+
+```ts
+edit.begin(): SessionBeginResult
+edit.commit(): SessionCommitResult
+edit.rollback(): SessionRollbackResult
+edit.getChanges(): SessionChanges | undefined
+edit.isOpen: boolean
+edit.isDirty: boolean
+```
+
+The "Edit, Save, Cancel" flow. All three commands are synchronous. A session does not hold changes
+back: they are applied and reported as they happen. `begin` remembers the data, `getChanges` is the
+net difference from it (a task changed and changed back is not listed), `commit` closes the session
+and returns that difference, and `rollback` puts the remembered data back. At most one session is
+open. Concepts: [Edit sessions and history](../concepts/edit-sessions-and-history/).
+
+`edit.begin()`:
+
+| `status`         | Other fields         | When                                                         |
+| ---------------- | -------------------- | ------------------------------------------------------------ |
+| `'begun'`        | none                 | A session opened on the current data                         |
+| `'already-open'` | none                 | One is open already. Sessions do not nest; it keeps its base |
+| `'busy'`         | none                 | A before-hook is being awaited                               |
+| `'cancelled'`    | `reason: 'disposed'` | The chart was destroyed                                      |
+
+`edit.commit()`:
+
+| `status`       | Other fields              | When                                                                                                                             |
+| -------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `'committed'`  | `changes: SessionChanges` | The session closed and its changes were kept. `changes.reason` is `'session'`; `changes.links` lists the links added and removed |
+| `'no-session'` | none                      | No session is open                                                                                                               |
+| `'busy'`       | none                      | A before-hook is being awaited                                                                                                   |
+| `'cancelled'`  | `reason: 'disposed'`      | The chart was destroyed                                                                                                          |
+
+`edit.rollback()`:
+
+| `status`        | Other fields              | When                                                                                                                                     |
+| --------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `'rolled-back'` | `changes: SessionChanges` | The session closed and the data returned to its base. `changes.reason` is `'rollback'`; the same object is the payload of `editRollback` |
+| `'no-session'`  | none                      | No session is open                                                                                                                       |
+| `'busy'`        | none                      | A before-hook is being awaited                                                                                                           |
+| `'cancelled'`   | `reason: 'disposed'`      | The chart was destroyed                                                                                                                  |
+
+`rollback` also cancels a drag in progress first, never asks a before-hook, and puts the undo
+history back to where it was at `begin`.
+
+```ts
+gantt.edit.begin(); // { status: 'begun' }
+// ... the user drags bars; getTask() shows each change, tasksChange fires ...
+
+if (gantt.edit.isDirty) {
+  const saved = gantt.edit.commit();
+  if (saved.status === 'committed') await post(saved.changes); // the net difference
+}
+
+// or, to cancel:
+const cancelled = gantt.edit.rollback();
+if (cancelled.status === 'rolled-back') console.log(cancelled.changes.changes.length, 'reverted');
+```
+
+With controlled data the rollback is yours to apply: the `editRollback` event (or the `changes` of
+the result) carries what to revert. The [edit session example](../../examples/edit-session/) is the
+whole flow with Save, Cancel and a server that can refuse.
+
+`getChanges()` returns what `commit()` would return as `changes` (a `SessionChanges`) at this
+moment, or `undefined` when no session is open. `isOpen` says whether a session is open, and
+`isDirty` whether it is open and has changes.
+
+## History
+
+```ts
+undo(): HistoryResult
+redo(): HistoryResult
+canUndo: boolean
+canRedo: boolean
+```
+
+Step back and forward through the actions the chart recorded: one entry per drag, `updateTask`
+call, link created and link deleted. It needs `history: true` (or `{ limit }`, default `100`); the
+history is off by default, and without it `canUndo` and `canRedo` stay `false` and `undo()` returns
+`{ status: 'empty' }`. A drag in progress is cancelled first. Steps are synchronous, work inside an
+edit session, and never ask the before-hooks. A new action clears what could be redone.
+
+An undo or redo fires the usual events: `tasksChange` with `reason: 'undo'` or `'redo'` and its
+per-task events, or `linkCreate` or `linkDelete`, and `historyChange`.
+
+| `status`                 | Other fields          | When                                                                                                                                            |
+| ------------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'undone'` or `'redone'` | `entry: HistoryEntry` | The step was applied. `entry` is the entry as it is now on the other stack                                                                      |
+| `'empty'`                | none                  | Nothing to undo or redo                                                                                                                         |
+| `'stale'`                | `entry`               | The data no longer shows the entry's result (it was changed behind the history's back), so the step was not applied and the history was cleared |
+| `'busy'`                 | none                  | A before-hook is being awaited, or controlled data holds a change you have not applied                                                          |
+| `'cancelled'`            | `reason: 'disposed'`  | The chart was destroyed                                                                                                                         |
+
+A `HistoryEntry` is `{ type: 'tasks', changeSet }`, `{ type: 'linkCreate', id, link }` or
+`{ type: 'linkDelete', id, link, restore }`.
+
+```ts
+const gantt = createGantt(container, { tasks, history: { limit: 50 } });
+
+undoButton.onclick = () => {
+  const result = gantt.undo();
+  if (result.status === 'stale') alert('The plan changed elsewhere; the history was reset.');
+};
+gantt.on('historyChange', ({ canUndo, canRedo }) => {
+  undoButton.disabled = !canUndo;
+  redoButton.disabled = !canRedo;
+});
+```
+
+See the [undo and redo example](../../examples/undo-redo/).
+
+## Reading the state
+
+All of these are synchronous queries. They still answer after `destroy()`.
+
+| Method              | Returns                                                                                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getTask(id)`       | The task's [`TaskRecord`](../concepts/tasks-and-records/): dates as `Date`s, lengths, progress, place in the tree, `issues`, `conflicts`. `undefined` for an unknown id. Frozen, and the same object while nothing it shows has changed |
+| `getLink(id)`       | The link's `LinkRecord` (`source`, `target`, `type`, `lag`, `active`, `inCycle`, ...). `undefined` for an unknown id                                                                                                                    |
+| `getVisibleRange()` | `{ start, end }`: the dates at the viewport's left and right edges                                                                                                                                                                      |
+| `getRowMetrics(id)` | `{ id, index, y, height }` of the row, `y` in body pixels (`0` is the top of the first row, below the header). `undefined` when the id is unknown or the row is hidden                                                                  |
+| `getBarRect(id)`    | `{ id, rowIndex, kind, x, y, width, height, radius, progressWidth }` of the bar as drawn, a drag in progress included. `x` is in content pixels, `y` in body pixels. `undefined` without a bar                                          |
+| `getIssues()`       | `{ data, options }`: the current problems of the data and of the options (the renderer's options included). The same lists the `issues` event reports                                                                                   |
+
+Anything else lives in the snapshot, `gantt.core.getSnapshot()`. To export the data, read the
+tasks and links the chart holds; uncontrolled data includes every change applied so far:
+
+```ts
+const { state } = gantt.core.getSnapshot();
+
+// The data as the chart has it: your own Task and Link objects, patched by the chart's changes.
+const saved = { tasks: state.tasks, links: state.links };
+
+// Computed records, in row order (collapsed rows are left out) ...
+const rows = state.derived.rows.map((row) => gantt.getTask(row.id));
+// ... or for every task.
+const all = state.derived.model.tasks.map((task) => gantt.getTask(task.id));
+```
+
+Inside an event handler the snapshot can be one step behind the event, see
+[When events are delivered](../events/#when-events-are-delivered).
+
+## Events and popovers
+
+### `on`
+
+```ts
+on<K extends GanttEventName>(name: K, handler: GanttEventMap<TData>[K]): () => void
+```
+
+Adds a listener for an event, with the same arguments as the `on<Event>` option, and returns a
+function that removes it. There is no `off` and no `once`. Everything about the events, their
+arguments and their order is on [Events](../events/).
+
+### `hideTooltip`
+
+```ts
+hideTooltip(): void
+```
+
+Closes the popover that is open: a task tooltip, the link menu or a day label. Popovers open from
+the pointer; there is no method to open one. Only `Gantt` has it.
+
+### `core`
+
+```ts
+readonly core: GanttCore<TData>
+```
+
+The chart's core, for what the vanilla object leaves out: the snapshot and its subscription, the
+scroll requests and the input methods. See below.
+
+## What `Gantt` and `GanttCore` do not share
+
+`Gantt` is `GanttCore` with a renderer on it, so most members are the same functions. These differ:
+
+| Member                                           | On `Gantt`                                                                       | On `GanttCore`                      |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------- |
+| `setOptions`                                     | Takes the renderer's options too (`theme`, `strings`, `display`, `tooltip`, ...) | Core options only                   |
+| `setViewMode`, `zoomTo`, `scrollTo*`             | Return `void`; the renderer performs the scroll                                  | Return `ScrollRequest \| undefined` |
+| `getIssues`, `on('issues')`, `setOptions` result | Include the renderer's option issues                                             | The core's only                     |
+| `destroy`                                        | Removes the DOM, then destroys the core                                          | Destroys the core                   |
+| `hideTooltip`, `core`                            | Yes                                                                              | No                                  |
+| `setViewport`, `scroll`, `send`, `refreshNow`    | No: use `gantt.core.…`                                                           | Yes                                 |
+| `getSnapshot`, `subscribe`                       | No: use `gantt.core.…`                                                           | Yes                                 |
+
+The members only the core has are for renderers and for state bindings. They are synchronous and,
+after they changed something, never throw because one of your listeners did: that error goes to the
+`error` listeners, or to the unhandled-rejection channel, so the result a renderer needs is not lost.
+
+| Method                           | What it does                                                                                                                                                           | Returns                                                                                               |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `setViewport({ width, height })` | The renderer reports the scroller's size, in CSS pixels. The first non-zero width mounts the timeline and applies `scroll.initial`                                     | `ScrollRequest \| undefined`                                                                          |
+| `scroll({ left, top })`          | The renderer reports its scroll position, once per frame. Runs the infinite timeline's policy and re-places a dragged bar                                              | The `ViewportChange` to apply in the same frame (`scrollLeft += change.shift`), or `undefined`        |
+| `send(event)`                    | The renderer's input adapter sends a pointer, key, cancel or timeline event in content coordinates. The core applies previews, commits and clicks and emits the events | `readonly RendererEffect[]`: the auto-scroll velocity, link preview and feedback left to the renderer |
+| `refreshNow()`                   | Reads "now" again; publishes a new snapshot only when the minute changed. Call it from one timer aligned to the next minute                                            | `void`                                                                                                |
+| `getSnapshot()`                  | The renderer's view-model: state, view mode, timeline, layout, selection, feedback, `busy`, `scrollRequest`, ... The same object until something in it changed         | `GanttSnapshot`                                                                                       |
+| `subscribe(listener)`            | Calls `listener` after every change of the snapshot. With `getSnapshot` it is the contract of React's `useSyncExternalStore`                                           | A function that removes it                                                                            |
+
+```ts
+const off = gantt.core.subscribe(() => {
+  const { busy, selection, viewMode } = gantt.core.getSnapshot();
+  statusBar.textContent = `${viewMode.id}, ${selection.tasks.length} selected${busy ? ', saving' : ''}`;
+});
+```
+
+[Custom renderers](../custom-renderers/) shows how a renderer uses them; React's `useGanttState`
+reads the snapshot for you.
+
+## Methods in React
+
+`<Gantt>` and `useGantt` expose the same methods; React runs the lifecycle for you.
+
+| You have                                                                                                                                              | It has                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The `ref` of `<Gantt>`: a [`GanttHandle`](../../api/ganttlane/react/type-aliases/gantthandle/)                                                        | Every member of `Gantt` except `destroy`, plus `getSnapshot` and `subscribe`. The ref is `null` after the component unmounts and while a hidden `<Activity>` has the chart |
+| The instance of [`useGantt`](../../api/ganttlane/react/functions/usegantt/): a [`GanttInstance`](../../api/ganttlane/react/interfaces/ganttinstance/) | The same, plus `setContainer` and `slots`, which `<Gantt>` uses                                                                                                            |
+
+```tsx
+const chart = useRef<GanttHandle>(null);
+
+const goToBuild = () => chart.current?.scrollToTask('build');
+const save = async () => {
+  const result = await chart.current?.updateTask('design', { progress: 100 });
+  if (result?.status === 'rejected') console.warn(result.reason);
+};
+```
+
+Both objects are the same for the life of the component. Prefer props to methods for state the
+component owns (`tasks`, `viewMode`, `expandedKeys`, `selectedKeys`, options): a prop that changes
+later wins over a `setOptions` call. See [React](../react/) for the props, controlled and
+uncontrolled values, and the `ref` handle, and the
+[`ref` handle example](../../examples/react-ref-handle/).
+
+## Related
+
+- [Events](../events/): what a chart reports, with every payload, and the before-hooks.
+- [Options](../options/): what `createGantt` and `setOptions` accept.
+- [Edit sessions and history](../concepts/edit-sessions-and-history/),
+  [Change sets and hooks](../concepts/change-sets-and-hooks/) and
+  [Data ownership](../concepts/data-ownership/): the model behind the results.
+- Examples: [basic chart](../../examples/basic/), [edit session](../../examples/edit-session/),
+  [controlled data](../../examples/controlled-data/), [undo and redo](../../examples/undo-redo/),
+  [programmatic updates](../../examples/programmatic-updates/) and
+  [scrolling](../../examples/scrolling-and-today/).
+- API reference: [`Gantt`](../../api/ganttlane/dom/interfaces/gantt/),
+  [`GanttCore`](../../api/ganttlane/core/interfaces/ganttcore/),
+  [`UpdateTaskResult`](../../api/ganttlane/core/type-aliases/updatetaskresult/),
+  [`LinkCreateResult`](../../api/ganttlane/core/type-aliases/linkcreateresult/),
+  [`LinkDeleteResult`](../../api/ganttlane/core/type-aliases/linkdeleteresult/),
+  [`HistoryResult`](../../api/ganttlane/core/type-aliases/historyresult/),
+  [`ScrollRequest`](../../api/ganttlane/core/interfaces/scrollrequest/) and
+  [`createGantt`](../../api/ganttlane/dom/functions/creategantt/).

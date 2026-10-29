@@ -1,0 +1,259 @@
+---
+title: Hierarchy
+description: 'Parents and children: how the tree and the row order are built, expand and collapse, pinned and free children, and what a bad parentId does.'
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Tasks nest through `parentId`. A parent is a row that has children under it; collapsing it hides
+them, and moving it can move them. This page covers how the tree is built, which rows are visible,
+how children follow a parent, and how the chart reports a parent that does not exist or loops back
+on itself. After it you can model phases with children, control which of them move with their
+phase, and drive expand and collapse from code.
+
+## Building the tree
+
+Give a child the `id` of its parent in `parentId`:
+
+```ts
+import { createGantt } from '@ganttlane/dom';
+
+const gantt = createGantt(container, {
+  tasks: [
+    { id: 'ui', name: 'UI', parentId: 'build', start: '2026-03-09', end: '2026-03-10' },
+    { id: 'build', name: 'Build', start: '2026-03-02', end: '2026-03-13' },
+    { id: 'api', name: 'API', parentId: 'build', start: '2026-03-04', end: '2026-03-05' },
+    { id: 'ship', name: 'Ship', type: 'milestone', start: '2026-03-16' },
+  ],
+});
+
+gantt.getTask('build')?.childIds; //  ['ui', 'api']
+gantt.getTask('api')?.level; //       1
+gantt.getTask('api')?.parentId; //    'build'
+gantt.getTask('api')?.rowIndex; //    2
+```
+
+- **Any task can be a parent.** There is no `type` for it: a task that others name in `parentId`
+  has children. Its `TaskRecord` shows `childIds`, `level` (`0` for a root), `rowIndex` and
+  `isExpanded`.
+- **Row order is the tree in pre-order.** Each parent is followed by its whole subtree, and
+  siblings and roots keep the order they have in `tasks`. It does not matter whether a child is
+  listed before or after its parent: the rows above are `build`, `ui`, `api`, `ship`.
+- **There is no depth limit**, and building the tree takes time linear in the number of tasks.
+- **`parentId` has the type of an `id`**: `5` and `'5'` are different tasks.
+
+Three options shape the tree; they are the `hierarchy` group, and a prop of the same name in React
+(except `expandedKeys`, which is a prop of its own).
+
+| Option                   | Type                             | Default | Meaning                                      |
+| ------------------------ | -------------------------------- | ------- | -------------------------------------------- |
+| `hierarchy.expandedKeys` | `'all' \| TaskId[]`              | `'all'` | Which parents are expanded                   |
+| `hierarchy.childAnchor`  | link type or list of link types  | `'SS'`  | The default `parentAnchor` of a pinned child |
+| `hierarchy.moveChildren` | `'all' \| 'following' \| 'none'` | `'all'` | Which children move when their parent moves  |
+
+[Options: Hierarchy](../../options/#hierarchy) has the details of each.
+
+## Rows, expand and collapse
+
+A chart shows **one row per visible task**. A parent is _expanded_ when its children are shown.
+
+`hierarchy.expandedKeys` is `'all'` (every parent open, and parents that appear later start open) or
+the list of the ids that are open. Ids of tasks without children are allowed and do nothing until the
+task gets a child; unknown ids are ignored. A collapsed parent hides its **whole subtree**,
+whatever the keys say about the descendants.
+
+```ts
+createGantt(container, {
+  tasks,
+  hierarchy: { expandedKeys: ['build'] }, // only Build is open
+  onExpandedChange: (expandedKeys) => console.log(expandedKeys),
+});
+```
+
+A hidden row has no place in the chart: its `rowIndex` is `undefined`, `getRowMetrics(id)`
+returns `undefined`, and its bar is not drawn. A link to a hidden task is still scheduled, but it is
+not drawn either; it is not re-pointed at the parent's bar.
+
+### Changing the open parents
+
+| From code                                           | What it does                                                                        |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `gantt.expand(id)`, `gantt.collapse(id)`            | Open or close one parent                                                            |
+| `gantt.expandAll()`, `gantt.collapseAll()`          | Open every parent that exists now, or close them all                                |
+| `gantt.scrollToTask(id)`                            | Scrolls to the task and opens its collapsed ancestors (`expand: false` leaves them) |
+| `gantt.setOptions({ hierarchy: { expandedKeys } })` | Replaces the open parents                                                           |
+| `onExpandedChange(expandedKeys)`                    | Reports a change made by one of the first three                                     |
+
+- The value `'all'` becomes a list at the first `collapse(id)`: it turns into every other parent.
+  `expandAll()` gives the list of the parents that exist at that moment, so a parent added later
+  starts closed, unlike `'all'`.
+- `setOptions` does not fire `onExpandedChange`. Setting the value the option already has (`'all'`
+  again, or the same array object) changes nothing, even if rows were opened or closed since: pass a
+  new array.
+- The chart draws **no expand arrow and no left-hand list**: it has bars only. Build your own
+  toggle (a button per parent, or a list that follows the rows with `getRowMetrics(id)`) and call
+  these methods from it. `display.rowStripes` colours rows per row or per top-level group.
+
+<Tabs syncKey="package">
+
+<TabItem label="Vanilla">
+
+```ts
+const gantt = createGantt(container, { tasks, hierarchy: { expandedKeys: [] } });
+
+document.querySelector('#toggle-build')?.addEventListener('click', () => {
+  const open = gantt.getTask('build')?.isExpanded;
+  if (open) gantt.collapse('build');
+  else gantt.expand('build');
+});
+```
+
+</TabItem>
+
+<TabItem label="React">
+
+```tsx
+import { useState } from 'react';
+import { Gantt, type ExpandedKeys } from '@ganttlane/react';
+
+export function Plan() {
+  const [open, setOpen] = useState<ExpandedKeys>([]);
+  return (
+    <Gantt tasks={tasks} expandedKeys={open} onExpandedChange={setOpen} style={{ height: 420 }} />
+  );
+}
+```
+
+With `expandedKeys` the prop is the truth: a call such as `handle.collapse('build')` fires
+`onExpandedChange`, and the chart returns to the prop if your state does not change.
+`defaultExpandedKeys` leaves the chart in charge.
+
+</TabItem>
+
+</Tabs>
+
+## Pinned children and free children
+
+When a parent moves or is resized, its children may follow. A child can follow in two ways.
+
+- A **pinned** child has `followParent: true`. Its edges are tied to the parent's edges through
+  `parentAnchor` (default `hierarchy.childAnchor`, `'SS'`), and keep the distance they had in your
+  data.
+- A **free** child has no `followParent`. It is not tied to any edge, but with the default
+  `moveChildren: 'all'` it shifts with the parent's **start**: when the parent's start moves, it
+  moves by the same amount, keeping its distance from that start.
+
+`parentAnchor` is one link type or a list, read from the child's side:
+
+| Value  | The child's ... | follows the parent's ... |
+| ------ | --------------- | ------------------------ |
+| `'SS'` | start           | start                    |
+| `'FS'` | start           | end                      |
+| `'FF'` | end             | end                      |
+| `'SF'` | end             | start                    |
+
+A list pins both edges: one type for the start (`SS` or `FS`) and one for the end (`FF` or `SF`),
+such as `['SS', 'FF']`. A child pinned that way **stretches** with its parent.
+
+`hierarchy.moveChildren` decides which children take part:
+
+| `moveChildren`    | Pinned children             | Free children                         |
+| ----------------- | --------------------------- | ------------------------------------- |
+| `'all'` (default) | follow their `parentAnchor` | shift when the parent's start changes |
+| `'following'`     | follow their `parentAnchor` | stay                                  |
+| `'none'`          | stay                        | stay                                  |
+
+With the tasks above, where `api` is pinned (`followParent: true`) and `ui` is free, moving Build
+one week later (`gantt.updateTask('build', { start: '2026-03-09' })`) gives:
+
+| `moveChildren` | Build           | `api` (pinned, `SS`) | `ui` (free)      |
+| -------------- | --------------- | -------------------- | ---------------- |
+| `'all'`        | Mar 9 to Mar 20 | Mar 11 to Mar 12     | Mar 16 to Mar 17 |
+| `'following'`  | Mar 9 to Mar 20 | Mar 11 to Mar 12     | Mar 9 to Mar 10  |
+| `'none'`       | Mar 9 to Mar 20 | Mar 4 to Mar 5       | Mar 9 to Mar 10  |
+
+Resizing Build's end to March 20 instead shows what the anchor does to the pinned child:
+
+| `parentAnchor` of `api` | `api` becomes                                         |
+| ----------------------- | ----------------------------------------------------- |
+| `'SS'` (default)        | Mar 4 to Mar 5: only the start is tied                |
+| `'FF'`                  | Mar 11 to Mar 12: the end follows, the length is kept |
+| `['SS', 'FF']`          | Mar 4 to Mar 12: the child stretches                  |
+
+A `locked` child never moves and stops the change there: its own children do not move through it.
+A `fixedDuration` child keeps its length. A change reaches grandchildren through the children that
+move. Whatever you do to a child, its parent is never changed: moving a child out of its parent
+only raises a conflict, below. The whole change is one `ChangeSet` whose changes carry
+`cause: 'parent'` and the parent as `via`; the details, and what happens when a link and a parent
+pin the same edge, are in [Propagation and conflicts](../propagation-and-conflicts/).
+
+The [hierarchy example](../../../examples/hierarchy/) and the
+[release plan](../../../examples/release-plan/) let you try each setting.
+
+### A child outside its parent
+
+A child that starts before its parent or ends after it has an `outside-parent` conflict on its
+record, with the `edges` that stick out (`'start'`, `'end'`) and the `parentId`. It is a warning:
+the chart accepts the data, and `onBeforeTaskChange` sees the conflict of an edit that causes it, so
+a hook can refuse. A milestone child may sit exactly on either edge of its parent. A child of a
+placeholder row is never outside it, because the placeholder has no bar.
+
+## A parent is not computed from its children
+
+A parent's dates are its own. The chart does not stretch a parent to cover its children or derive
+its dates from them. Not available yet: summary bars whose dates roll up from the children. If you
+want one, set the parent's `start` and `end` yourself, for example when you build the tasks, and
+let the `outside-parent` conflict tell you when a child leaves it.
+
+A parent can also be a row without a bar. Give it `type: 'placeholder'` (or no dates) and it is
+a heading: it has a row, a toggle state and children, but no bar, nothing moves with it, and its
+children are never outside it.
+
+## Milestones and rows without a bar
+
+Every task takes part in the tree, whatever its type:
+
+- **A milestone** can be a child. Pinned to an edge, it keeps its offset like any child.
+- **A placeholder** or a task with no dates is a row like the others, with its own children and
+  place in the order. It has no bar, so a pinned child of it does not follow anything and a link to
+  it is inactive.
+- **An invalid task** (a bad date, `incomplete-dates`) keeps its row, its `parentId` and its children.
+
+See [Tasks and records](../tasks-and-records/#task-types) for the types.
+
+## Bad parents
+
+The tree is repaired, never thrown away. Each repair is reported as an issue on the task and in
+`getIssues().data`:
+
+| Issue                   | Severity | What happened                                                                                                                   | The result                                                                                                                        |
+| ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `unknown-parent`        | warning  | `parentId` matches no task. `value` is the id that was not found                                                                | The task is a root                                                                                                                |
+| `parent-cycle`          | error    | Parents form a loop (`a` to `b` to `a`), or a task is its own parent. `value` lists the members                                 | The member that comes **first in `tasks`** becomes a root; the others keep their parents, so the loop turns into a chain under it |
+| `invalid-parent-anchor` | warning  | `parentAnchor` (or `hierarchy.childAnchor`, at that path) is not a link type, is empty, or pins one edge twice (`['SS', 'FS']`) | Unusable entries are ignored; if none is left, the default is used. `suggested` is what is applied                                |
+
+```ts
+gantt.getIssues().data.find((issue) => issue.code === 'parent-cycle');
+// { code: 'parent-cycle', severity: 'error', path: 'parentId', taskId: 'loop-a',
+//   value: ['loop-a', 'loop-b'], message: '...' }
+```
+
+A link between a task and its own ancestor can close a cycle with the parent-to-child edges of the
+tree. Propagation ignores the links on such a cycle and follows the rest. A repeated task id drops
+the later task, so children that name that id attach to the first.
+
+## Related
+
+- [Tasks and records](../tasks-and-records/): `level`, `childIds`, `rowIndex` and `isExpanded` on
+  a record, and the task types.
+- [Propagation and conflicts](../propagation-and-conflicts/): how a parent's edit spreads to its
+  children and along links.
+- [Links and link types](../links-and-types/): the link types `parentAnchor` borrows.
+- Options: [Hierarchy](../../options/#hierarchy). Events: `expandedChange` on the
+  [events](../../events/) page; methods on the [methods](../../methods/) page.
+- Examples: the [hierarchy example](../../../examples/hierarchy/), the
+  [release plan](../../../examples/release-plan/) and the
+  [milestones and placeholders](../../../examples/milestones-and-placeholders/) example.
+- API reference: [`Hierarchy`](../../../api/ganttlane/core/interfaces/hierarchy/),
+  [`MoveChildren`](../../../api/ganttlane/core/type-aliases/movechildren/),
+  [`ExpandedKeys`](../../../api/ganttlane/core/type-aliases/expandedkeys/).
