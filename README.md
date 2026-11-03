@@ -5,6 +5,10 @@
   </picture>
 </h1>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/@ganttlane/core"><img alt="npm" src="https://img.shields.io/npm/v/@ganttlane/core"></a>
+</p>
+
 An interactive Gantt chart library for the web: a framework-agnostic TypeScript core, a vanilla DOM
 renderer with a themable stylesheet, and React bindings. Plans with thousands of tasks stay smooth
 (only what is on screen is drawn), the schedule follows your work calendar, and a drag is one
