@@ -143,6 +143,8 @@ export default defineConfig({
         edit: page('./edit/index.html'),
         reactEdit: page('./react-edit/index.html'),
         scroll: page('./scroll/index.html'),
+        taskList: page('./task-list/index.html'),
+        reactTaskList: page('./react-task-list/index.html'),
       },
     },
   },

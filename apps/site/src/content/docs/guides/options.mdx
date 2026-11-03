@@ -764,8 +764,15 @@ Example: [undo and redo](../../examples/undo-redo/).
 
 ## Selection
 
-Selection is not an option of the vanilla chart. Use `gantt.select(ids)`, `gantt.selectLink(id)` and
-`gantt.clearSelection()`, and listen to `onSelectionChange`. A click on a link selects it. In
+What a click does to the selected tasks. Both are off by default, and then only your own calls
+change them: `gantt.select(ids)`, `gantt.selectLink(id)` and `gantt.clearSelection()`.
+
+| Option                        | Type      | Default | What it does                                                      |
+| ----------------------------- | --------- | ------- | ----------------------------------------------------------------- |
+| `selection.onClick`           | `boolean` | `false` | A click on a bar selects that task, in place of what was selected |
+| `selection.clearOnEmptyClick` | `boolean` | `false` | A click on an empty part of the chart clears the selected tasks   |
+
+Listen to `onSelectionChange`, which fires before `onTaskClick`. A click on a link selects it. In
 React the selected tasks are the props `selectedKeys` and `defaultSelectedKeys`. See
 [Methods](../methods/) and the [selection example](../../examples/selection/).
 
@@ -776,19 +783,20 @@ group is merged field by field with what was set before, and `undefined` puts a 
 default. The popovers (`tooltip`, `linkMenu`, `highlightTooltip`) and the list `highlights` are
 **not** inside `display`: they are top-level options.
 
-| Option                         | Type                                                                 | Default       | What it does                                                                           |
-| ------------------------------ | -------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------- |
-| `display.gridLines`            | `'both' \| 'vertical' \| 'horizontal' \| 'none'`                     | `'both'`      | Which grid lines the body draws.                                                       |
-| `display.today`                | `boolean`                                                            | `true`        | The today line, and its marker and highlighted cell in the header.                     |
-| `display.nonWorkingDays`       | `'fill' \| 'stripes' \| false`                                       | `'fill'`      | How days off (weekends, holidays) are shown: a fill, a striped pattern, or not at all. |
-| `display.highlights`           | `boolean`                                                            | `true`        | Whether the [highlights](#highlights) are drawn.                                       |
-| `display.rowStripes`           | `'row' \| 'group' \| false`                                          | `false`       | Zebra rows: by row, or by group (a parent with its children).                          |
-| `display.barLabel`             | `'auto' \| 'inside' \| 'outside' \| 'none'`                          | `'auto'`      | Where a bar's label goes. `'auto'` puts it inside when it fits, else outside.          |
-| `display.renderBarLabel`       | `(context) => Node \| DisposableNode \| string \| null \| undefined` | the task name | Custom label content. `null` or `undefined` falls back to the name.                    |
-| `display.headerRangeHighlight` | `boolean`                                                            | `true`        | Highlights the hovered bar's range in the header.                                      |
-| `display.linkCurveRadius`      | `number` (px)                                                        | `5`           | The largest corner radius of a link's route. Finite, `0` or more.                      |
-| `display.stickyBarLabels`      | `boolean`                                                            | `false`       | Not available yet.                                                                     |
-| `display.expectedProgress`     | `boolean`                                                            | `false`       | Not available yet.                                                                     |
+| Option                         | Type                                                                 | Default       | What it does                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `display.gridLines`            | `'both' \| 'vertical' \| 'horizontal' \| 'none'`                     | `'both'`      | Which grid lines the body draws.                                                                                 |
+| `display.today`                | `boolean`                                                            | `true`        | The today line, and its marker and highlighted cell in the header.                                               |
+| `display.nonWorkingDays`       | `'fill' \| 'stripes' \| false`                                       | `'fill'`      | How days off (weekends, holidays) are shown: a fill, a striped pattern, or not at all.                           |
+| `display.highlights`           | `boolean`                                                            | `true`        | Whether the [highlights](#highlights) are drawn.                                                                 |
+| `display.rowStripes`           | `'row' \| 'group' \| false`                                          | `false`       | Zebra rows: by row, or by group (a parent with its children).                                                    |
+| `display.rowHover`             | `boolean`                                                            | `false`       | Lights the row under the pointer with the theme's colour. A [task list](../task-list/#the-row-hover) turns it on |
+| `display.barLabel`             | `'auto' \| 'inside' \| 'outside' \| 'none'`                          | `'auto'`      | Where a bar's label goes. `'auto'` puts it inside when it fits, else outside.                                    |
+| `display.renderBarLabel`       | `(context) => Node \| DisposableNode \| string \| null \| undefined` | the task name | Custom label content. `null` or `undefined` falls back to the name.                                              |
+| `display.headerRangeHighlight` | `boolean`                                                            | `true`        | Highlights the hovered bar's range in the header.                                                                |
+| `display.linkCurveRadius`      | `number` (px)                                                        | `5`           | The largest corner radius of a link's route. Finite, `0` or more.                                                |
+| `display.stickyBarLabels`      | `boolean`                                                            | `false`       | Not available yet.                                                                                               |
+| `display.expectedProgress`     | `boolean`                                                            | `false`       | Not available yet.                                                                                               |
 
 **Notes**
 

@@ -829,6 +829,12 @@ export function applyChanges(tasks: readonly Task[], changes: ChangeSet): readon
 exports the same function. The [module page](../../api/ganttlane/react/core/) of the entry lists
 what it exports.
 
+## A task list
+
+`<TaskList gantt={instance} />` is the list of tasks beside the chart, with its columns, toggles and
+splitter, in plain React: a server renders it, and a `render` of a column returns a `ReactNode`. It
+takes the instance of `useGantt`. See [Task list](../task-list/).
+
 ## Theming and accessibility
 
 The theme, the tokens and the unstyled contract are those of the vanilla chart, because the DOM and

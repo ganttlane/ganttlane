@@ -83,6 +83,10 @@ The methods are the members of the [`Gantt`](../../api/ganttlane/dom/interfaces/
 |              | [`getVisibleRange()`](#reading-the-state)                             | `{ start: Date; end: Date }`          |
 |              | [`getRowMetrics(id)`](#reading-the-state)                             | `RowMetrics \| undefined`             |
 |              | [`getBarRect(id)`](#reading-the-state)                                | `BarGeometry \| undefined`            |
+|              | [`getRows()`](#reading-the-state)                                     | `readonly GanttRow[]`                 |
+|              | [`getRowWindow()`](#reading-the-state)                                | `{ firstRow; lastRow }`               |
+|              | [`getLayoutMetrics()`](#reading-the-state)                            | `LayoutMetrics`                       |
+|              | [`getAppearance()`](#reading-the-state)                               | `GanttAppearance`                     |
 |              | [`getIssues()`](#reading-the-state)                                   | `{ data: Issue[]; options: Issue[] }` |
 | Events       | [`on(name, handler)`](#on)                                            | `() => void` (unsubscribe)            |
 | Popovers     | [`hideTooltip()`](#hidetooltip)                                       | `void`                                |
@@ -376,18 +380,36 @@ scrollToTask(id: TaskId, options?: ScrollToTaskOptions): void
 
 Scrolls a task's row and bar into view, on both axes. It takes the options of `scrollToDate` and:
 
-| Option   | Type                                     | Default | Meaning                                                                       |
-| -------- | ---------------------------------------- | ------- | ----------------------------------------------------------------------------- |
-| `alignY` | `number \| 'start' \| 'center' \| 'end'` | `align` | Where the row lands vertically                                                |
-| `expand` | `boolean`                                | `true`  | Expand the collapsed ancestors of a hidden row first (fires `expandedChange`) |
+| Option   | Type                                                           | Default        | Meaning                                                                       |
+| -------- | -------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------- |
+| `align`  | `number \| 'start' \| 'center' \| 'end' \| 'nearest' \| false` | `scroll.align` | Where the bar lands sideways                                                  |
+| `alignY` | The same                                                       | `align`        | Where the row lands vertically                                                |
+| `expand` | `boolean`                                                      | `true`         | Expand the collapsed ancestors of a hidden row first (fires `expandedChange`) |
 
-An unknown id scrolls nowhere, and neither does a task whose row is hidden by a collapsed parent
-when `expand` is `false`. A task without a bar (a placeholder) scrolls vertically only.
+`'nearest'` is the least scroll that shows it, and none when it is in view. `false` leaves that axis
+alone. An unknown id scrolls nowhere, and neither does a task whose row is hidden by a collapsed
+parent when `expand` is `false`. A task without a bar (a placeholder) scrolls vertically only.
 
 ```ts
 gantt.scrollToTask('build'); // smooth, aligned at the start
 gantt.scrollToTask('build', { align: 'center', alignY: 'center', behavior: 'instant' });
 gantt.scrollToTask('qa', { expand: false }); // nothing if its parent is collapsed
+gantt.scrollToTask('qa', { align: 'center', alignY: false }); // sideways only
+gantt.scrollToTask('qa', { align: 'nearest' }); // nothing if it is in view
+```
+
+### `scrollTo`
+
+```ts
+scrollTo(position: { left?: number; top?: number; behavior?: ScrollBehaviorOption }): void
+```
+
+Scrolls to a position on either axis or both. An axis left out stays where it is, and both are
+clamped to the content. `top` is in body pixels: the first row is at `0`, right below the header.
+
+```ts
+gantt.scrollTo({ top: 0 }); // back to the first row, sideways stays
+gantt.scrollTo({ left: 400, top: 120, behavior: 'smooth' });
 ```
 
 Scrolling and view methods fire `scroll` and, with an infinite timeline, `rangeChange`. See the
@@ -426,6 +448,8 @@ expandAll(): void
 collapseAll(): void
 ```
 
+`toggle(id)` opens a closed parent and closes an open one.
+
 Open or close the parents of the task tree. `expandAll` expands every parent that exists now;
 parents that appear later start collapsed. Each fires `expandedChange` when the expanded set
 changes, and does nothing when it does not. `setOptions({ hierarchy: { expandedKeys } })` sets the
@@ -445,8 +469,22 @@ clearSelection(): void
   tasks are kept.
 - `clearSelection` clears both.
 
-Each fires `selectionChange` when the selection changes. The chart never selects a task by itself: a
-click on a bar only fires `taskClick`. A click on a link selects it.
+Each fires `selectionChange` when the selection changes. By default the chart never selects a task
+by itself: a click on a bar only fires `taskClick`. With
+[`selection.onClick`](../options/#selection) it selects that task. A click on a link selects it.
+
+### Hover and focus of a row
+
+```ts
+setHoveredRow(id: TaskId | undefined): void
+focusTask(id: TaskId | undefined): void
+```
+
+For what stands beside the chart. `setHoveredRow` lights the row of a task (`undefined` gives the
+lit row back to the pointer); the row gets `data-hovered`, and `onRowHoverChange` fires. It shows
+only where the row hover is on: see [the row hover](../task-list/#the-row-hover). `focusTask` says
+which task's row has the keyboard focus; a [task list](../task-list/) moves the browser's focus to
+that row. A task without a visible row is ignored, and one whose row goes away loses the focus.
 
 ```ts
 gantt.select(['design', 'build']);
@@ -572,14 +610,18 @@ See the [undo and redo example](../../examples/undo-redo/).
 
 All of these are synchronous queries. They still answer after `destroy()`.
 
-| Method              | Returns                                                                                                                                                                                                                                 |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getTask(id)`       | The task's [`TaskRecord`](../concepts/tasks-and-records/): dates as `Date`s, lengths, progress, place in the tree, `issues`, `conflicts`. `undefined` for an unknown id. Frozen, and the same object while nothing it shows has changed |
-| `getLink(id)`       | The link's `LinkRecord` (`source`, `target`, `type`, `lag`, `active`, `inCycle`, ...). `undefined` for an unknown id                                                                                                                    |
-| `getVisibleRange()` | `{ start, end }`: the dates at the viewport's left and right edges                                                                                                                                                                      |
-| `getRowMetrics(id)` | `{ id, index, y, height }` of the row, `y` in body pixels (`0` is the top of the first row, below the header). `undefined` when the id is unknown or the row is hidden                                                                  |
-| `getBarRect(id)`    | `{ id, rowIndex, kind, x, y, width, height, radius, progressWidth }` of the bar as drawn, a drag in progress included. `x` is in content pixels, `y` in body pixels. `undefined` without a bar                                          |
-| `getIssues()`       | `{ data, options }`: the current problems of the data and of the options (the renderer's options included). The same lists the `issues` event reports                                                                                   |
+| Method               | Returns                                                                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `getTask(id)`        | The task's [`TaskRecord`](../concepts/tasks-and-records/): dates as `Date`s, lengths, progress, place in the tree, `issues`, `conflicts`. `undefined` for an unknown id. Frozen, and the same object while nothing it shows has changed    |
+| `getLink(id)`        | The link's `LinkRecord` (`source`, `target`, `type`, `lag`, `active`, `inCycle`, ...). `undefined` for an unknown id                                                                                                                       |
+| `getVisibleRange()`  | `{ start, end }`: the dates at the viewport's left and right edges                                                                                                                                                                         |
+| `getRowMetrics(id)`  | `{ id, index, y, height }` of the row, `y` in body pixels (`0` is the top of the first row, below the header). `undefined` when the id is unknown or the row is hidden                                                                     |
+| `getBarRect(id)`     | `{ id, rowIndex, kind, x, y, width, height, radius, progressWidth }` of the bar as drawn, a drag in progress included. `x` is in content pixels, `y` in body pixels. `undefined` without a bar                                             |
+| `getRows()`          | The visible rows in order, each a [`GanttRow`](../task-list/#columns). The same array until a row changes, so comparing it says whether to draw again. O(rows) after such a change, about 15 ms for 10 000 tasks, and only when it is read |
+| `getRowWindow()`     | `{ firstRow, lastRow }`: the rows the chart draws now. With none, `firstRow > lastRow`                                                                                                                                                     |
+| `getLayoutMetrics()` | `{ headerHeight, rowHeight, barHeight, bodyHeight, contentWidth, viewportWidth, viewportHeight }`, the same object while they are the same                                                                                                 |
+| `getAppearance()`    | `{ theme, height, rowStripes, rowHover }`: what the renderer draws that the core does not know. `on('appearanceChange', fn)` hears a change. Not on `gantt.core`                                                                           |
+| `getIssues()`        | `{ data, options }`: the current problems of the data and of the options (the renderer's options included). The same lists the `issues` event reports                                                                                      |
 
 Anything else lives in the snapshot, `gantt.core.getSnapshot()`. To export the data, read the
 tasks and links the chart holds; uncontrolled data includes every change applied so far:

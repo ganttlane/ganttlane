@@ -250,16 +250,19 @@ system prefers dark.
 
 #### Grid and rows
 
-| Token                           | Light                   | Dark                      | Controls                                                  |
-| ------------------------------- | ----------------------- | ------------------------- | --------------------------------------------------------- |
-| `--gantt-grid-line-color`       | `#e7eaef`               | `#242932`                 | Grid lines                                                |
-| `--gantt-grid-line-width`       | `1px`                   | -                         | Grid lines                                                |
-| `--gantt-grid-major-line-color` | `#c8cfd9`               | `#3a4252`                 | Major grid lines (month and year boundaries)              |
-| `--gantt-grid-major-line-width` | `1px`                   | -                         | Major grid lines                                          |
-| `--gantt-grid-minor-line-color` | `#eff1f4`               | `#1e222a`                 | Minor grid lines (the snap steps inside a column, dotted) |
-| `--gantt-row-stripe-color`      | `rgb(15 23 42 / 3.5%)`  | `rgb(255 255 255 / 3.5%)` | Striped rows (`display.rowStripes`)                       |
-| `--gantt-row-invalid-color`     | `rgb(229 72 77 / 8%)`   | `rgb(255 99 105 / 12%)`   | A row whose task is invalid                               |
-| `--gantt-row-placeholder-color` | `rgb(100 116 139 / 8%)` | `rgb(148 163 184 / 8%)`   | A placeholder row (a task of type `placeholder`)          |
+| Token                           | Light                   | Dark                      | Controls                                                                                                                                    |
+| ------------------------------- | ----------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--gantt-grid-line-color`       | `#e7eaef`               | `#242932`                 | Grid lines                                                                                                                                  |
+| `--gantt-grid-line-width`       | `1px`                   | -                         | Grid lines                                                                                                                                  |
+| `--gantt-grid-major-line-color` | `#c8cfd9`               | `#3a4252`                 | Major grid lines (month and year boundaries)                                                                                                |
+| `--gantt-grid-major-line-width` | `1px`                   | -                         | Major grid lines                                                                                                                            |
+| `--gantt-grid-minor-line-color` | `#eff1f4`               | `#1e222a`                 | Minor grid lines (the snap steps inside a column, dotted)                                                                                   |
+| `--gantt-row-stripe-color`      | `rgb(15 23 42 / 3.5%)`  | `rgb(255 255 255 / 3.5%)` | Striped rows (`display.rowStripes`)                                                                                                         |
+| `--gantt-row-invalid-color`     | `rgb(229 72 77 / 8%)`   | `rgb(255 99 105 / 12%)`   | A row whose task is invalid                                                                                                                 |
+| `--gantt-row-placeholder-color` | `rgb(100 116 139 / 8%)` | `rgb(148 163 184 / 8%)`   | A placeholder row (a task of type `placeholder`)                                                                                            |
+| `--gantt-row-hover-color`       | `transparent`           | `transparent`             | The tint over the row that is lit or focused. On with `display.rowHover` and a [task list](../task-list/#the-row-hover), or set it yourself |
+| `--gantt-row-highlight-color`   | `rgb(37 99 235 / 8%)`   | `rgb(110 160 255 / 12%)`  | The colour `--gantt-row-hover-color` takes when it is on                                                                                    |
+| `--gantt-row-selected-color`    | `rgb(37 99 235 / 16%)`  | `rgb(110 160 255 / 24%)`  | A selected row of a task list                                                                                                               |
 
 #### Days off, highlights and today
 

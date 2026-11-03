@@ -8,8 +8,6 @@ import {
   BAR_MARGIN,
   describeChange,
   describeExpanded,
-  hoveredId,
-  keepRowAt,
   type ListRow,
   listRows,
   ROW_HEIGHTS,
@@ -113,8 +111,8 @@ export function mount(container: HTMLElement): () => void {
   let followed: readonly TaskId[] = [];
   /** The row the pointer is on in the list (the chart's own hover is in its snapshot). */
   let pointerOn: TaskId | undefined;
-  /** The parts of the snapshot that `sync` last drew the rows and the sizes from. */
-  let seenDerived: unknown;
+  /** What `sync` last drew the rows and the sizes from. */
+  let seenRows: unknown;
   let seenLayout: unknown;
 
   /** Draws the row of one task, or the one it already has, from the values in `row`. */
@@ -167,14 +165,14 @@ export function mount(container: HTMLElement): () => void {
 
   /**
    * Brings the list in line with the chart. It runs for every change of the snapshot, and a scroll
-   * frame, a hover and a drag preview are each one, so it starts by comparing: the parts of the
-   * snapshot keep their identity until they change, and a new object means work to do.
+   * frame, a hover and a drag preview are each one, so it starts by comparing: what the chart
+   * returns keeps its identity until it changes, and a new object means work to do.
    */
   function sync(): void {
     const snapshot = gantt.core.getSnapshot();
 
     // The sizes are the chart's: the list never has a number of its own.
-    const layout = snapshot.layout.rows;
+    const layout = gantt.getLayoutMetrics();
     if (layout !== seenLayout) {
       seenLayout = layout;
       root.style.setProperty('--task-list-row-height', `${String(layout.rowHeight)}px`);
@@ -182,11 +180,11 @@ export function mount(container: HTMLElement): () => void {
     }
 
     // The rows change with what is collapsed and with the data (a name, a date): then
-    // `state.derived` is a new object.
-    const { derived } = snapshot.state;
-    if (derived !== seenDerived) {
-      seenDerived = derived;
-      rows = listRows(derived, gantt.getTask);
+    // `getRows` returns a new array.
+    const current = gantt.getRows();
+    if (current !== seenRows) {
+      seenRows = current;
+      rows = listRows(current);
       place();
     }
 
@@ -197,7 +195,7 @@ export function mount(container: HTMLElement): () => void {
       active = selected.at(-1) ?? active;
     }
     if (active === undefined || !rowElements.has(active)) active = rows[0]?.id;
-    const hovered = pointerOn ?? hoveredId(snapshot.feedback.hover);
+    const hovered = pointerOn ?? snapshot.hoveredRow;
     for (const row of rows) {
       const node = rowElements.get(row.id);
       if (!node) continue;
@@ -212,7 +210,7 @@ export function mount(container: HTMLElement): () => void {
     if (lying)
       band.style.setProperty('--task-list-band-y', `${String(layout.headerHeight + lying.y)}px`);
   }
-  // Called after every change of the snapshot. There is no event for "the rows changed".
+  // Called after every change of the snapshot: also what is selected and hovered, not only the rows.
   gantt.core.subscribe(sync);
   sync();
 
@@ -220,12 +218,8 @@ export function mount(container: HTMLElement): () => void {
   function choose(id: TaskId): void {
     active = id;
     gantt.select([id]);
-    // `scrollToTask` scrolls both ways; `keepRowAt` makes the vertical one stay where it is.
-    gantt.scrollToTask(id, {
-      align: 'center',
-      alignY: keepRowAt(gantt.core.getSnapshot(), id),
-      behavior: 'smooth',
-    });
+    // Sideways to the bar; a row that is in view stays where it is.
+    gantt.scrollToTask(id, { align: 'center', alignY: 'nearest', behavior: 'smooth' });
   }
 
   /** The id of the row an event happened in. */

@@ -1,6 +1,6 @@
 ---
 title: Task list beside the chart
-description: A sticky list of task names and dates on the left of the chart, with rows that line up with the bars, toggles for the groups, selection, hover and the keyboard.
+description: A list of your own on the left of the chart, drawn by hand from the public API, with rows that line up with the bars, toggles, selection, hover and the keyboard.
 category: Customization
 order: 590
 height: 570
@@ -9,9 +9,9 @@ height: 570
 # Task list beside the chart
 
 A classic gantt tool has a grid on the left: the task names, indented by their depth, with a column
-of dates, and the bars to the right of it on the same rows. The chart has no such column of its
-own, and does not need one: it tells you where its rows are, and a list you draw yourself lines up
-with them. This one has
+of dates, and the bars to the right of it on the same rows. The library has one, the
+[task list](../task-list/). This example draws its own instead, for when you want your own markup: the
+chart tells you where its rows are, and a list you draw yourself lines up with them. This one has
 
 - **a label for every visible row**, at the row's height and place, indented by depth, with the
   dates as a second column, under a header as tall as the chart's;
@@ -24,7 +24,7 @@ with them. This one has
 - **dates that follow a drag** (`onTasksChange`), and rows that still line up after a change of the
   row height, the view mode, the theme, or what is collapsed.
 
-The list is plain markup that reads the chart's snapshot. Nothing here is part of the library.
+The list is plain markup that reads the chart's public API. Nothing here is part of the library.
 
 ```sh
 pnpm add @ganttlane/dom                     # vanilla
@@ -35,8 +35,8 @@ pnpm add @ganttlane/react react react-dom   # React
 
 - [`data.ts`](data.ts): thirty tasks in four groups, nested two levels deep, with a few links.
 - [`options.ts`](options.ts): `layout` (the sizes, and `height: 'auto'`), the stripes and the view.
-- [`helpers.ts`](helpers.ts): the list's rows from a snapshot, the dates text, what each key does
-  (`treeAction`), and `keepRowAt`, which lets `scrollToTask` scroll sideways only.
+- [`helpers.ts`](helpers.ts): the list's rows from `getRows()`, the dates text, and what each key
+  does (`treeAction`).
 - [`styles.css`](styles.css): the list's own styles, in the sizes the chart reports.
 - [`vanilla.ts`](vanilla.ts): the markup, the list drawn from `gantt.core.getSnapshot()` and kept
   by `gantt.core.subscribe`, the events and the toolbar.
@@ -59,16 +59,14 @@ pnpm add @ganttlane/react react react-dom   # React
 
 ## What the list reads
 
-| From the chart                                  | Used for                                                                                    |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `snapshot.state.derived.rows`                   | The visible rows in order: `depth`, `hasChildren`, `isExpanded`, `groupStripe`              |
-| `gantt.getTask(id)`                             | The name, the dates, the parent and the siblings of a row (`aria-setsize`, `aria-posinset`) |
-| `snapshot.layout.rows`                          | `rowHeight` and `headerHeight`, which become `--task-list-row-height` and `-header-height`  |
-| `gantt.getRowMetrics(id)`                       | Where a row lies, for the band that lights the hovered row across the chart                 |
-| `snapshot.selection.tasks`                      | The selected rows (`aria-selected`), wherever the selection was made                        |
-| `snapshot.feedback.hover`                       | The task whose bar, or whose row, the pointer is on in the chart                            |
-| `snapshot.viewportHeight`, `snapshot.scrollTop` | `keepRowAt`: how far down the visible rows a clicked row is                                 |
-| `gantt.core.subscribe(listener)`                | Called after every change of the snapshot: how the list hears of new rows, names and dates  |
+| From the chart                   | Used for                                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `gantt.getRows()`                | The visible rows in order: `name`, `depth`, `hasChildren`, `isExpanded`, the stripes, `record` |
+| `gantt.getLayoutMetrics()`       | `rowHeight` and `headerHeight`, which become `--task-list-row-height` and `-header-height`     |
+| `gantt.getRowMetrics(id)`        | Where a row lies, for the band that lights the hovered row across the chart                    |
+| `snapshot.selection.tasks`       | The selected rows (`aria-selected`), wherever the selection was made                           |
+| `snapshot.hoveredRow`            | The task whose bar, or whose row, the pointer is on in the chart                               |
+| `gantt.core.subscribe(listener)` | Called after every change of the snapshot: how the list hears of new rows, names and dates     |
 
 ## What to try
 
@@ -102,25 +100,23 @@ pnpm add @ganttlane/react react react-dom   # React
   draws the rows in view and five more on each side after a scroll, as a chart of a fixed height
   does, so a fling much faster than that can show an empty chart row for a frame. And the box is
   yours: it needs a height, and nothing between it and the chart may clip (`overflow: hidden`).
-- **Why `keepRowAt`.** `scrollToTask` scrolls on both axes, and `alignY` takes a place in the
-  viewport (`'start'`, `'center'`, `'end'` or a fraction), not "leave it". A click on a visible name
-  would move the row away from the pointer, so `keepRowAt` passes the fraction at which the row
-  already is. A row that is not in view is centred.
+- **Why `alignY: 'nearest'`.** `scrollToTask` scrolls on both axes, and a click on a visible name
+  should not move the row away from the pointer. `'nearest'` leaves a row that is in view where it is.
 - **When the list renders.** `subscribe` runs for every change of the snapshot: a scroll frame, a
-  hover and a drag preview are each one. The parts of the snapshot keep their identity until they
-  change, so the list compares `state.derived` (new when a group opens or shuts, and when a name or
-  a date changes) and `layout.rows` (new when a size does), and rebuilds only then. What is left for
-  every snapshot is a few attributes. It draws every row: for thousands, draw only the rows from
-  `snapshot.window.firstRow` to `lastRow` (what the chart itself draws) between two spacers.
-- **Colours.** The chart declares its colours on `.gantt`, which a list beside it cannot inherit,
-  so `styles.css` has a small palette of its own (`light-dark()`, the values of the default theme)
-  and takes its `color-scheme` from the `data-theme` of the chart's root (`:has()`): the theme select,
-  the site's toggle and `prefers-color-scheme` (`'auto'`) all reach the list that way.
-- **Hover.** The chart lights no row of its own, only a bar, so when the pointer is on a name the
-  example lays a band (`.task-list__band`) over the chart's row, at `headerHeight +
-getRowMetrics(id).y`. The other way round, `snapshot.feedback.hover` names the task of the
-  pointer's row even where there is no bar (`onTaskHoverChange` names bars only), so the whole row
-  of the chart lights its name.
+  hover and a drag preview are each one. `getRows()` and `getLayoutMetrics()` keep their identity
+  until they change, so the list compares them and rebuilds only then. What is left for every
+  snapshot is a few attributes. It draws every row: for thousands, draw only the rows of
+  `gantt.getRowWindow()` (what the chart itself draws), as the built-in list does.
+- **Colours.** The chart declares its colours on `.gantt`, which a list beside it cannot inherit.
+  This list has a small palette of its own (`light-dark()`, the values of the default theme) and
+  takes its `color-scheme` from the `data-theme` of the chart's root (`:has()`): the theme select,
+  the site's toggle and `prefers-color-scheme` (`'auto'`) all reach the list that way. The class
+  `gantt-scope` is the other way: it gives an element every `--gantt-*` token.
+- **Hover.** A chart on its own lights no row, so when the pointer is on a name the example lays a
+  band (`.task-list__band`) over the chart's row, at `headerHeight + getRowMetrics(id).y`.
+  `setHoveredRow` with `display.rowHover` is the other way, which the built-in list uses. The other
+  way round, `snapshot.hoveredRow` names the task of the pointer's row even where there is no bar
+  (`onTaskHoverChange` names bars only), so the whole row of the chart lights its name.
 - **React.** `useGantt` and `useGanttState`, not `<Gantt ref>`. The list is drawn from the chart's
   snapshot, so it needs the chart while it renders: `useGantt` returns it at once (the core exists
   during the render, so the list also renders on a server), while a `ref` is `null` until the chart

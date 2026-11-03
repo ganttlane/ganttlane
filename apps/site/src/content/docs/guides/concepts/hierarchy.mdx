@@ -90,9 +90,11 @@ not drawn either; it is not re-pointed at the parent's bar.
 - `setOptions` does not fire `onExpandedChange`. Setting the value the option already has (`'all'`
   again, or the same array object) changes nothing, even if rows were opened or closed since: pass a
   new array.
-- The chart draws **no expand arrow and no left-hand list**: it has bars only. Build your own
-  toggle (a button per parent, or a list that follows the rows with `getRowMetrics(id)`, as in the
-  [task list example](../../../examples/task-list-sidebar/)) and call these methods from it. `display.rowStripes` colours rows per row or per top-level group.
+- The chart itself draws **no expand arrow**: it has bars only. The
+  [task list](../../task-list/) stands beside it, with a toggle on each parent. Or build your own (a
+  button per parent, or a list of your own as in the
+  [task list beside the chart](../../../examples/task-list-sidebar/) example) and call these methods
+  from it. `display.rowStripes` colours rows per row or per top-level group.
 
 <Tabs syncKey="package">
 

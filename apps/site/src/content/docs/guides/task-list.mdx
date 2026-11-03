@@ -1,0 +1,285 @@
+---
+title: Task list
+description: The built-in list of tasks beside the chart, in vanilla and React, with columns, toggles and a splitter, and what it keeps in sync with the chart.
+---
+
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+
+The task list is the left-hand table of a classic gantt tool: a row for every row of the chart, at
+the same height and place, indented by depth, with a toggle on the groups, the columns you choose
+and a splitter on its edge. It is a component **beside** the chart, built on the chart's public API,
+and an application that does not use it does not pay for it.
+
+See it working in the [task list example](../../examples/task-list/).
+
+## A first list
+
+<Tabs syncKey="package">
+<TabItem label="Vanilla">
+
+```ts
+import '@ganttlane/dom/styles.css';
+import { createGantt } from '@ganttlane/dom';
+import { createTaskList } from '@ganttlane/dom/task-list';
+
+const gantt = createGantt(chart, {
+  tasks,
+  layout: { height: 500 },
+  // A click on a bar selects its row in the list.
+  selection: { onClick: true },
+});
+
+const list = createTaskList(side, gantt, {
+  columns: [
+    { id: 'name', header: 'Task' },
+    {
+      id: 'done',
+      header: '%',
+      width: 48,
+      align: 'end',
+      value: (row) => String(row.record.progress),
+    },
+  ],
+});
+
+// When you are done with them, in either order:
+list.destroy();
+gantt.destroy();
+```
+
+</TabItem>
+<TabItem label="React">
+
+```tsx
+import '@ganttlane/react/styles.css';
+import { TaskList, useGantt } from '@ganttlane/react';
+
+const columns = [
+  { id: 'name', header: 'Task' },
+  {
+    id: 'done',
+    header: '%',
+    width: 48,
+    align: 'end',
+    value: (row) => String(row.record.progress),
+  },
+];
+
+function Plan() {
+  const gantt = useGantt({
+    defaultTasks: tasks,
+    layout: { height: 500 },
+    selection: { onClick: true },
+  });
+  const { setContainer, slots } = gantt;
+  return (
+    <div className="plan">
+      <TaskList gantt={gantt} columns={columns} />
+      <div ref={setContainer} className="chart" />
+      {slots}
+    </div>
+  );
+}
+```
+
+`<TaskList>` takes the chart from `useGantt`, which exists while your component renders, so the list
+also renders on a server. A `ref` of `<Gantt>` would be `null` until the commit.
+
+</TabItem>
+</Tabs>
+
+Side by side, tops aligned. The list has its own width, and the chart takes the rest:
+
+```css
+.plan {
+  display: flex;
+}
+
+.chart {
+  flex: 1 1 0;
+  /* Without this a flex item is as wide as its content, and the chart would widen the page. */
+  min-width: 0;
+}
+```
+
+## What is kept in sync
+
+| In the chart                    | In the list                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| The rows and what is expanded   | The same rows, in the same order, from any `expand`, `collapse` or `scrollToTask` |
+| The row height and header sizes | The same sizes, also when `layout` changes                                        |
+| The vertical position           | The same position, see [scrolling](#scrolling)                                    |
+| The selected tasks              | `aria-selected` on their rows, wherever the selection was made                    |
+| The row under the pointer       | The row lights, and the other way round                                           |
+| The focused task                | The keyboard focus, and the chart tints that row                                  |
+| The theme and the row stripes   | The same theme and stripes                                                        |
+| Names and committed dates       | The cells draw again, only those of the rows that changed                         |
+
+A click on a row selects the task and scrolls the chart to its bar, moving nothing that is already
+in view. The chevron opens and shuts the group, and selects nothing. To do something else on a click,
+use `onRowClick` and call `event.preventDefault()`.
+
+Dates in the list follow a **commit**, not the drag in progress: a task's record changes when the
+change is committed.
+
+## Scrolling
+
+How the two scroll depends on the chart's [`layout.height`](../options/#layout):
+
+| `layout.height`    | What scrolls the rows                                                                | In sync                                                              |
+| ------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `'auto'`           | One box around both (the nearest ancestor that scrolls, or the page), headers sticky | Always: they cannot differ                                           |
+| A number, or fills | The chart's scroller and the list's body, which hides its scrollbar                  | Within a pixel at rest; **up to a frame behind during a fast fling** |
+
+<Aside type="note" title="Why a frame">
+  With two scrollers, a browser moves the one under the hand on another thread and tells the page
+  afterwards, so the other can be a frame behind while a fling is fast. They agree again as soon as
+  it slows. If even that matters, use `layout.height: 'auto'` and give the two one box to scroll in.
+</Aside>
+
+For `'auto'`, the box needs a height, and nothing between it and the chart may clip:
+
+```css
+.plan {
+  display: flex;
+  height: 500px;
+  overflow-y: auto;
+}
+```
+
+The sideways scrollbar belongs to the chart's scroller, so with `'auto'` it is under the last row. A
+sideways wheel and touch work anywhere over the chart.
+
+## Columns
+
+A column is `{ id, header, width, align, tree, value, render }`:
+
+| Field    | Type                               | Default                                 | What it does                                                                      |
+| -------- | ---------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------- |
+| `id`     | `string`                           | required                                | Its identity; `data-column` of its cells                                          |
+| `header` | `string`                           | none                                    | The text of its header                                                            |
+| `width`  | `number` (px) \| `'fill'`          | `'fill'` for the tree column, else `96` | `'fill'` shares what the other columns leave                                      |
+| `align`  | `'start'` \| `'center'` \| `'end'` | `'start'`                               | How its cells are aligned                                                         |
+| `tree`   | `boolean`                          | the first column                        | Whether it has the indent and the toggle                                          |
+| `value`  | `(row) => string`                  | the name in the tree column             | The text of a cell                                                                |
+| `render` | `(row) => Node \| string \| null`  | none                                    | A cell's content; `null` falls back to `value`. In React it returns a `ReactNode` |
+
+`row` is a `GanttRow`: `id`, `index`, `name`, `depth`, `hasChildren`, `isExpanded`, `setSize`,
+`position` and `record`, the task's [`TaskRecord`](../concepts/tasks-and-records/). A column's
+functions are called again only when its row changes, or when you give new `columns`, so in React
+memoize them if your component renders often.
+
+A link or a form control drawn in a cell keeps its own clicks and keys.
+
+A column of dates, with `Intl`:
+
+```ts
+const dates = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+
+const column = {
+  id: 'dates',
+  header: 'Dates',
+  width: 110,
+  align: 'end',
+  value: ({ record }) =>
+    record.start && record.end ? dates.formatRange(record.start, record.end) : '',
+};
+```
+
+## Options
+
+<Tabs syncKey="package">
+<TabItem label="Vanilla">
+
+`createTaskList(container, gantt, options)`, and `list.setOptions(patch)` later.
+
+| Option                            | Type                      | Default             | What it does                                                  |
+| --------------------------------- | ------------------------- | ------------------- | ------------------------------------------------------------- |
+| `columns`                         | `TaskListColumn[]`        | the task's name     | See [columns](#columns)                                       |
+| `width`, `minWidth`, `maxWidth`   | `number` (px)             | `280`, `120`, `640` | Its width and what the splitter may do                        |
+| `splitter`                        | `boolean`                 | `true`              | The splitter on its end edge                                  |
+| `indent`                          | `number` (px)             | `16`                | How far each level is indented                                |
+| `theme`                           | `ThemeOption`             | the chart's         | Its `data-theme`; without one it follows the chart            |
+| `strings`                         | `{ label, name, resize }` | English             | Its name, the default header, the splitter's name             |
+| `onRowClick(record, event)`       | function                  |                     | A click, Enter or Space. `preventDefault()` keeps the default |
+| `onRowDoubleClick(record, event)` | function                  |                     | A double click                                                |
+| `onWidthChange(width)`            | function                  |                     | The splitter moved, or `setWidth` was called                  |
+
+The result has `element`, `setOptions(patch)`, `getWidth()`, `setWidth(px)` and `destroy()`.
+
+</TabItem>
+<TabItem label="React">
+
+`<TaskList gantt={instance} … />`. The same options as props, with the width as a controlled or
+uncontrolled pair, and `id`, `className` and `style` for its root:
+
+| Prop                                                                                  | What it does                          |
+| ------------------------------------------------------------------------------------- | ------------------------------------- |
+| `gantt`                                                                               | The chart, from `useGantt`            |
+| `width`, `defaultWidth`, `onWidthChange`                                              | The width, controlled or uncontrolled |
+| `minWidth`, `maxWidth`                                                                | What the splitter may do              |
+| `columns`, `splitter`, `indent`, `theme`, `strings`, `onRowClick`, `onRowDoubleClick` | As in the vanilla list                |
+| `id`, `className`, `style`                                                            | Of its root                           |
+
+</TabItem>
+</Tabs>
+
+## The keyboard and assistive technology
+
+The list is a `role="treegrid"` of `role="row"`s, with `aria-level`, `aria-expanded`, `aria-selected`,
+`aria-rowindex`, `aria-setsize` and `aria-posinset`, and one tab stop.
+
+| Key                                     | What it does                                               |
+| --------------------------------------- | ---------------------------------------------------------- |
+| Up, Down, Page Up, Page Down, Home, End | Move to another row                                        |
+| Right                                   | Opens a group, and once it is open steps into it           |
+| Left                                    | Shuts a group, and once it is shut steps out to its parent |
+| Enter, Space                            | Activates the row: `onRowClick`, then select and scroll    |
+| Left, Right, Home, End on the splitter  | Resize the list                                            |
+
+Focus stays on whole rows: moving between the cells of a row is planned with the rest of the
+[accessibility work](../accessibility/).
+
+## Styling
+
+The default stylesheet styles the list, with no second import. Its classes and attributes are part of
+the [unstyled contract](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#task-list),
+the same in vanilla and React.
+
+The list has the class `gantt-scope`, which declares every `--gantt-*` token and honours `data-theme`.
+A sibling cannot inherit the tokens from `.gantt`, so put that class on your own panels too, to use
+them there:
+
+```html
+<aside class="gantt-scope" data-theme="dark">…</aside>
+```
+
+Three tokens are for rows: `--gantt-row-hover-color`, `--gantt-row-highlight-color` and
+`--gantt-row-selected-color` (see [Theming](../theming/#grid-and-rows)).
+
+### The row hover
+
+A chart on its own lights no row: `--gantt-row-hover-color` is `transparent`, so a chart without a
+list looks as it always did. A task list turns on `display.rowHover` while it is attached, which
+gives that token the colour of the theme. To have a row hover without a list, set
+`display: { rowHover: true }`, or set the token yourself.
+
+## A list of your own
+
+Everything the list uses is public, so you can draw your own markup on the same API
+(the [task list beside the chart](../../examples/task-list-sidebar/) example does):
+
+| What                       | API                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| The rows, and when to draw | `getRows()`, the same array until a row changes; `onRowsChange`                  |
+| Which rows to draw         | `getRowWindow()`                                                                 |
+| The sizes                  | `getLayoutMetrics()`, `getRowMetrics(id)`                                        |
+| Theme, height, stripes     | `getAppearance()`, `on('appearanceChange', …)`                                   |
+| Scrolling the chart        | `scrollTo({ top })`, `scrollToTask(id, { align: 'nearest', alignY: 'nearest' })` |
+| Opening and shutting       | `toggle(id)`, `onExpandedChange`                                                 |
+| The lit row                | `setHoveredRow(id)`, `snapshot.hoveredRow`, `onRowHoverChange`                   |
+| The keyboard focus         | `focusTask(id)`, `snapshot.focusedTask`, `onFocusChange`                         |
+
+`@ganttlane/dom/task-list` also exports the pieces that `createTaskList` and `<TaskList>` share:
+`mediateTaskList`, which wires the events and the scrolling to your elements, and the helpers
+`treeAction`, `rowsToDraw`, `rowAttributes`, `columnTracks` and `createTabStop`.

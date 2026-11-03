@@ -38,6 +38,7 @@ const reuseExistingServer = !isCI && process.env.GANTTLANE_E2E_NO_REUSE !== '1';
  * | `react-page`, `react-edit`, `react-options`, `react-demo-links` | the React demo page, all three builds | the page itself: fixtures, slots, its controls |
  * | `react-slots` | React demo page, production build | `ReactNode` slots and portals |
  * | `react-ssr` | the server-rendered page, all three builds | hydration |
+ * | `task-list` | `createTaskList` and `<TaskList>`, production build; a smoke test on React's other two builds | the list beside the chart: one spec on two renderers |
  * | the rest (`edit-*`, `scroll-*`, `popover-*`, `header-grid`, `i18n`, `facade`, `vanilla-page`, `playground`, `bench`) | vanilla renderer, production build | renderer internals: React only wraps the renderer, so they gain nothing from a second run |
  *
  * The journeys are written once and run on both renderers through a driver (`e2e/journeys/driver.ts`);

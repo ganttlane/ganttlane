@@ -46,15 +46,17 @@ These are not available in this version:
 - **Changes are not announced** to assistive technology.
 - **The contrast of the default themes has not been audited** against WCAG AA. Check the tokens
   you use, and override them where they fall short.
-- **Clicking a bar does not select it,** and there are no undo and redo hotkeys. Selection and
-  history are available from code (`select()`, `undo()`, `redo()`).
+- **There are no undo and redo hotkeys,** and clicking a bar selects it only with
+  [`selection.onClick`](../options/#selection). History is available from code (`undo()`, `redo()`).
 
 ### Covering the gap
 
 If your users rely on assistive technology or a keyboard, give them the same plan in a form that
 works for them, next to the chart, and let them edit it there:
 
-- **A table or a list** of the tasks (name, start, end, progress, predecessors), built from the
+- **The [task list](../task-list/)**, a `role="treegrid"` that the keyboard walks, kept in sync
+  with the chart. Add a column for what your users need.
+- **A table or a list** of your own (name, start, end, progress, predecessors), built from the
   same data you give the chart. For an uncontrolled chart, read it from `getTask(id)` and the
   `onTasksChange` event; for a controlled one the data is already yours.
 - **Edit forms.** A dialog that edits a task through `updateTask(id, patch)` gives a

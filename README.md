@@ -115,8 +115,8 @@ the [documentation site](https://ganttlane.github.io/ganttlane/).
   data is never mutated, bad data and options are issues (never a throw), every instance cleans up after
   itself, and React server rendering and StrictMode are supported.
 
-What is not there yet (selection and keyboard editing, zoom gestures, a toolbar, a task list,
-right-to-left) is listed in each package's "Limits and roadmap".
+What is not there yet (keyboard editing, zoom gestures, a toolbar, right-to-left) is listed in each
+package's "Limits and roadmap".
 
 ## Documentation
 
@@ -132,25 +132,29 @@ right-to-left) is listed in each package's "Limits and roadmap".
 ### The playground
 
 `pnpm dev` runs the playground, the runnable demo of the library. Its index, `/`, links to every
-page: `/vanilla/`, `/edit/`, `/scroll/`, `/bench/`, `/react/`, `/react-edit/` and `/react-ssr/`.
+page: `/vanilla/`, `/edit/`, `/scroll/`, `/bench/`, `/task-list/`, `/react/`, `/react-edit/`,
+`/react-task-list/` and `/react-ssr/`.
 
-| Page           | Package            | Shows                                                                                       |
-| -------------- | ------------------ | ------------------------------------------------------------------------------------------- |
-| `/vanilla/`    | `@ganttlane/dom`   | `createGantt` over a picker of datasets: theme, locale, view and edit mode, Save and Cancel |
-| `/edit/`       | `@ganttlane/dom`   | Dragging bars, resizing, progress and links, with a log of what the chart reports           |
-| `/scroll/`     | `@ganttlane/dom`   | The infinite timeline and the height modes, set from the query string                       |
-| `/bench/`      | `@ganttlane/dom`   | A generated plan of 1k or 10k tasks, scrolled and dragged automatically, with timings       |
-| `/react/`      | `@ganttlane/react` | Controlled data, edit mode with Save and Cancel, theme and locale as props, slots, a log    |
-| `/react-edit/` | `@ganttlane/react` | `/edit/` for `<Gantt>`, with controlled data                                                |
-| `/react-ssr/`  | `@ganttlane/react` | Server-rendered markup that the browser hydrates                                            |
+| Page                | Package            | Shows                                                                                       |
+| ------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
+| `/vanilla/`         | `@ganttlane/dom`   | `createGantt` over a picker of datasets: theme, locale, view and edit mode, Save and Cancel |
+| `/edit/`            | `@ganttlane/dom`   | Dragging bars, resizing, progress and links, with a log of what the chart reports           |
+| `/scroll/`          | `@ganttlane/dom`   | The infinite timeline and the height modes, set from the query string                       |
+| `/bench/`           | `@ganttlane/dom`   | A generated plan of 1k or 10k tasks, scrolled and dragged automatically, with timings       |
+| `/react/`           | `@ganttlane/react` | Controlled data, edit mode with Save and Cancel, theme and locale as props, slots, a log    |
+| `/react-edit/`      | `@ganttlane/react` | `/edit/` for `<Gantt>`, with controlled data                                                |
+| `/task-list/`       | `@ganttlane/dom`   | The task list beside the chart, with either kind of height                                  |
+| `/react-task-list/` | `@ganttlane/react` | `/task-list/` for `<TaskList>`                                                              |
+| `/react-ssr/`       | `@ganttlane/react` | Server-rendered markup that the browser hydrates                                            |
 
 ## Browser and runtime support
 
 The last two versions of Chrome, Edge, Firefox and Safari, and iOS Safari 16.4 or newer. Node 20 or
 newer for `@ganttlane/core`. React 18.3 and 19. ESM only. The sizes (minified and gzipped) are about
-56 kB for the core, 20 kB on top of it for the renderer and 6.5 kB more for the React bindings. The
-stylesheet is shipped as written, 24 kB or 6.2 kB gzipped; a build that minifies CSS brings it to
-about 13.7 kB, under 3 kB gzipped. `pnpm size` has the current numbers.
+58 kB for the core, 21 kB on top of it for the renderer and 8 kB more for the React bindings; the
+task list adds about 5 kB where it is used. The stylesheet is shipped as written, 30 kB or 7.3 kB
+gzipped; a build that minifies CSS brings it to about 18 kB, under 4 kB gzipped. `pnpm size` has the
+current numbers.
 
 ## Development
 

@@ -123,3 +123,19 @@ ol.chart-status {
 .react-label {
   font-weight: 600;
 }
+
+/* The task list pages: the list and the chart side by side, or in one box that scrolls both. */
+.plan {
+  display: flex;
+  border: 1px solid #d3d9e1;
+}
+
+.plan__chart {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.plan[data-height='auto'] {
+  height: var(--plan-height);
+  overflow-y: auto;
+}

@@ -29,6 +29,7 @@ const GUIDE_PAGES = [
   'guides/events/',
   'guides/methods/',
   'guides/theming/',
+  'guides/task-list/',
   'guides/react/',
   'guides/custom-renderers/',
   'guides/performance/',

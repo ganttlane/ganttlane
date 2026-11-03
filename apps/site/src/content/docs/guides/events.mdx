@@ -222,19 +222,19 @@ that handler's operation), nor for a change that waits for an asynchronous befor
 
 Which calls cause which events:
 
-| Call                                             | Events it can cause                                                                                                                                             |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `updateTask`                                     | `issues` (change-set), `tasksChange` (reason `'api'`), `taskDatesChange`, `taskProgressChange`, `historyChange`, `dirtyChange`, `rangeChange`                   |
-| `addLink`, `removeLink`                          | `linkCreate`, `linkDelete`, `historyChange`, `dirtyChange`                                                                                                      |
-| `undo`, `redo`                                   | `tasksChange` (reason `'undo'` or `'redo'`) and its per-task events, or `linkCreate` / `linkDelete`; `historyChange`, `dirtyChange`                             |
-| `setTasks`, `setLinks`                           | No change events. `rangeChange` (`'data'`), `issues` (data), `selectionChange` (ids that left the data), `historyChange` (uncontrolled data clears the history) |
-| `setOptions`                                     | `rangeChange`, `viewModeChange`, `issues` (options), `selectionChange`, `historyChange`. Not `expandedChange`                                                   |
-| `setViewMode`, `zoomTo`                          | `viewModeChange` (`setViewMode`), `rangeChange` (`'view-mode'`, `'zoom'`) when the range changes, `scroll`                                                      |
-| `scrollToDate`, `scrollToToday`, `scrollToTask`  | `scroll`; `rangeChange` (`'scroll-to'`) with an infinite timeline; `expandedChange` when `scrollToTask` expands ancestors                                       |
-| `expand`, `collapse`, `expandAll`, `collapseAll` | `expandedChange`                                                                                                                                                |
-| `select`, `selectLink`, `clearSelection`         | `selectionChange`                                                                                                                                               |
-| `edit.commit()`                                  | `dirtyChange` when the session was dirty. No `tasksChange`                                                                                                      |
-| `edit.rollback()`                                | `historyChange`, `dirtyChange`, then `editRollback`. No `tasksChange`                                                                                           |
+| Call                                                       | Events it can cause                                                                                                                                             |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updateTask`                                               | `issues` (change-set), `tasksChange` (reason `'api'`), `taskDatesChange`, `taskProgressChange`, `historyChange`, `dirtyChange`, `rangeChange`                   |
+| `addLink`, `removeLink`                                    | `linkCreate`, `linkDelete`, `historyChange`, `dirtyChange`                                                                                                      |
+| `undo`, `redo`                                             | `tasksChange` (reason `'undo'` or `'redo'`) and its per-task events, or `linkCreate` / `linkDelete`; `historyChange`, `dirtyChange`                             |
+| `setTasks`, `setLinks`                                     | No change events. `rangeChange` (`'data'`), `issues` (data), `selectionChange` (ids that left the data), `historyChange` (uncontrolled data clears the history) |
+| `setOptions`                                               | `rangeChange`, `viewModeChange`, `issues` (options), `selectionChange`, `historyChange`. Not `expandedChange`                                                   |
+| `setViewMode`, `zoomTo`                                    | `viewModeChange` (`setViewMode`), `rangeChange` (`'view-mode'`, `'zoom'`) when the range changes, `scroll`                                                      |
+| `scrollToDate`, `scrollToToday`, `scrollToTask`            | `scroll`; `rangeChange` (`'scroll-to'`) with an infinite timeline; `expandedChange` when `scrollToTask` expands ancestors                                       |
+| `expand`, `collapse`, `toggle`, `expandAll`, `collapseAll` | `expandedChange`                                                                                                                                                |
+| `select`, `selectLink`, `clearSelection`                   | `selectionChange`                                                                                                                                               |
+| `edit.commit()`                                            | `dirtyChange` when the session was dirty. No `tasksChange`                                                                                                      |
+| `edit.rollback()`                                          | `historyChange`, `dirtyChange`, then `editRollback`. No `tasksChange`                                                                                           |
 
 ## Events in an edit session
 
@@ -290,28 +290,31 @@ Twenty events. The `Option` column is the `on<Event>` option (and React prop) of
 Payload types are exported from `@ganttlane/dom` and `@ganttlane/core`; the whole map is
 [`GanttEventMap`](../../api/ganttlane/core/interfaces/gantteventmap/).
 
-| Event                                                           | Option                 | Arguments                                                              | Fires when                                                        |
-| --------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`tasksChange`](#taskschange)                                   | `onTasksChange`        | `(changeSet: ChangeSet)`                                               | A change was committed: a drag, `updateTask`, undo, redo          |
-| [`taskDatesChange`](#taskdateschange-and-taskprogresschange)    | `onTaskDatesChange`    | `(record: TaskRecord, dates: TaskDates)`                               | After `tasksChange`, for each task whose dates changed            |
-| [`taskProgressChange`](#taskdateschange-and-taskprogresschange) | `onTaskProgressChange` | `(record: TaskRecord, progress: number)`                               | After `tasksChange`, for each task whose progress changed         |
-| [`linkCreate`](#linkcreate-and-linkdelete)                      | `onLinkCreate`         | `(link: Link, id: string)`                                             | A link was created                                                |
-| [`linkDelete`](#linkcreate-and-linkdelete)                      | `onLinkDelete`         | `(link: LinkRecord)`                                                   | A link was deleted                                                |
-| [`linkClick`](#linkclick)                                       | `onLinkClick`          | `(link: LinkRecord, event: unknown)`                                   | A link arrow was clicked                                          |
-| [`taskClick`](#taskclick-and-taskdoubleclick)                   | `onTaskClick`          | `(record: TaskRecord, event: unknown)`                                 | A bar was clicked, never after a drag                             |
-| [`taskDoubleClick`](#taskclick-and-taskdoubleclick)             | `onTaskDoubleClick`    | `(record: TaskRecord, event: unknown)`                                 | A bar was double-clicked                                          |
-| [`taskHoverChange`](#taskhoverchange)                           | `onTaskHoverChange`    | `(record: TaskRecord \| null, event: unknown)`                         | The task under the pointer changed                                |
-| [`selectionChange`](#selectionchange)                           | `onSelectionChange`    | `(selectedKeys: readonly TaskId[], selectedLink: string \| undefined)` | The selected tasks or the selected link changed                   |
-| [`viewModeChange`](#viewmodechange)                             | `onViewModeChange`     | `(viewMode: ViewMode)`                                                 | The view mode in use changed                                      |
-| [`rangeChange`](#rangechange)                                   | `onRangeChange`        | `(range: RangeChangeInfo)`                                             | The timeline range changed; also once when the chart gets a width |
-| [`expandedChange`](#expandedchange)                             | `onExpandedChange`     | `(expandedKeys: 'all' \| readonly TaskId[])`                           | The expanded parents changed                                      |
-| [`scroll`](#scroll)                                             | `onScroll`             | `(scroll: ScrollInfo)`                                                 | The scroll position changed                                       |
-| [`editRollback`](#editrollback)                                 | `onEditRollback`       | `(changes: SessionChanges)`                                            | An edit session was rolled back                                   |
-| [`dirtyChange`](#dirtychange)                                   | `onDirtyChange`        | `(payload: DirtyChangePayload)`                                        | `edit.isDirty` flipped                                            |
-| [`historyChange`](#historychange)                               | `onHistoryChange`      | `(payload: HistoryChangePayload)`                                      | `canUndo` or `canRedo` flipped                                    |
-| [`editRefused`](#editrefused)                                   | `onEditRefused`        | `(refusal: EditRefusedPayload)`                                        | A drag or a drawn link was refused                                |
-| [`issues`](#issues)                                             | `onIssues`             | `(payload: IssuesPayload)`                                             | Problems in the data, the options or a change                     |
-| [`error`](#error)                                               | `onError`              | `(payload: ErrorPayload)`                                              | A listener or a before-hook threw                                 |
+| Event                                                           | Option                 | Arguments                                                                    | Fires when                                                        |
+| --------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [`tasksChange`](#taskschange)                                   | `onTasksChange`        | `(changeSet: ChangeSet)`                                                     | A change was committed: a drag, `updateTask`, undo, redo          |
+| [`taskDatesChange`](#taskdateschange-and-taskprogresschange)    | `onTaskDatesChange`    | `(record: TaskRecord, dates: TaskDates)`                                     | After `tasksChange`, for each task whose dates changed            |
+| [`taskProgressChange`](#taskdateschange-and-taskprogresschange) | `onTaskProgressChange` | `(record: TaskRecord, progress: number)`                                     | After `tasksChange`, for each task whose progress changed         |
+| [`linkCreate`](#linkcreate-and-linkdelete)                      | `onLinkCreate`         | `(link: Link, id: string)`                                                   | A link was created                                                |
+| [`linkDelete`](#linkcreate-and-linkdelete)                      | `onLinkDelete`         | `(link: LinkRecord)`                                                         | A link was deleted                                                |
+| [`linkClick`](#linkclick)                                       | `onLinkClick`          | `(link: LinkRecord, event: unknown)`                                         | A link arrow was clicked                                          |
+| [`taskClick`](#taskclick-and-taskdoubleclick)                   | `onTaskClick`          | `(record: TaskRecord, event: unknown)`                                       | A bar was clicked, never after a drag                             |
+| [`taskDoubleClick`](#taskclick-and-taskdoubleclick)             | `onTaskDoubleClick`    | `(record: TaskRecord, event: unknown)`                                       | A bar was double-clicked                                          |
+| [`taskHoverChange`](#taskhoverchange)                           | `onTaskHoverChange`    | `(record: TaskRecord \| null, event: unknown)`                               | The task under the pointer changed                                |
+| [`selectionChange`](#selectionchange)                           | `onSelectionChange`    | `(selectedKeys: readonly TaskId[], selectedLink: string \| undefined)`       | The selected tasks or the selected link changed                   |
+| [`viewModeChange`](#viewmodechange)                             | `onViewModeChange`     | `(viewMode: ViewMode)`                                                       | The view mode in use changed                                      |
+| [`rangeChange`](#rangechange)                                   | `onRangeChange`        | `(range: RangeChangeInfo)`                                                   | The timeline range changed; also once when the chart gets a width |
+| [`rowsChange`](#rowschange)                                     | `onRowsChange`         | `(rows: readonly GanttRow[])`                                                | What `getRows()` returns changed                                  |
+| [`rowHoverChange`](#rowhoverchange-and-focuschange)             | `onRowHoverChange`     | `(record: TaskRecord \| null)`                                               | The lit row changed                                               |
+| [`focusChange`](#rowhoverchange-and-focuschange)                | `onFocusChange`        | `(record: TaskRecord \| null)`                                               | The task whose row has the keyboard focus changed                 |
+| [`expandedChange`](#expandedchange)                             | `onExpandedChange`     | `(expandedKeys: 'all' \| readonly TaskId[], expandedIds: readonly TaskId[])` | The expanded parents changed                                      |
+| [`scroll`](#scroll)                                             | `onScroll`             | `(scroll: ScrollInfo)`                                                       | The scroll position changed                                       |
+| [`editRollback`](#editrollback)                                 | `onEditRollback`       | `(changes: SessionChanges)`                                                  | An edit session was rolled back                                   |
+| [`dirtyChange`](#dirtychange)                                   | `onDirtyChange`        | `(payload: DirtyChangePayload)`                                              | `edit.isDirty` flipped                                            |
+| [`historyChange`](#historychange)                               | `onHistoryChange`      | `(payload: HistoryChangePayload)`                                            | `canUndo` or `canRedo` flipped                                    |
+| [`editRefused`](#editrefused)                                   | `onEditRefused`        | `(refusal: EditRefusedPayload)`                                              | A drag or a drawn link was refused                                |
+| [`issues`](#issues)                                             | `onIssues`             | `(payload: IssuesPayload)`                                                   | Problems in the data, the options or a change                     |
+| [`error`](#error)                                               | `onError`              | `(payload: ErrorPayload)`                                                    | A listener or a before-hook threw                                 |
 
 The before-hooks `onBeforeTaskChange` and `onBeforeLinkCreate` are options only, see
 [Before-hooks](#before-hooks). The events are the same in the vanilla chart and in React; React adds
@@ -602,16 +605,42 @@ scrolls it fires at most once per animation frame, so keep the handler cheap.
 ### `expandedChange`
 
 ```ts
-onExpandedChange: (expandedKeys: 'all' | readonly TaskId[]) => void
+onExpandedChange: (expandedKeys: 'all' | readonly TaskId[], expandedIds: readonly TaskId[]) => void
 ```
 
-The ids of the expanded parents (the type also allows `'all'`). **Fires** when `expand`, `collapse`,
-`expandAll` or `collapseAll` change them, and when `scrollToTask` expands the collapsed ancestors of
-a row. The DOM chart has no row toggles of its own, so the event reports your own calls.
+`expandedKeys` is what the chart keeps: `'all'`, or a list that may name tasks without children.
+`expandedIds` is the parents that are expanded now, always as a list, which is usually what you want.
+**Fires** when `expand`, `collapse`, `toggle`, `expandAll` or `collapseAll` change them, and when
+`scrollToTask` expands the collapsed ancestors of a row. The chart itself has no toggles, so the
+event reports your own calls and a [task list](../task-list/).
 
 **Does not fire** when nothing changes (expanding a parent that is open), or when
 `setOptions({ hierarchy: { expandedKeys } })` replaces the state. See
 [Hierarchy](../concepts/hierarchy/).
+
+### `rowsChange`
+
+```ts
+onRowsChange: (rows: readonly GanttRow[]) => void
+```
+
+What [`getRows()`](../methods/#reading-the-state) returns changed: a group opened or shut, or
+something a row shows changed (a name, committed dates). It is for what stands beside the chart.
+
+**Does not fire** for a scroll, a hover or a selection, or for a drag in progress: the rows change
+when the drag commits.
+
+### `rowHoverChange` and `focusChange`
+
+```ts
+onRowHoverChange: (record: TaskRecord | null) => void
+onFocusChange: (record: TaskRecord | null) => void
+```
+
+`rowHoverChange` reports the lit row: the row under the pointer in the chart, over its bar or over
+empty space, or the one `setHoveredRow` names. `focusChange` reports the task whose row has the
+keyboard focus (`focusTask`). `null` is none, also when the row goes away. See the
+[task list](../task-list/).
 
 ## Edit session and history events
 

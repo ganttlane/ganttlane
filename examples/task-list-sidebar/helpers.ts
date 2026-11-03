@@ -1,12 +1,4 @@
-import type {
-  ChangeSet,
-  GanttSnapshot,
-  HitTarget,
-  ScrollAlign,
-  StoreDerived,
-  TaskId,
-  TaskRecord,
-} from '@ganttlane/dom';
+import type { ChangeSet, GanttRow, TaskId, TaskRecord } from '@ganttlane/dom';
 
 /** The view modes the toolbar offers. */
 export const VIEW_MODES = ['day', 'week', 'month'] as const;
@@ -25,11 +17,11 @@ export const BAR_MARGIN = 14;
 export interface ListRow {
   readonly id: TaskId;
   readonly name: string;
-  /** Nesting level, `0` for a root: `Row.depth`. */
+  /** Nesting level, `0` for a root. */
   readonly depth: number;
-  /** Whether the task has children, so that the row has a toggle: `Row.hasChildren`. */
+  /** Whether the task has children, so that the row has a toggle. */
   readonly isGroup: boolean;
-  /** Whether its children are shown: `Row.isExpanded`. */
+  /** Whether its children are shown. */
   readonly isExpanded: boolean;
   /** The zebra stripe the chart draws under this row (`display.rowStripes: 'group'`). */
   readonly stripe: 0 | 1;
@@ -66,69 +58,26 @@ export function rangeText(record: TaskRecord): string {
 /**
  * The rows of the list: the rows the chart shows, in its order, with what each one needs.
  *
- * `derived.rows` is what the chart draws: the visible tasks in pre-order with their depth and
- * whether they have children, so the list never works out the tree or what is collapsed itself.
- * The name and the dates are the record's (`getTask`). Build the list again only when
- * `snapshot.state.derived` is another object than last time: it keeps its identity through
- * scrolling, hovering and selecting, and is new when a group opens or shuts, and when the data
- * changes.
+ * `getRows()` is what the chart draws: the visible tasks in pre-order, so the list never works out
+ * the tree or what is collapsed itself. Build the list again only when it is another array than
+ * last time: it keeps its identity through scrolling, hovering and selecting, and is new when a
+ * group opens or shuts, and when the data changes.
  *
- * @param derived - `snapshot.state.derived`.
- * @param getTask - The chart's `getTask`.
+ * @param rows - `gantt.getRows()`.
  * @returns One entry per row of the chart, in the same order.
  */
-export function listRows(
-  derived: StoreDerived,
-  getTask: (id: TaskId) => TaskRecord | undefined,
-): ListRow[] {
-  const { rows } = derived;
-  const roots = rows.filter((row) => row.depth === 0).map((row) => row.id);
-  return rows.map((row) => {
-    const record = getTask(row.id);
-    const siblings = record?.parentId === undefined ? roots : getTask(record.parentId)?.childIds;
-    return {
-      id: row.id,
-      name: record?.name ?? String(row.id),
-      depth: row.depth,
-      isGroup: row.hasChildren,
-      isExpanded: row.isExpanded,
-      stripe: row.groupStripe,
-      dates: record ? rangeText(record) : '',
-      setSize: siblings?.length ?? 1,
-      position: (siblings?.indexOf(row.id) ?? 0) + 1,
-    };
-  });
-}
-
-/**
- * The task whose row the pointer is on in the chart: over its bar, or over its row where there is
- * no bar (`snapshot.feedback.hover`, which the chart keeps for its own hover and cursor).
- *
- * @param hover - `snapshot.feedback.hover`.
- * @returns The task, or `undefined` when the pointer is off the rows or on a link.
- */
-export function hoveredId(hover: HitTarget): TaskId | undefined {
-  if (hover.kind === 'task') return hover.id;
-  return hover.kind === 'empty' ? hover.rowId : undefined;
-}
-
-/**
- * The `alignY` that lets `scrollToTask` scroll sideways only. It scrolls both ways, and has no
- * "nearest" or "none" for the vertical one, so for a row that is in view this is the fraction of
- * the visible rows that it is already at: the vertical offset it asks for is the one the page
- * has. A row that is not in view is centred.
- *
- * @param snapshot - The chart's snapshot.
- * @param id - The task to scroll to.
- * @returns A value for `alignY`.
- */
-export function keepRowAt(snapshot: GanttSnapshot, id: TaskId): ScrollAlign {
-  const row = snapshot.layout.getRowMetrics(id);
-  if (row === undefined) return 'center';
-  // The rows in view: what the viewport shows below the header.
-  const room = snapshot.viewportHeight - snapshot.layout.rows.headerHeight - row.height;
-  const at = row.y - snapshot.scrollTop;
-  return room > 0 && at >= 0 && at <= room ? at / room : 'center';
+export function listRows(rows: readonly GanttRow[]): ListRow[] {
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    depth: row.depth,
+    isGroup: row.hasChildren,
+    isExpanded: row.isExpanded,
+    stripe: row.groupStripe,
+    dates: rangeText(row.record),
+    setSize: row.setSize,
+    position: row.position,
+  }));
 }
 
 /** What a key does in the list, by the pattern of an ARIA tree. */

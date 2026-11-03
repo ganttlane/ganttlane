@@ -1360,10 +1360,10 @@ complete lists are in "Limits and roadmap" in the READMEs of
   reserved. Use `scrollToToday()`, `setViewMode(id)` and `zoomTo(pxPerDay)` from your own controls.
 - **Sticky bar labels and the expected-progress marker** (`auto_move_label`, `show_expected_progress`):
   the options are reserved.
-- **A left-hand task list.** Line your own list up with the rows through `getRowMetrics(id)`. The fork's
-  "adjust" button (back to the bars) is not there either: `getVisibleRange()` and `scrollToTask(id)`
-  are the pieces to build one.
-- **Selecting bars by clicking, keyboard editing, ARIA roles on bars, a context menu, pinch and
+- **The fork's "adjust" button** (back to the bars): `getVisibleRange()` and `scrollToTask(id)` are the
+  pieces to build one. A left-hand task list is there now: `createTaskList` of
+  `@ganttlane/dom/task-list`, `<TaskList>` of `@ganttlane/react`.
+- **Keyboard editing, ARIA roles on bars, a context menu, pinch and
   `Ctrl` + wheel zoom** (`zoomTo()` zooms from code), and undo and redo hotkeys: planned for 1.0.
 - **`on_date_click` and `hover_on_date`.** There is no date-click event.
 - **Right-to-left charts** and week-start and weekend defaults from the locale (`calendar.weekends` is

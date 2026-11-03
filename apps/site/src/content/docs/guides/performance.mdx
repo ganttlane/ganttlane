@@ -101,18 +101,19 @@ an entry is over its **budget**:
 
 | Entry                                                                 | Size     | Budget |
 | --------------------------------------------------------------------- | -------- | ------ |
-| `@ganttlane/core`, the whole entry                                    | 59.81 kB | 62 kB  |
-| `@ganttlane/core`, `createGanttCore` only                             | 56.43 kB | 58 kB  |
-| `@ganttlane/core`, development build (`development` condition)        | 64.09 kB | 66 kB  |
-| `@ganttlane/dom`, on top of the core                                  | 20.46 kB | 22 kB  |
-| `@ganttlane/react`, on top of the core and dom, without React         | 6.53 kB  | 10 kB  |
-| `@ganttlane/dom/styles.css` (`@ganttlane/react/styles.css` is a copy) | 6.17 kB  | 8 kB   |
+| `@ganttlane/core`, the whole entry                                    | 60.93 kB | 62 kB  |
+| `@ganttlane/core`, `createGanttCore` only                             | 57.56 kB | 58 kB  |
+| `@ganttlane/core`, development build (`development` condition)        | 65.24 kB | 66 kB  |
+| `@ganttlane/dom`, on top of the core                                  | 20.8 kB  | 22 kB  |
+| `@ganttlane/dom/task-list`, on top of the core and dom                | 4.68 kB  | 5 kB   |
+| `@ganttlane/react`, on top of the core and dom, without React         | 7.92 kB  | 10 kB  |
+| `@ganttlane/dom/styles.css` (`@ganttlane/react/styles.css` is a copy) | 7.33 kB  | 8 kB   |
 
 What an app ships is the sum of what it imports. A vanilla chart is `@ganttlane/dom` on top of the
-core: about 56 kB (the part `createGantt` uses) plus 20 kB plus the stylesheet, so about 83 kB
-including CSS. A React chart adds about 6.5 kB for the bindings, React itself excluded. The
-stylesheet is shipped as written, not minified: 24 kB, 6.2 kB gzipped. A build that minifies your
-CSS brings it to about 13.7 kB, under 3 kB gzipped.
+core: about 58 kB (the part `createGantt` uses) plus 21 kB plus the stylesheet, so about 86 kB
+including CSS. A React chart adds about 8 kB for the bindings, React itself excluded. The
+stylesheet is shipped as written, not minified: 30 kB, 7.3 kB gzipped. A build that minifies your
+CSS brings it to about 18 kB, under 4 kB gzipped.
 
 ### Single utilities tree-shake
 

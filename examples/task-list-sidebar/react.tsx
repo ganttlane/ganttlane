@@ -16,8 +16,6 @@ import {
   BAR_MARGIN,
   describeChange,
   describeExpanded,
-  hoveredId,
-  keepRowAt,
   listRows,
   ROW_HEIGHTS,
   type Theme,
@@ -39,14 +37,13 @@ interface ListProps {
  * slice it reads changes: not while the chart scrolls.
  */
 function TaskList({ gantt, hovered, onPointer }: ListProps) {
-  // The rows change with what is collapsed and with the data (a name, a date): then
-  // `state.derived` is a new object. It keeps its identity while the chart scrolls, hovers and
-  // selects, so the list is built again only when it changes.
-  const derived = useGanttState(gantt, (snapshot) => snapshot.state.derived);
-  const rows = useMemo(() => listRows(derived, gantt.getTask), [gantt, derived]);
+  // The rows change with what is collapsed and with the data (a name, a date): then `getRows`
+  // returns a new array. It keeps its identity while the chart scrolls, hovers and selects, so the
+  // list is built again only when it changes.
+  const current = useGanttState(gantt, () => gantt.getRows());
+  const rows = useMemo(() => listRows(current), [current]);
   // The sizes are the chart's: the list never has a number of its own.
-  const rowHeight = useGanttState(gantt, (snapshot) => snapshot.layout.rows.rowHeight);
-  const headerHeight = useGanttState(gantt, (snapshot) => snapshot.layout.rows.headerHeight);
+  const { rowHeight, headerHeight } = useGanttState(gantt, () => gantt.getLayoutMetrics());
   const selected = useGanttState(gantt, (snapshot) => snapshot.selection.tasks);
 
   // The tab stop of the tree (roving tabindex): the row that last had the focus, or was selected.
@@ -65,12 +62,8 @@ function TaskList({ gantt, hovered, onPointer }: ListProps) {
   const choose = (id: TaskId): void => {
     setFocused(id);
     gantt.select([id]);
-    // `scrollToTask` scrolls both ways; `keepRowAt` makes the vertical one stay where it is.
-    gantt.scrollToTask(id, {
-      align: 'center',
-      alignY: keepRowAt(gantt.getSnapshot(), id),
-      behavior: 'smooth',
-    });
+    // Sideways to the bar; a row that is in view stays where it is.
+    gantt.scrollToTask(id, { align: 'center', alignY: 'nearest', behavior: 'smooth' });
   };
 
   const onClick = (event: MouseEvent, id: TaskId, isGroup: boolean, isExpanded: boolean): void => {
@@ -165,12 +158,11 @@ function TaskList({ gantt, hovered, onPointer }: ListProps) {
 
 /** The row of the chart that is lit: where `getRowMetrics` says the hovered task's row lies. */
 function Band({ gantt, hovered }: { gantt: GanttInstance; hovered: TaskId | undefined }) {
-  const headerHeight = useGanttState(gantt, (snapshot) => snapshot.layout.rows.headerHeight);
+  const { rowHeight, headerHeight } = useGanttState(gantt, () => gantt.getLayoutMetrics());
   // Read from the snapshot's layout: the row moves with the rows of the chart.
   const y = useGanttState(gantt, (snapshot) =>
     hovered === undefined ? undefined : snapshot.layout.getRowMetrics(hovered)?.y,
   );
-  const rowHeight = useGanttState(gantt, (snapshot) => snapshot.layout.rows.rowHeight);
   return (
     <div
       className="task-list__band"
@@ -216,7 +208,7 @@ export default function Example() {
   const { setContainer, slots } = gantt;
   const mode = useGanttState(gantt, (snapshot) => snapshot.viewMode.id);
   // The row the pointer is on in the chart, over a bar or over empty space in its row.
-  const inChart = useGanttState(gantt, (snapshot) => hoveredId(snapshot.feedback.hover));
+  const inChart = useGanttState(gantt, (snapshot) => snapshot.hoveredRow);
   const hovered = pointerOn ?? inChart;
 
   return (
