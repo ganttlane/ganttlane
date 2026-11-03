@@ -73,6 +73,7 @@ each one shows).
 | [Task colours and classes](task-colors-and-classes/README.md) | both    | `task.className`, `task.rowClassName`, `task.color`, `task.progressColor` and `display.rowStripes`                 |
 | [Bar labels](bar-labels/README.md)                            | both    | `display.barLabel` (inside, outside, auto, none) and `display.renderBarLabel`: text, a node, a disposable node     |
 | [Custom tooltip](custom-tooltip/README.md)                    | both    | `tooltip.render` (text sections, a DOM node) and `renderTooltip` (React)                                           |
+| [Link gaps in a tooltip](link-gap-tooltip/README.md)          | both    | One row per predecessor with how far the task sits from it, measured between the bars and true during a drag       |
 | [Link menu](link-menu/README.md)                              | both    | `linkMenu.render` with your own actions (type, lag, remove), `linkMenu.onRemove`, `renderLinkMenu` (React)         |
 | [Locale and strings](locale-and-strings/README.md)            | both    | `locale` (header, dates, numbers) and `strings` (tooltip, link menu, `aria-label`), with a full Ukrainian set      |
 | [Grid and today](grid-and-today/README.md)                    | both    | `display.gridLines`, the today line, days off, major lines per view mode, hover and selection tokens               |

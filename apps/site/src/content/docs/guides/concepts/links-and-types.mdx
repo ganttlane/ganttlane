@@ -135,6 +135,11 @@ explicit lag is reported as a `link-violated` conflict on the successor, with `r
 `actualMs`. Without a lag, only an overlap that the successor did not already have at load is
 flagged.
 
+So `lag` on a link record is the gap the link keeps, not always the gap the bars have: an explicit
+one stays what you wrote after a drop that breaks it, and no record follows a drag in progress. The
+[link gaps in a tooltip](../../../examples/link-gap-tooltip/) example measures the gap between the
+bars instead.
+
 ## Two ways to write links
 
 ### The `links` array

@@ -1,0 +1,34 @@
+/*
+ * The tooltip of the example: your own markup, so your own styles. Colours come from the text
+ * colour of the tooltip, so that it fits a light and a dark chart alike.
+ */
+.gap-card {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.gap-card-note,
+.gap-card-type {
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.gap-card-rows {
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
+  justify-content: start;
+  gap: 0.125rem 0.5rem;
+  margin: 0.125rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A row is three cells of the grid above, so that the columns line up. */
+.gap-card-rows li {
+  display: contents;
+}
+
+.gap-card-name {
+  font-weight: 600;
+}
