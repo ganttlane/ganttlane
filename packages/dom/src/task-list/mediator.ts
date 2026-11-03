@@ -75,8 +75,9 @@ const closest = (target: EventTarget | null, selector: string): HTMLElement | nu
  *   keys walk the tree (`treeAction`). With `selection.multiple` on the chart, Ctrl or Cmd adds the
  *   task to the selected ones or takes it out. The pointer lights the chart's row (`setHoveredRow`).
  * - **Focus.** The row with the browser's focus is `focusTask`; a `focusTask` from elsewhere brings
- *   the browser's focus to that row, and a row that goes away hands it to the tab stop. A bar of the
- *   chart that has the focus (`keyboard.barFocus`) keeps it: the row only follows.
+ *   the browser's focus to that row, and a row that goes away hands it to the tab stop. A row that a
+ *   sort moves keeps it. A bar of the chart that has the focus (`keyboard.barFocus`) keeps it: the row
+ *   only follows.
  * - **Row hover.** A chart shows none on its own: `display.rowHover` turns it on while the list is
  *   there, also after the chart was replaced with its state (a hidden `<Activity>`).
  * - **Splitter.** Pointer and keys; the view draws the width.
@@ -237,6 +238,8 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
 
   /** The task that had the focus at the last draw, to tell when its row went away with it. */
   let focusWas: unknown;
+  /** The rows of the last draw, to tell when new ones are on their way. */
+  let rowsDrawn: unknown;
   listen(
     body,
     'focusin',
@@ -256,6 +259,9 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
       if (focusedTask === undefined) return;
       if (closest(event.target, '[data-row]')?.dataset.taskId !== String(focusedTask)) return;
       if (body.contains(event.relatedTarget as Node | null)) return;
+      // New rows are being drawn, and nothing takes the focus: a sort moves the node of this row, and
+      // Chromium takes the focus from a node that moves. The end of the draw gives it back.
+      if (event.relatedTarget === null && rowsDrawn !== gantt.getRows()) return;
       focusWas = undefined;
       // A bar of the same tasks takes it: it says so itself, with no gap between.
       const raw = closest(event.relatedTarget, BAR)?.dataset.taskId;
@@ -325,6 +331,7 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
 
   return {
     afterDraw(): void {
+      rowsDrawn = gantt.getRows();
       const { focusedTask } = snapshot();
       const active = activeElement();
       if (focusedTask === undefined) {

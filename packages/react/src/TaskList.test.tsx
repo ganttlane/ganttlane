@@ -126,6 +126,38 @@ describe('<TaskList>: beside bars that take the focus, and selection.multiple', 
     expect(bar('g').getAttribute('tabindex')).toBe('0');
   });
 
+  it('FR-SEL-3: a browser that takes the focus from a row that a sort moves gives no gap', async () => {
+    // What Chromium does during React's commit; React then gives the focus back by itself.
+    const flat = TASKS.filter((task) => task.parentId === undefined);
+    const { gantt } = await plan({ options: { defaultTasks: flat } });
+    const heard: unknown[] = [];
+    gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    const moved = row('g')!;
+    await run(() => {
+      moved.focus();
+      frames.step();
+    });
+    // React moves a node with either, as the rows around it say.
+    const box = moved.parentElement!;
+    const insert = box.insertBefore.bind(box);
+    const append = box.appendChild.bind(box);
+    vi.spyOn(box, 'insertBefore').mockImplementation((node: Node, before: Node | null) => {
+      if (node === moved) moved.blur();
+      return insert(node, before);
+    });
+    vi.spyOn(box, 'appendChild').mockImplementation((node: Node) => {
+      if (node === moved) moved.blur();
+      return append(node);
+    });
+    await run(() => {
+      gantt.setTasks([...flat].reverse());
+    });
+    expect(ids()).toEqual(['z', 'g', 'a']);
+    expect(document.activeElement).toBe(moved);
+    expect(gantt.getSnapshot().focusedTask).toBe('g');
+    expect(heard).toEqual(['g']);
+  });
+
   it('FR-SEL-3: moving between a row and a bar reports the new task with no gap', async () => {
     const { gantt } = await plan({ options: withBars });
     const heard: unknown[] = [];

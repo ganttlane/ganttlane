@@ -305,6 +305,61 @@ describe('createTaskList: numeric ids beside bars that take the focus', () => {
   });
 });
 
+describe('createTaskList: a row with the focus when rows are sorted', () => {
+  const FLAT = [
+    { id: 'a', name: 'Alpha', start: '2026-03-02', end: '2026-03-06' },
+    { id: 'b', name: 'Bravo', start: '2026-03-09', end: '2026-03-13' },
+    { id: 'c', name: 'Charlie', start: '2026-03-16', end: '2026-03-20' },
+  ];
+
+  it('FR-SEL-3: a browser that takes the focus from the moved node gives no gap, and it comes back', () => {
+    // What Chromium does when a sort moves the node of the focused row: `focusout`, nothing to
+    // take it, and the focus on the body. Happy DOM keeps the focus on a moved node, so it is sent here.
+    const { gantt, row, side, flush } = create({}, { tasks: FLAT });
+    const heard: unknown[] = [];
+    gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    const moved = row('b')!;
+    moved.focus();
+    flush();
+    const box = moved.parentElement!;
+    const original = box.insertBefore.bind(box);
+    vi.spyOn(box, 'insertBefore').mockImplementation((node: Node, before: Node | null) => {
+      if (node === moved) moved.blur();
+      return original(node, before);
+    });
+
+    gantt.setTasks([...FLAT].reverse());
+    flush();
+
+    const ids = [...side.querySelectorAll<HTMLElement>('.gantt-task-list__row')].map(
+      (node) => node.dataset.taskId,
+    );
+    expect(ids).toEqual(['c', 'b', 'a']);
+    expect(document.activeElement).toBe(moved);
+    expect(gantt.core.getSnapshot().focusedTask).toBe('b');
+    expect(heard).toEqual(['b']);
+  });
+
+  it('FR-SEL-3: going away from a row on purpose still lets go of it, with new rows or without', () => {
+    const { gantt, row, flush } = create({}, { tasks: FLAT });
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    row('b')?.focus();
+    flush();
+    // Something takes the focus, while the rows are new and not drawn yet: that is no moved node.
+    gantt.setTasks([...FLAT].reverse());
+    outside.focus();
+    expect(gantt.core.getSnapshot().focusedTask).toBeUndefined();
+    flush();
+    expect(document.activeElement).toBe(outside);
+
+    row('a')?.focus();
+    flush();
+    row('a')?.blur();
+    expect(gantt.core.getSnapshot().focusedTask).toBeUndefined();
+  });
+});
+
 describe('createTaskList: selection.multiple', () => {
   const multiple = (more: Partial<Parameters<typeof createGantt>[1]> = {}): Fixture =>
     create({}, { selection: { multiple: true }, ...more });

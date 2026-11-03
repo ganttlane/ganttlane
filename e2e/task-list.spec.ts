@@ -83,6 +83,17 @@ const scrollTopOf = (page: Page): Promise<number> =>
       ).__gantt.core.getSnapshot().scrollTop,
   );
 
+/** What the page's hook says the focused task is. */
+const focusedTaskOf = (page: Page): Promise<unknown> =>
+  page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          __gantt: { core: { getSnapshot(): { focusedTask: unknown } } };
+        }
+      ).__gantt.core.getSnapshot().focusedTask,
+  );
+
 const scroller = (page: Page): Locator => page.locator('.gantt__scroller');
 const listBody = (page: Page): Locator => page.locator('.gantt-task-list__body');
 
@@ -377,6 +388,69 @@ for (const renderer of RENDERERS) {
       await expect.poll(() => scrollTopOf(page)).toBeGreaterThan(7000);
       await expect(row(page, 't1')).toBeFocused();
       await expectAligned(page);
+    });
+
+    test(`FR-SEL-3: a sort leaves the focus on its row, the focused task as it was, and no null is heard (${renderer.name})`, async ({
+      page,
+    }) => {
+      const errors = watchErrors(page);
+      await open(page, renderer, { tasks: '9' });
+      await page.evaluate(() => {
+        const w = window as unknown as {
+          __gantt: {
+            getRows(): readonly {
+              id: string;
+              name: string;
+              record: { start: Date; end: Date };
+            }[];
+            setTasks(tasks: readonly unknown[]): void;
+            on(name: string, handler: (record: { id: string } | null) => void): () => void;
+          };
+          __sort: () => void;
+          __heard: unknown[];
+        };
+        let tasks = w.__gantt.getRows().map(({ id, name, record: { start, end } }) => {
+          return { id, name, start, end };
+        });
+        w.__gantt.setTasks(tasks);
+        w.__sort = () => {
+          tasks = [...tasks].reverse();
+          w.__gantt.setTasks(tasks);
+        };
+        w.__heard = [];
+        w.__gantt.on('focusChange', (record) => {
+          w.__heard.push(record?.id ?? null);
+        });
+      });
+      const ids = (): Promise<(string | undefined)[]> =>
+        page
+          .locator('.gantt-task-list__row')
+          .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.taskId));
+      const heard = (): Promise<unknown[]> =>
+        page.evaluate(() => (window as unknown as { __heard: unknown[] }).__heard);
+      await expect.poll(ids).toHaveLength(9);
+      const before = await ids();
+
+      await row(page, 't5').focus();
+      // The tab stop is drawn: the row is settled before the rows move.
+      await expect(row(page, 't5')).toHaveAttribute('tabindex', '0');
+      await page.evaluate(() => {
+        (window as unknown as { __sort: () => void }).__sort();
+      });
+      await expect.poll(ids).toEqual([...before].reverse());
+      await expect(row(page, 't5')).toBeFocused();
+      expect(await focusedTaskOf(page)).toBe('t5');
+      expect(await heard()).toEqual(['t5']);
+
+      // And back: a second sort is no different.
+      await page.evaluate(() => {
+        (window as unknown as { __sort: () => void }).__sort();
+      });
+      await expect.poll(ids).toEqual(before);
+      await expect(row(page, 't5')).toBeFocused();
+      expect(await focusedTaskOf(page)).toBe('t5');
+      expect(await heard()).toEqual(['t5']);
+      expect(errors).toEqual([]);
     });
 
     test(`NFR-PERF-3: the list draws the rows the chart draws, not all of them (${renderer.name})`, async ({
