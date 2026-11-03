@@ -18,6 +18,7 @@ export const typeDocOptions: StarlightTypeDocOptions = {
     '../../../packages/dom/src/index.ts',
     '../../../packages/dom/src/facade.ts',
     '../../../packages/dom/src/dom-utils/index.ts',
+    '../../../packages/dom/src/task-list/index.ts',
     '../../../packages/react/src/index.ts',
     '../../../packages/react/src/core.ts',
   ].map(here),

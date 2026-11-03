@@ -100,6 +100,7 @@ describe('grid structure', () => {
 
     expect([...root.children].map((child) => child.getAttribute('class'))).toEqual([
       'gantt__rows',
+      'gantt__row-hover',
       'gantt__nonworking',
       'gantt__highlights',
       'gantt__gridlines',
@@ -403,7 +404,7 @@ describe('non-working days (FR-UI-2)', () => {
     harness.setDisplay({ nonWorkingDays: 'fill' });
     refresh();
     expect(root.querySelector('pattern')).toBeNull();
-    expect(root.querySelector('[fill]')).toBeNull();
+    expect(root.querySelector('.gantt__nonworking [fill]')).toBeNull();
     expect(root.querySelector('.gantt__nonworking')!.getAttribute('data-mode')).toBe('fill');
 
     harness.setDisplay({ nonWorkingDays: false });
@@ -889,14 +890,48 @@ describe('work per update (NFR-PERF-1, NFR-PERF-3)', () => {
 
   it('NFR-PERF-1: an unchanged snapshot and a feedback-only snapshot write nothing', () => {
     const { core, root, redraw, refresh } = chart();
+    core.send({ type: 'move', pointerId: 1, time: 0, x: 700, y: 20 });
+    redraw();
     const changes = watch(root);
 
     refresh();
-    core.send({ type: 'move', pointerId: 1, time: 0, x: 700, y: 20 });
+    // Still on the same row: the lit row is what the grid draws of the pointer.
+    core.send({ type: 'move', pointerId: 1, time: 1, x: 720, y: 21 });
     redraw();
 
     expect(changes.take()).toEqual([]);
     changes.stop();
+  });
+
+  it('FR-ROW-6: the row that is lit or focused says so, and the tint lies over it', () => {
+    const { core, root, redraw } = chart();
+    const row = (id: string): Element => root.querySelector(`.gantt__row[data-task-id="${id}"]`)!;
+    const tint = root.querySelector('.gantt__row-hover')!;
+    // Without a stylesheet it draws nothing: a rect is black by default.
+    expect(tint.getAttribute('fill')).toBe('none');
+    const [first, second] = core.getSnapshot().layout.rows.rows;
+    const firstId = String(first?.id);
+    const secondId = String(second?.id);
+    expect(tint.getAttribute('display')).toBe('none');
+
+    core.setHoveredRow(first?.id);
+    redraw();
+    expect(row(firstId).hasAttribute('data-hovered')).toBe(true);
+    expect(tint.hasAttribute('display')).toBe(false);
+    expect(tint.getAttribute('y')).toBe(String(first?.y));
+    expect(tint.getAttribute('height')).toBe(String(first?.height));
+
+    core.setHoveredRow(undefined);
+    core.focusTask(second?.id);
+    redraw();
+    expect(row(firstId).hasAttribute('data-hovered')).toBe(false);
+    expect(row(secondId).hasAttribute('data-focused')).toBe(true);
+    expect(tint.getAttribute('y')).toBe(String(second?.y));
+
+    core.focusTask(undefined);
+    redraw();
+    expect(row(secondId).hasAttribute('data-focused')).toBe(false);
+    expect(tint.getAttribute('display')).toBe('none');
   });
 
   it('NFR-PERF-1: a scroll past the drawn window keeps the nodes of the days that stay', () => {

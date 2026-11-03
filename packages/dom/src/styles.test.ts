@@ -185,6 +185,15 @@ const RENDERER_INPUTS = [
   '--gantt-bar-progress-color',
   '--gantt-popover-x',
   '--gantt-popover-y',
+  '--gantt-task-list-width',
+  '--gantt-task-list-columns',
+  '--gantt-task-list-header-height',
+  '--gantt-task-list-row-height',
+  '--gantt-task-list-rows-height',
+  '--gantt-task-list-view-height',
+  '--gantt-task-list-y',
+  '--gantt-task-list-depth',
+  '--gantt-task-list-indent',
 ];
 
 /** Every class of the unstyled contract. */
@@ -234,6 +243,19 @@ const CONTRACT_CLASSES = [
   'gantt__popover-details',
   'gantt__popover-actions',
   'gantt__popover-action',
+  'gantt__row-hover',
+  'gantt-scope',
+  'gantt-task-list',
+  'gantt-task-list__grid',
+  'gantt-task-list__header',
+  'gantt-task-list__header-row',
+  'gantt-task-list__body',
+  'gantt-task-list__rows',
+  'gantt-task-list__row',
+  'gantt-task-list__cell',
+  'gantt-task-list__text',
+  'gantt-task-list__toggle',
+  'gantt-task-list__splitter',
 ];
 /** Contract classes without a rule on purpose: plain grouping elements (and the stripes pattern). */
 const UNSTYLED_CLASSES = [
@@ -244,6 +266,7 @@ const UNSTYLED_CLASSES = [
   'gantt__stripes',
   'gantt__highlights',
   'gantt__gridlines',
+  'gantt-task-list__grid',
 ];
 
 /** Every `data-*` attribute of the unstyled contract. */
@@ -284,6 +307,13 @@ const CONTRACT_ATTRIBUTES = [
   'data-kind',
   'data-interactive',
   'data-action',
+  'data-focused',
+  'data-row-hover',
+  'data-group',
+  'data-tree',
+  'data-align',
+  'data-column',
+  'data-toggle',
 ];
 /** Contract attributes that are hooks for the application (ids, kinds), not visual states. */
 const UNSTYLED_ATTRIBUTES = [
@@ -298,6 +328,9 @@ const UNSTYLED_ATTRIBUTES = [
   'data-side',
   'data-link-id',
   'data-action',
+  'data-focused',
+  'data-column',
+  'data-toggle',
 ];
 
 describe('styles.css: a plain sheet in @layer gantt', () => {
@@ -716,16 +749,21 @@ describe('styles.css: themes', () => {
 
   it('FR-THEME-2: `auto` is dark only under `prefers-color-scheme: dark`, with the same values as `dark`', () => {
     const queries = rules.filter((rule) => rule.context.includes(DARK_QUERY));
-    expect(queries.flatMap(selectorsOf)).toEqual([".gantt[data-theme='auto']"]);
+    expect(queries.flatMap(selectorsOf)).toEqual([
+      ".gantt[data-theme='auto']",
+      ".gantt-scope[data-theme='auto']",
+    ]);
     expect(autoDarkTokens).toEqual(darkTokens);
     const [auto] = rulesFor(".gantt[data-theme='auto']", [LAYER, DARK_QUERY]);
     const [dark] = rulesFor(".gantt[data-theme='dark']", [LAYER]);
     expect(auto?.declarations).toEqual(dark?.declarations);
     // No other rule is conditional on the colour scheme: themes change tokens, not selectors.
     const darkOnly = rules.filter((rule) =>
-      selectorsOf(rule).some((s) => s.includes('data-theme')),
+      selectorsOf(rule).some((s) => s.includes('data-theme=')),
     );
-    expect(darkOnly.map((rule) => rule.selector).sort()).toEqual([
+    expect(darkOnly.flatMap(selectorsOf).sort()).toEqual([
+      ".gantt-scope[data-theme='auto']",
+      ".gantt-scope[data-theme='dark']",
       ".gantt[data-theme='auto']",
       ".gantt[data-theme='dark']",
     ]);
@@ -751,10 +789,46 @@ describe('styles.css: themes', () => {
   });
 });
 
+describe('styles.css: the row hover and what stands beside the chart', () => {
+  it('FR-ROW-6: a chart shows no row hover of its own: the token is transparent in every theme', () => {
+    expect(lightTokens.get('--gantt-row-hover-color')).toBe('transparent');
+    expect(darkTokens.get('--gantt-row-hover-color')).toBe('transparent');
+    expect(autoDarkTokens.get('--gantt-row-hover-color')).toBe('transparent');
+    expect(valueOf('.gantt__row-hover', 'fill')).toBe('var(--gantt-row-hover-color)');
+    // The row itself is left alone, so that a stripe stays under the tint.
+    expect(rulesFor('.gantt__row[data-hovered]', [LAYER])).toEqual([]);
+  });
+
+  it('FR-ROW-6: the hover colour turns on with `display.rowHover`, and on a task list', () => {
+    const on = 'var(--gantt-row-highlight-color)';
+    expect(valueOf('.gantt[data-row-hover]', '--gantt-row-hover-color')).toBe(on);
+    // As specific as the blocks of the themes, which say `transparent`, and after them.
+    expect(valueOf('.gantt-task-list[data-theme]', '--gantt-row-hover-color')).toBe(on);
+    const order = rules.flatMap(selectorsOf);
+    expect(order.lastIndexOf('.gantt-task-list[data-theme]')).toBeGreaterThan(
+      order.lastIndexOf(".gantt-scope[data-theme='auto']"),
+    );
+  });
+
+  it('FR-THEME-1: `.gantt-scope` has the tokens of the chart, in every theme', () => {
+    expect(tokensOf(rulesFor('.gantt-scope', [LAYER]))).toEqual(lightTokens);
+    expect(rulesFor(".gantt-scope[data-theme='dark']", [LAYER])).toEqual(
+      rulesFor(".gantt[data-theme='dark']", [LAYER]),
+    );
+    expect(rulesFor(".gantt-scope[data-theme='auto']", [LAYER, DARK_QUERY])).toEqual(
+      rulesFor(".gantt[data-theme='auto']", [LAYER, DARK_QUERY]),
+    );
+  });
+});
+
 describe('styles.css: motion', () => {
   it('disables every transition and animation under prefers-reduced-motion', () => {
     const reduced = rules.filter((rule) => rule.context.includes(REDUCED_MOTION));
-    expect(reduced.map((rule) => rule.selector)).toEqual(['.gantt *']);
+    expect(reduced.flatMap(selectorsOf)).toEqual([
+      '.gantt *',
+      '.gantt-task-list *',
+      '.gantt-task-list ::before',
+    ]);
     expect(reduced[0]?.declarations).toEqual([
       { property: 'transition', value: 'none' },
       { property: 'animation', value: 'none' },

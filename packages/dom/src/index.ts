@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-export type { Gantt } from './create-gantt';
+export type { Gantt, GanttAppearance, GanttChartEventMap } from './create-gantt';
 export { createGantt } from './create-gantt';
 export type {
   BarLabelContext,
@@ -139,6 +139,7 @@ export type {
   ExpandedChangePayload,
   FeedbackEffect,
   FixedSnapRule,
+  FocusChangePayload,
   GanttCore,
   GanttCoreOptions,
   GanttCoreOptionsPatch,
@@ -149,6 +150,7 @@ export type {
   GanttHandlers,
   GanttHierarchyOptions,
   GanttIssues,
+  GanttRow,
   GanttSelection,
   GanttSnapshot,
   GestureKind,
@@ -189,6 +191,7 @@ export type {
   IssuesPayload,
   KeyInput,
   Layout,
+  LayoutMetrics,
   LayoutOptions,
   LayoutWindow,
   Link,
@@ -246,9 +249,12 @@ export type {
   RollEdge,
   RollToWorkingOptions,
   Row,
+  RowHoverPayload,
   RowLayout,
   RowMetrics,
   RowRange,
+  RowsChangePayload,
+  RowWindow,
   ScaleContext,
   ScaleDirection,
   ScaleIssue,
@@ -264,8 +270,10 @@ export type {
   ScrollRequest,
   ScrollRequestReason,
   ScrollToDateOptions,
+  ScrollToPosition,
   ScrollToTaskOptions,
   SelectionChangePayload,
+  SelectionOptions,
   SessionAlreadyOpenResult,
   SessionBeginResult,
   SessionBegunResult,
@@ -307,6 +315,7 @@ export type {
   TaskPointerPayload,
   TaskProgressChangePayload,
   TaskRecord,
+  TaskScrollAlign,
   TasksHistoryEntry,
   TaskSpan,
   TaskTarget,

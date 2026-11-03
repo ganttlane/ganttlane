@@ -15,7 +15,7 @@ import {
 } from '@ganttlane/core';
 
 import { assertContainer } from './container';
-import { type ResolvedDisplay, resolveDisplay } from './display';
+import { type ResolvedDisplay, resolveDisplay, type RowStripesOption } from './display';
 import {
   checkVisual,
   coreOf,
@@ -29,13 +29,40 @@ import {
   sameIssues,
 } from './options';
 import { type MountedRenderer, mountRenderer } from './renderer';
-import type { HeightOption, ThemeOption } from './skeleton';
+import { type HeightOption, resolveHeight, resolveTheme, type ThemeOption } from './skeleton';
 import {
   DEFAULT_STRINGS,
   type GanttStrings,
   type GanttStringsInput,
   resolveStrings,
 } from './strings';
+
+/**
+ * What the chart's renderer draws that the core does not know, for what stands beside the chart
+ * and has to match it (`getAppearance`). Frozen, and the same object until one of them changes
+ * (`on('appearanceChange')`).
+ */
+export interface GanttAppearance {
+  /** `data-theme` of the chart: `'light'`, `'dark'` or `'auto'`. */
+  readonly theme: ThemeOption;
+  /** `layout.height`: a number of px, `'auto'`, or `undefined` when the chart fills its container. */
+  readonly height: HeightOption | undefined;
+  /** `display.rowStripes`. */
+  readonly rowStripes: RowStripesOption;
+  /** `display.rowHover`. */
+  readonly rowHover: boolean;
+}
+
+/**
+ * The events of a chart, with the arguments their handlers get: the core's, and the one the chart
+ * adds for what the core does not know.
+ *
+ * @typeParam TData - Type of `task.data`.
+ */
+export type GanttChartEventMap<TData = unknown> = GanttEventMap<TData> & {
+  /** The theme, the height, the row stripes or the row hover of the chart changed. */
+  readonly appearanceChange: (appearance: GanttAppearance) => void;
+};
 
 /**
  * A chart created by {@link createGantt}: the data, view, rows, selection, edit session, history
@@ -79,7 +106,7 @@ export interface Gantt<TData = unknown> {
    *
    * | Key | Goes to |
    * | --- | --- |
-   * | `tasks`, `links`, `dataMode`, `viewMode`, `viewModes`, `locale`, `direction`, `now`, `dates`, `calendar`, `scheduling`, `hierarchy`, `editing`, `history`, `timeline`, `scroll`, `interaction`, `layout` (all but `height`) | the core: it recomputes only what the key invalidates (`GanttCore.setOptions`) |
+   * | `tasks`, `links`, `dataMode`, `viewMode`, `viewModes`, `locale`, `direction`, `now`, `dates`, `calendar`, `scheduling`, `hierarchy`, `editing`, `selection`, `history`, `timeline`, `scroll`, `interaction`, `layout` (all but `height`) | the core: it recomputes only what the key invalidates (`GanttCore.setOptions`) |
    * | `on<Event>`, `onBeforeTaskChange`, `onBeforeLinkCreate` | the core: the handler is swapped in O(1), keeping its place among the listeners, and nothing is recomputed or redrawn |
    * | `onIssues` | the chart: swapped in O(1), nothing else is touched |
    * | `layout.height` | the renderer: `setHeight` |
@@ -91,7 +118,7 @@ export interface Gantt<TData = unknown> {
    *
    * An option object is merged field by field, one level deep, with the one set before: the
    * core's groups (`calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`,
-   * `scroll`, `interaction`), `display` and `strings`. A field you give replaces that field, one
+   * `scroll`, `selection`, `interaction`), `display` and `strings`. A field you give replaces that field, one
    * you leave out keeps its value, and one given with `undefined` returns to its default.
    * Taken whole, so that a given value replaces the old one and a field it leaves out is back to
    * its default: the objects nested in a group (`scheduling.skipNonWorkingDays`,
@@ -124,6 +151,8 @@ export interface Gantt<TData = unknown> {
   readonly scrollToToday: (...args: Parameters<GanttCore<TData>['scrollToToday']>) => void;
   /** Scrolls a task's row and bar into view, on both axes; collapsed ancestors are expanded. */
   readonly scrollToTask: (...args: Parameters<GanttCore<TData>['scrollToTask']>) => void;
+  /** Scrolls to a position on either axis or both; an axis left out stays where it is. */
+  readonly scrollTo: (...args: Parameters<GanttCore<TData>['scrollTo']>) => void;
 
   // ---- rows and selection ----
 
@@ -131,6 +160,8 @@ export interface Gantt<TData = unknown> {
   readonly expand: GanttCore<TData>['expand'];
   /** Collapses a parent. */
   readonly collapse: GanttCore<TData>['collapse'];
+  /** Expands a collapsed parent and collapses an expanded one. */
+  readonly toggle: GanttCore<TData>['toggle'];
   /** Expands every parent. */
   readonly expandAll: GanttCore<TData>['expandAll'];
   /** Collapses every parent. */
@@ -141,6 +172,10 @@ export interface Gantt<TData = unknown> {
   readonly selectLink: GanttCore<TData>['selectLink'];
   /** Clears the selected tasks and the selected link. */
   readonly clearSelection: GanttCore<TData>['clearSelection'];
+  /** Lights the row of a task from outside the chart; `undefined` gives it back to the pointer. */
+  readonly setHoveredRow: GanttCore<TData>['setHoveredRow'];
+  /** Says which task's row has the keyboard focus; a task list moves the focus to it. */
+  readonly focusTask: GanttCore<TData>['focusTask'];
 
   // ---- queries ----
 
@@ -154,6 +189,14 @@ export interface Gantt<TData = unknown> {
   readonly getRowMetrics: GanttCore<TData>['getRowMetrics'];
   /** Where a task's bar lies as drawn (a drag in progress included), in body px. */
   readonly getBarRect: GanttCore<TData>['getBarRect'];
+  /** The visible rows in order, the same array until a row changes (`onRowsChange`). */
+  readonly getRows: GanttCore<TData>['getRows'];
+  /** Which rows the chart draws now, for a list that draws the same ones. */
+  readonly getRowWindow: GanttCore<TData>['getRowWindow'];
+  /** The chart's sizes: header, rows, content and viewport. */
+  readonly getLayoutMetrics: GanttCore<TData>['getLayoutMetrics'];
+  /** The theme, the height and the row display the chart has now. */
+  readonly getAppearance: () => GanttAppearance;
   /**
    * The current problems of the data and of the options. `options` is the core's issues and
    * the renderer's in one list, the same one `onIssues` reports as `source: 'options'`.
@@ -178,11 +221,15 @@ export interface Gantt<TData = unknown> {
   // ---- events and life cycle ----
 
   /**
-   * Adds a listener with the same payload as the `on<Name>` option.
+   * Adds a listener with the same payload as the `on<Name>` option, or of `appearanceChange`,
+   * which has no option: `getAppearance` changed.
    *
    * @returns A function that removes it (idempotent).
    */
-  readonly on: <K extends GanttEventName>(name: K, handler: GanttEventMap<TData>[K]) => Unsubscribe;
+  readonly on: <K extends keyof GanttChartEventMap>(
+    name: K,
+    handler: GanttChartEventMap<TData>[K],
+  ) => Unsubscribe;
   /**
    * Removes everything the chart added to its container, then destroys its core; safe to call
    * twice.
@@ -195,10 +242,14 @@ export interface Gantt<TData = unknown> {
   readonly core: GanttCore<TData>;
 }
 
-/** Events the facade fans out itself: `issues`, whose payload merges in the renderer's options. */
+/**
+ * Events the facade fans out itself: `issues`, whose payload merges in the renderer's options, and
+ * `appearanceChange`, of options the core does not have.
+ */
 interface Bus {
   readonly issues: IssuesPayload;
   readonly error: ErrorPayload;
+  readonly appearanceChange: GanttAppearance;
 }
 
 const NO_ISSUES: readonly OptionIssue[] = Object.freeze([]);
@@ -213,16 +264,22 @@ const SAME = [
   'removeLink',
   'expand',
   'collapse',
+  'toggle',
   'expandAll',
   'collapseAll',
   'select',
   'selectLink',
   'clearSelection',
+  'setHoveredRow',
+  'focusTask',
   'getTask',
   'getLink',
   'getVisibleRange',
   'getRowMetrics',
   'getBarRect',
+  'getRows',
+  'getRowWindow',
+  'getLayoutMetrics',
   'edit',
   'undo',
   'redo',
@@ -238,6 +295,7 @@ const SCROLLING = [
   'scrollToDate',
   'scrollToToday',
   'scrollToTask',
+  'scrollTo',
 ] as const;
 
 /**
@@ -394,6 +452,20 @@ export function createChart<TData = unknown>(
   let display: ResolvedDisplay = resolveDisplay(displayOf(given, true, removeLink));
   let strings: GanttStrings = resolveStrings(given.strings as GanttStringsInput | undefined);
   let renderer: MountedRenderer<GanttCore<TData>> | undefined;
+  const appearanceNow = (): GanttAppearance =>
+    Object.freeze({
+      theme: resolveTheme(theme),
+      height: resolveHeight(height),
+      rowStripes: display.rowStripes,
+      rowHover: display.rowHover,
+    });
+  let appearance = appearanceNow();
+  const syncAppearance = (): void => {
+    const next = appearanceNow();
+    if (JSON.stringify(next) === JSON.stringify(appearance)) return;
+    appearance = next;
+    bus.emit('appearanceChange', next);
+  };
   const unmount = (): void => {
     const mounted = renderer;
     renderer = undefined;
@@ -464,6 +536,7 @@ export function createChart<TData = unknown>(
     } finally {
       // Also when a listener of the core threw: the renderer's issues are news all the same.
       sync();
+      syncAppearance();
     }
     return getIssues().options;
   };
@@ -495,12 +568,13 @@ export function createChart<TData = unknown>(
     get canRedo() {
       return core.canRedo;
     },
+    getAppearance: () => appearance,
     on: (name, handler) =>
-      name !== 'issues'
-        ? core.on(name, handler)
+      name !== 'issues' && name !== 'appearanceChange'
+        ? core.on(name, handler as GanttEventMap<TData>[GanttEventName])
         : destroyed
           ? noop
-          : bus.on('issues', handler as Listener<IssuesPayload>),
+          : bus.on(name as 'issues', handler as Listener<IssuesPayload>),
     destroy(): void {
       if (destroyed) return;
       destroyed = true;

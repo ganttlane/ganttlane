@@ -40,6 +40,11 @@
       "types": "./dist/facade.d.ts",
       "default": "./dist/facade.js"
     },
+    "./task-list": {
+      "@ganttlane/source": "./src/task-list/index.ts",
+      "types": "./dist/task-list.d.ts",
+      "default": "./dist/task-list.js"
+    },
     "./styles.css": {
       "@ganttlane/source": "./src/styles.css",
       "types": "./dist/styles.css.d.ts",
@@ -79,6 +84,10 @@
       "./facade": {
         "types": "./dist/facade.d.ts",
         "default": "./dist/facade.js"
+      },
+      "./task-list": {
+        "types": "./dist/task-list.d.ts",
+        "default": "./dist/task-list.js"
       },
       "./styles.css": {
         "types": "./dist/styles.css.d.ts",

@@ -8,6 +8,8 @@ interface RowItem {
   readonly metrics: RowMetrics;
   readonly stripe: boolean;
   readonly task: TaskModel | undefined;
+  readonly hovered: boolean;
+  readonly focused: boolean;
 }
 
 /** The row backgrounds of the visible rows (`g.gantt__rows`). */
@@ -25,19 +27,26 @@ export interface RowsSection {
 
 /**
  * Creates the row backgrounds' section: `rect.gantt__row[data-row][data-task-id][data-stripe?]
- * [data-invalid?][data-placeholder?]` per row of the window, keyed by task id, with the task's
- * `rowClassName` added to the class.
+ * [data-invalid?][data-placeholder?][data-hovered?][data-focused?]` per row of the window, keyed by
+ * task id, with the task's `rowClassName` added to the class, and one `rect.gantt__row-hover` over
+ * the row that is lit or focused: a tint of its own, so that what the row shows (a stripe, a
+ * placeholder) stays under it.
  *
  * @param document - Document that owns the nodes.
  * @param container - The group the rects go into; the section owns it.
+ * @param tint - The rect of the tint, somewhere above the group.
  * @returns The section.
  */
-export function createRowsSection(document: Document, container: SVGGElement): RowsSection {
+export function createRowsSection(
+  document: Document,
+  container: SVGGElement,
+  tint: SVGRectElement,
+): RowsSection {
   let width = 0;
   const rows = createReconciler<RowItem, TaskId, SVGRectElement>(container, {
     key: (item) => item.metrics.id,
     create: () => createSvg(document, 'rect', { class: 'gantt__row' }),
-    update: (rect, { metrics, stripe, task }) => {
+    update: (rect, { metrics, stripe, task, hovered, focused }) => {
       setAttrs(rect, {
         class: withClass('gantt__row', task?.task.rowClassName),
         'data-row': metrics.index,
@@ -45,6 +54,8 @@ export function createRowsSection(document: Document, container: SVGGElement): R
         'data-stripe': stripe,
         'data-invalid': task !== undefined && !task.valid,
         'data-placeholder': task?.type === 'placeholder',
+        'data-hovered': hovered,
+        'data-focused': focused,
         x: 0,
         y: metrics.y,
         width,
@@ -68,10 +79,20 @@ export function createRowsSection(document: Document, container: SVGGElement): R
           metrics: row,
           stripe: striped(derived[index], stripes),
           task: model.taskById.get(row.id),
+          hovered: row.id === snapshot.hoveredRow,
+          focused: row.id === snapshot.focusedTask,
         });
       }
       width = snapshot.contentWidth;
       rows.sync(items);
+      const lit = snapshot.hoveredRow ?? snapshot.focusedTask;
+      const row = lit === undefined ? undefined : snapshot.layout.rows.rowOf(lit);
+      setAttrs(tint, {
+        display: row === undefined ? 'none' : undefined,
+        y: row?.y,
+        width,
+        height: row?.height,
+      });
     },
     clear(): void {
       rows.clear();

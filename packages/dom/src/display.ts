@@ -90,6 +90,12 @@ export interface DisplayOptions<TData = unknown> {
   readonly highlightDays?: readonly HighlightInput[] | undefined;
   /** Row stripes. Default `false`. */
   readonly rowStripes?: RowStripesOption | undefined;
+  /**
+   * Lights the row under the pointer with the theme's colour (`--gantt-row-highlight-color`), by
+   * turning on `--gantt-row-hover-color`, which is otherwise `transparent`. Default `false`; a task
+   * list attached to the chart turns it on.
+   */
+  readonly rowHover?: boolean | undefined;
   /** Bar labels. Default `'auto'`. */
   readonly barLabel?: BarLabelOption | undefined;
   /** Custom bar label content. Default the task name. */
@@ -134,6 +140,7 @@ export interface ResolvedDisplay {
   readonly highlights: boolean;
   readonly highlightDays: readonly HighlightInput[];
   readonly rowStripes: RowStripesOption;
+  readonly rowHover: boolean;
   readonly barLabel: BarLabelOption;
   readonly renderBarLabel: BarLabelRenderer | undefined;
   readonly headerRangeHighlight: boolean;
@@ -153,6 +160,7 @@ export const DISPLAY_DEFAULTS: ResolvedDisplay = Object.freeze({
   highlights: true,
   highlightDays: Object.freeze([]),
   rowStripes: false,
+  rowHover: false,
   barLabel: 'auto',
   renderBarLabel: undefined,
   headerRangeHighlight: true,
@@ -198,6 +206,7 @@ export const DISPLAY_RULES: Readonly<Record<PlainDisplayKey, Rule>> = {
   nonWorkingDays: oneOf(D.nonWorkingDays, 'stripes', false),
   highlights: flag(D.highlights),
   rowStripes: oneOf(D.rowStripes, 'row', 'group'),
+  rowHover: flag(D.rowHover),
   barLabel: oneOf(D.barLabel, 'inside', 'outside', 'none'),
   renderBarLabel: func,
   headerRangeHighlight: flag(D.headerRangeHighlight),

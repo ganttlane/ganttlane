@@ -159,6 +159,21 @@ const config: IConfiguration = {
       to: { path: '^packages/dom/src/', pathNot: '^packages/dom/src/(shared|dom-utils)/' },
     },
     {
+      name: 'dom-task-list-on-public-api',
+      comment:
+        'Plan step 7.2, ADR-031: the task list stands beside the chart and uses its public API: it imports the shared helpers and types of the facade, never the renderer or the layers.',
+      severity: 'error',
+      from: { path: '^packages/dom/src/task-list/', pathNot: TEST_FILE },
+      to: {
+        path: '^packages/dom/src/',
+        pathNot: [
+          '^packages/dom/src/task-list/',
+          '^packages/dom/src/(shared|dom-utils)/',
+          '^packages/dom/src/(container|create-gantt|skeleton)\\.ts$',
+        ],
+      },
+    },
+    {
       name: 'dom-testing-only-from-tests',
       comment: 'Test helpers (`packages/dom/src/testing/`) are imported by test files only.',
       severity: 'error',

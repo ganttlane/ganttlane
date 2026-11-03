@@ -23,6 +23,7 @@ const MODULE_NAMES = new Map([
   ['dom/src', '@ganttlane/dom'],
   ['dom/src/facade', '@ganttlane/dom/facade'],
   ['dom/src/dom-utils', '@ganttlane/dom/dom-utils'],
+  ['dom/src/task-list', '@ganttlane/dom/task-list'],
   ['react/src', '@ganttlane/react'],
   ['react/src/core', '@ganttlane/react/core'],
 ]);

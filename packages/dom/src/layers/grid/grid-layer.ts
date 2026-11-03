@@ -25,6 +25,8 @@ interface RowInputs {
   readonly contentWidth: number;
   readonly stripes: LayerContext['display']['rowStripes'];
   readonly horizontal: boolean;
+  readonly hoveredRow: GanttSnapshot['hoveredRow'];
+  readonly focusedTask: GanttSnapshot['focusedTask'];
 }
 
 /**
@@ -51,6 +53,8 @@ interface TimeInputs {
  * g.gantt__grid
  *   g.gantt__rows
  *     rect.gantt__row[data-row][data-task-id][data-stripe?][data-invalid?][data-placeholder?]
+ *       [data-hovered?][data-focused?]
+ *   rect.gantt__row-hover
  *   g.gantt__nonworking[data-mode="fill|stripes"]
  *     rect.gantt__nonworking-day[data-day][data-reason]
  *     defs > pattern#<instance>-stripes.gantt__stripes > line.gantt__stripes-line   (stripes)
@@ -73,7 +77,8 @@ interface TimeInputs {
  * Horizontal lines are the bottom edges of the window's rows.
  *
  * **Work per update.** Each part is redrawn only when its inputs changed: the rows when the
- * row layout, the model, the window's rows, the content width or the stripes option changed;
+ * row layout, the model, the window's rows, the content width, the stripes option or the lit
+ * or focused row changed;
  * the time parts when the view mode, scale, calendar, body height, content width or their
  * display options changed or when the viewport has come within half an overscan of the edge
  * of what is drawn. A scroll inside the drawn window touches no node. Items are reconciled by
@@ -122,9 +127,15 @@ function createInstance(context: LayerContext<LayerSlots['grid']>): GridInstance
     highlights: group('gantt__highlights'),
     lines: group('gantt__gridlines'),
   };
-  root.append(groups.rows, groups.nonWorking, groups.highlights, groups.lines);
+  // `fill`: without a stylesheet a rect is black, and the tint is nothing until a sheet colours it.
+  const tint = createSvg(document, 'rect', {
+    class: 'gantt__row-hover',
+    display: 'none',
+    fill: 'none',
+  });
+  root.append(groups.rows, tint, groups.nonWorking, groups.highlights, groups.lines);
 
-  const rows = createRowsSection(document, groups.rows);
+  const rows = createRowsSection(document, groups.rows, tint);
   const nonWorking = createNonWorkingSection(context, groups.nonWorking);
   const highlights = createHighlightsSection(document, groups.highlights);
   const lines = createLinesSection(document, groups.lines);
@@ -150,6 +161,8 @@ function createInstance(context: LayerContext<LayerSlots['grid']>): GridInstance
         contentWidth,
         stripes: display.rowStripes,
         horizontal: hasHorizontalLines(display.gridLines),
+        hoveredRow: snapshot.hoveredRow,
+        focusedTask: snapshot.focusedTask,
       };
       const redrawRows = rowInputs === undefined || !same(rowInputs, wantedRows);
 
@@ -206,6 +219,7 @@ function createInstance(context: LayerContext<LayerSlots['grid']>): GridInstance
       lines.clear();
       today.clear();
       for (const node of Object.values(groups)) node.remove();
+      tint.remove();
       rowInputs = undefined;
       timeInputs = undefined;
       span = undefined;

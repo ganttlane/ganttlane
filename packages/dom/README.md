@@ -28,6 +28,7 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 - [Methods](#methods)
 - [Issues](#issues)
 - [Tooltips, the link menu and day labels](#tooltips-the-link-menu-and-day-labels)
+- [Task list](#task-list)
 - [Locale and strings](#locale-and-strings)
 - [Theme](#theme)
   - [Themes](#themes)
@@ -216,7 +217,7 @@ the details are in [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/bl
 | ---------------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------- |
 | `tasks`, `links`, `dataMode`, `dates`, `calendar`, `scheduling`, `hierarchy` | the core     | The data and the rules that schedule it                                                             |
 | `viewMode`, `viewModes`, `locale`, `now`, `timeline`, `scroll`, `direction`  | the core     | The view: scale, range, scrolling                                                                   |
-| `layout` (but `height`), `editing`, `history`, `interaction`                 | the core     | Sizes, editing from the UI, undo, gestures                                                          |
+| `layout` (but `height`), `editing`, `selection`, `history`, `interaction`    | the core     | Sizes, editing from the UI, undo, gestures                                                          |
 | `on<Event>`, `onBeforeTaskChange`, `onBeforeLinkCreate`                      | the core     | One handler per event (see [Events](#events)); `gantt.on` adds more                                 |
 | `onIssues`                                                                   | the chart    | Problems with the data and the options, the renderer's included (see [Issues](#issues)); a function |
 | `theme`                                                                      | the renderer | `'auto'` (default), `'light'` or `'dark'` (see [Themes](#themes))                                   |
@@ -231,7 +232,7 @@ The **core's options** (the first four rows) are listed with their types and def
 `calendar.*`, `scheduling.*` (granularity, alignment, snap, propagation, durations),
 `hierarchy.*`, `viewMode` / `viewModes`, `locale`, `now`, `timeline.*` (range, padding, infinite
 timeline), `scroll.*` (initial position, behaviour, alignment, drag autoscroll), `layout.*` (row,
-bar and header sizes), `editing`, `history` and `interaction.*`.
+bar and header sizes), `editing`, `selection`, `history` and `interaction.*`.
 
 `editing` switches editing **from the UI** on and off, in whole (`false` is a view-only chart: no
 drag, resize, progress change or link drawing) or by kind (`{ move, resize, progress, links }`), and
@@ -239,6 +240,8 @@ drag, resize, progress change or link drawing) or by kind (`{ move, resize, prog
 `removeLink` still commit (`setTasks` is no change of the chart's, see [Methods](#methods)).
 `history` is off until you set `history: true` (or
 `{ limit }`, default 100): it records one entry per action for `undo()` and `redo()`.
+`selection` is what a click does to the selected tasks: `onClick` selects the bar that is clicked,
+`clearOnEmptyClick` clears them on a click on an empty part of the chart. Both are off by default.
 
 Defaults: `locale` is `'en'`, not the browser's, so that a server and a browser draw the same text;
 `theme` is `'auto'`; `scroll.initial` is `'today'`; `timeline.infinite` is off. Keys nobody knows are
@@ -260,6 +263,7 @@ type argument it is inferred from `tasks`.
 | `display.today`                | `boolean`                                                                | `true`                                                                                                                        | The today line, and its marker and highlighted cell in the header                                                      |
 | `display.nonWorkingDays`       | `'fill'` \| `'stripes'` \| `false`                                       | `'fill'`                                                                                                                      | How days off (weekends, holidays) are shown                                                                            |
 | `display.highlights`           | `boolean`                                                                | `true`                                                                                                                        | Whether the `highlights` below are drawn                                                                               |
+| `display.rowHover`             | `boolean` (see [Task list](#task-list))                                  | `false`                                                                                                                       |
 | `display.rowStripes`           | `'row'` \| `'group'` \| `false`                                          | `false`                                                                                                                       | Zebra rows, per row or per group (a parent with its children)                                                          |
 | `display.barLabel`             | `'auto'` \| `'inside'` \| `'outside'` \| `'none'`                        | `'auto'`                                                                                                                      | Where the label goes; `'auto'` puts it inside when it fits, else outside                                               |
 | `display.renderBarLabel`       | `(context) => Node \| DisposableNode \| string \| null`                  | the name                                                                                                                      | Custom label content: [Tooltips](#tooltips-the-link-menu-and-day-labels) has the node rules                            |
@@ -307,7 +311,10 @@ back to the core and to `patchTasks`.
 | `selectionChange`    | `(selectedKeys, selectedLink)`                    | The selected tasks (by `select()`) or link (by a click) changed                                                                                                                                                                                          |
 | `viewModeChange`     | `(viewMode)`                                      | The view mode changed                                                                                                                                                                                                                                    |
 | `rangeChange`        | `({ start, end, reason })`                        | The timeline range changed: for lazy loading by date. Also once at start (`'initial'`)                                                                                                                                                                   |
-| `expandedChange`     | `(expandedKeys)`                                  | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                                                                                                                                                                          |
+| `rowsChange`         | `(rows)`                                          | What `getRows()` returns changed: a group opened or shut, a name, committed dates. Not during a drag preview                                                                                                                                             |
+| `rowHoverChange`     | `(record \| null)`                                | The lit row changed: the pointer's row in the chart, or `setHoveredRow`                                                                                                                                                                                  |
+| `focusChange`        | `(record \| null)`                                | The task whose row has the keyboard focus changed (`focusTask`)                                                                                                                                                                                          |
+| `expandedChange`     | `(expandedKeys, expandedIds)`                     | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                                                                                                                                                                          |
 | `scroll`             | `({ x, y, date })`                                | The scroll position changed (and once at start); `date` is at the left edge of the viewport. Also for a scroll the core requests itself (the initial scroll, an instant `scrollTo*`): that one is reported at once, before the renderer has performed it |
 | `editRollback`       | `(sessionChanges)`                                | A session was cancelled: the inverse for controlled data to apply                                                                                                                                                                                        |
 | `dirtyChange`        | `({ isDirty })`                                   | `edit.isDirty` flipped                                                                                                                                                                                                                                   |
@@ -318,8 +325,14 @@ back to the core and to `patchTasks`.
 
 The option names are `onTasksChange`, `onTaskDatesChange`, `onTaskProgressChange`, `onLinkCreate`,
 `onLinkDelete`, `onLinkClick`, `onTaskClick`, `onTaskDoubleClick`, `onTaskHoverChange`,
-`onSelectionChange`, `onViewModeChange`, `onRangeChange`, `onExpandedChange`, `onScroll`,
-`onEditRollback`, `onDirtyChange`, `onHistoryChange`, `onEditRefused`, `onIssues` and `onError`.
+`onSelectionChange`, `onViewModeChange`, `onRangeChange`, `onExpandedChange`, `onRowsChange`,
+`onRowHoverChange`, `onFocusChange`, `onScroll`, `onEditRollback`, `onDirtyChange`,
+`onHistoryChange`, `onEditRefused`, `onIssues` and `onError`.
+
+`expandedChange` gives what the chart keeps (`'all'`, or a list that may name tasks without
+children) and, as its second argument, the parents that are expanded now, always as a list. One more
+event has no option: `gantt.on('appearanceChange', (appearance) => …)` fires when `getAppearance()`
+changes.
 
 Two before-hooks are options only. `onBeforeTaskChange({ changeSet, reason, conflicts })` runs before
 a change is committed (a drag, `updateTask`): return `false` to cancel it, a `ChangeSet` to
@@ -383,29 +396,43 @@ commands (everything but the queries and `core`) do nothing, and the queries (`g
 from the state the chart had when it was destroyed, so that a clean-up can read what the user left
 behind.
 
-| Group        | Methods                                                                                                                      | Returns                                                                                                                                                                                                             |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Data         | `setTasks(tasks)`, `setLinks(links)`                                                                                         | nothing                                                                                                                                                                                                             |
-|              | `updateTask(id, { start?, end?, progress? })`                                                                                | a promise of `{ status }`: `'committed'` (with `changeSet`), `'unchanged'`, `'rejected'` (`reason` `'unknown-task'` or `'invalid-value'`), `'cancelled'` (`reason` `'hook'`, `'error'` or `'disposed'`) or `'busy'` |
-|              | `addLink(link)`, `removeLink(id)`                                                                                            | a promise of `{ status: 'created' \| 'deleted' }`, `{ status: 'rejected', reason }`, `{ status: 'cancelled', reason: 'hook' \| 'error' \| 'disposed' }` or `{ status: 'busy' }`                                     |
-| Options      | `setOptions(patch)`                                                                                                          | the issues of the options now in use                                                                                                                                                                                |
-| View         | `setViewMode(id, { keepScroll })`, `zoomTo(pxPerDay, { anchor })`                                                            | nothing                                                                                                                                                                                                             |
-| Scrolling    | `scrollToDate(date, { align, behavior })`, `scrollToToday(options)`, `scrollToTask(id, { align, alignY, behavior, expand })` | nothing                                                                                                                                                                                                             |
-| Rows         | `expand(id)`, `collapse(id)`, `expandAll()`, `collapseAll()`                                                                 | nothing                                                                                                                                                                                                             |
-| Selection    | `select(ids)`, `selectLink(id)`, `clearSelection()`                                                                          | nothing                                                                                                                                                                                                             |
-| Queries      | `getTask(id)`, `getLink(id)`, `getVisibleRange()`, `getRowMetrics(id)`, `getBarRect(id)`, `getIssues()`                      | a `TaskRecord`, a `LinkRecord`, `{ start, end }`, row metrics, bar geometry (in body px, a drag in progress included), `{ data, options }`                                                                          |
-| Popovers     | `hideTooltip()`                                                                                                              | nothing                                                                                                                                                                                                             |
-| Edit session | `edit.begin()`, `edit.commit()`, `edit.rollback()`, `edit.getChanges()`, `edit.isOpen`, `edit.isDirty`                       | `{ status }` (synchronous): `'begun'` or `'already-open'`; `'committed'` or `'rolled-back'` (with `changes`); `'no-session'`, `'busy'` or `'cancelled'`. The session's `SessionChanges`, booleans                   |
-| History      | `undo()`, `redo()`, `canUndo`, `canRedo` (need `history: true`)                                                              | `{ status }`: `'undone'` or `'redone'` (with the `entry`), `'empty'`, `'stale'`, `'busy'` or `'cancelled'`                                                                                                          |
-| Events       | `on(event, handler)`                                                                                                         | a function that removes the listener                                                                                                                                                                                |
-| Life cycle   | `destroy()`; `core`                                                                                                          | `core` is the chart's `GanttCore`, for what the facade leaves out                                                                                                                                                   |
+| Group        | Methods                                                                                                                                                                         | Returns                                                                                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Data         | `setTasks(tasks)`, `setLinks(links)`                                                                                                                                            | nothing                                                                                                                                                                                                             |
+|              | `updateTask(id, { start?, end?, progress? })`                                                                                                                                   | a promise of `{ status }`: `'committed'` (with `changeSet`), `'unchanged'`, `'rejected'` (`reason` `'unknown-task'` or `'invalid-value'`), `'cancelled'` (`reason` `'hook'`, `'error'` or `'disposed'`) or `'busy'` |
+|              | `addLink(link)`, `removeLink(id)`                                                                                                                                               | a promise of `{ status: 'created' \| 'deleted' }`, `{ status: 'rejected', reason }`, `{ status: 'cancelled', reason: 'hook' \| 'error' \| 'disposed' }` or `{ status: 'busy' }`                                     |
+| Options      | `setOptions(patch)`                                                                                                                                                             | the issues of the options now in use                                                                                                                                                                                |
+| View         | `setViewMode(id, { keepScroll })`, `zoomTo(pxPerDay, { anchor })`                                                                                                               | nothing                                                                                                                                                                                                             |
+| Scrolling    | `scrollToDate(date, { align, behavior })`, `scrollToToday(options)`, `scrollToTask(id, { align, alignY, behavior, expand })`                                                    | nothing                                                                                                                                                                                                             |
+| Rows         | `expand(id)`, `collapse(id)`, `toggle(id)`, `expandAll()`, `collapseAll()`, `setHoveredRow(id)`, `focusTask(id)`                                                                | nothing                                                                                                                                                                                                             |
+| Selection    | `select(ids)`, `selectLink(id)`, `clearSelection()`                                                                                                                             | nothing                                                                                                                                                                                                             |
+| Queries      | `getTask(id)`, `getLink(id)`, `getVisibleRange()`, `getRowMetrics(id)`, `getBarRect(id)`, `getRows()`, `getRowWindow()`, `getLayoutMetrics()`, `getAppearance()`, `getIssues()` | a `TaskRecord`, a `LinkRecord`, `{ start, end }`, row metrics, bar geometry (in body px, a drag in progress included), `{ data, options }`                                                                          |
+| Popovers     | `hideTooltip()`                                                                                                                                                                 | nothing                                                                                                                                                                                                             |
+| Edit session | `edit.begin()`, `edit.commit()`, `edit.rollback()`, `edit.getChanges()`, `edit.isOpen`, `edit.isDirty`                                                                          | `{ status }` (synchronous): `'begun'` or `'already-open'`; `'committed'` or `'rolled-back'` (with `changes`); `'no-session'`, `'busy'` or `'cancelled'`. The session's `SessionChanges`, booleans                   |
+| History      | `undo()`, `redo()`, `canUndo`, `canRedo` (need `history: true`)                                                                                                                 | `{ status }`: `'undone'` or `'redone'` (with the `entry`), `'empty'`, `'stale'`, `'busy'` or `'cancelled'`                                                                                                          |
+| Events       | `on(event, handler)`                                                                                                                                                            | a function that removes the listener                                                                                                                                                                                |
+| Life cycle   | `destroy()`; `core`                                                                                                                                                             | `core` is the chart's `GanttCore`, for what the facade leaves out                                                                                                                                                   |
 
 - **The view methods return nothing.** `setViewMode`, `zoomTo` and the `scrollTo*` methods make
   the chart scroll in its next frame; the request that the core makes for the renderer is not
   yours to apply (`gantt.core.scrollToTask(…)` returns it, and the renderer still applies it).
   `scrollToTask` scrolls both axes and expands the collapsed parents of a hidden row unless
-  `expand: false`. A `scrollTo*` made before the chart has a width is not lost: it replaces
-  `scroll.initial` when the chart gets one.
+  `expand: false`. Its `align` (sideways) and `alignY` (vertically) also take `'nearest'`, the least
+  scroll that shows it and none when it is in view, and `false`, which leaves that axis alone.
+  `scrollTo({ left, top, behavior })` goes to a position on either axis or both: `top` is in body
+  pixels (the first row is at `0`), and both are clamped to the content. A `scrollTo*` made before
+  the chart has a width is not lost: it replaces `scroll.initial` when the chart gets one.
+- **For what stands beside the chart.** `getRows()` is the visible rows in order, each with `id`,
+  `index`, `name`, `depth`, `hasChildren`, `isExpanded`, `rootId`, the stripes, `setSize`, `position`
+  and `record`; the array and the rows keep their identity until something in them changes, so
+  comparing them says whether to draw again. It costs O(rows) after such a change, about 15 ms for
+  10 000 tasks, and only when it is read. `getRowWindow()` says which rows the chart draws
+  (`firstRow`, `lastRow`), `getLayoutMetrics()` its sizes (`headerHeight`, `rowHeight`, `barHeight`,
+  `bodyHeight`, `contentWidth`, `viewportWidth`, `viewportHeight`) and `getAppearance()` its `theme`,
+  `height`, `rowStripes` and `rowHover`. `setHoveredRow(id)` lights a row from outside the chart
+  (`snapshot.hoveredRow`), and `focusTask(id)` says which task's row has the keyboard focus
+  (`snapshot.focusedTask`). The [task list](#task-list) is built on these and nothing else, and you
+  can build your own on them.
 - **`updateTask(id, { start, end, progress })`** is a change from code. It propagates exactly like
   the drag it stands for (`start` alone moves the task, `end` alone moves its end edge, both set
   both) and runs `onBeforeTaskChange` with `reason: 'api'`. Values are exact (no snapping to the
@@ -452,9 +479,9 @@ behind.
   has no default (the chart then shows no tasks; pass `tasks: []` to empty it on purpose). It
   returns the issues of the options now in use.
 - **`select(ids)`** selects tasks (ids that are not in the data are left out) and `selectLink(id)` an
-  arrow; clicking an arrow selects it too. Clicking a bar only emits `taskClick`: it selects no
-  task, and, like a click on an empty place of the chart, it **clears the selected link** (the
-  selected tasks stay).
+  arrow; clicking an arrow selects it too. Clicking a bar emits `taskClick` and selects no task
+  unless `selection.onClick` is on; like a click on an empty place of the chart, it **clears the
+  selected link** (the selected tasks stay, unless `selection.clearOnEmptyClick` is on).
 - **Events** are the same whether you give an `on<Event>` option or call `gantt.on`: the payloads
   of [Events](#events), which the facade does not change.
 
@@ -627,6 +654,122 @@ default, which an issue then suggests when it is a plain value):
   the chart is in, and a scroll of the chart is heard on the chart itself (a scroll event does
   not leave a shadow root). The stylesheet has to be adopted into the root; a page's styles do
   not reach into it. A closed shadow root is not supported.
+
+## Task list
+
+`createTaskList(container, gantt, options)`, from the subpath `@ganttlane/dom/task-list`, draws the
+list of tasks that a classic gantt tool has on its left: a row for every row of the chart at the
+same height and place, indented by depth, with a toggle on the groups, the columns you choose and a
+splitter on its end edge. It is a component beside the chart and uses only the chart's public API.
+It adds nothing to an application that does not import it.
+
+```ts
+import '@ganttlane/dom/styles.css';
+import { createGantt } from '@ganttlane/dom';
+import { createTaskList } from '@ganttlane/dom/task-list';
+
+const gantt = createGantt(chart, { tasks, selection: { onClick: true }, layout: { height: 500 } });
+const list = createTaskList(side, gantt, {
+  columns: [
+    { id: 'name', header: 'Task' },
+    { id: 'done', header: '%', width: 48, align: 'end', value: (row) => `${row.record.progress}` },
+  ],
+});
+```
+
+```css
+/* Side by side, tops aligned: the list has its own width, and the chart takes the rest. */
+.plan {
+  display: flex;
+}
+.plan > .chart {
+  flex: 1 1 0;
+  min-width: 0;
+}
+```
+
+**What it keeps in sync with the chart:** what is expanded, what is selected, the row under the
+pointer or with the keyboard focus, the vertical position, the theme, the row stripes and the sizes.
+It draws the rows the chart draws, plus the one with the tab stop, so it stays fast with thousands
+of tasks. A click on a row selects the task and scrolls to it, moving nothing that is already in
+view; the toggle opens and shuts the group. Set `selection: { onClick: true }` on the chart for a
+click on a bar to select its row.
+
+**Scrolling.** How the two scroll depends on the chart's `layout.height`:
+
+| `layout.height`    | What scrolls the rows                                                                | In sync                                                              |
+| ------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `'auto'`           | One box around both (the nearest ancestor that scrolls, or the page), headers sticky | Always: they cannot differ                                           |
+| A number, or fills | The chart's scroller and the list's body, which hides its scrollbar                  | Within a pixel at rest; **up to a frame behind during a fast fling** |
+
+The trailing frame is the cost of two scrollers: a browser moves the one under the hand on another
+thread and tells the page afterwards. Choose `'auto'` when even that matters to you.
+
+**Options** (`list.setOptions(patch)` changes them later):
+
+| Option                            | Type                              | Default             | What it does                                                                                         |
+| --------------------------------- | --------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------- |
+| `columns`                         | `TaskListColumn[]`                | the task's name     | See below                                                                                            |
+| `width`, `minWidth`, `maxWidth`   | `number` (px)                     | `280`, `120`, `640` | Its width and what the splitter may do                                                               |
+| `splitter`                        | `boolean`                         | `true`              | The splitter on its end edge                                                                         |
+| `indent`                          | `number` (px)                     | `16`                | How far each level of the tree is indented                                                           |
+| `theme`                           | `'auto'` \| `'light'` \| `'dark'` | the chart's         | Its `data-theme`; without one it follows the chart                                                   |
+| `strings`                         | `{ label, name, resize }`         | English             | Its accessible name, the default header, the splitter's name                                         |
+| `onRowClick(record, event)`       | function                          |                     | A click, Enter or Space; `event.preventDefault()` keeps the task from being selected and scrolled to |
+| `onRowDoubleClick(record, event)` | function                          |                     | A double click                                                                                       |
+| `onWidthChange(width)`            | function                          |                     | The splitter moved, or `setWidth` was called                                                         |
+
+A **column** is `{ id, header, width, align, tree, value, render }`: `width` is px or `'fill'`
+(default `'fill'` for the tree column, `96` for the others), `tree` marks the column with the indent
+and the toggle (default the first), `value(row)` returns the text of a cell (default the name in
+the tree column), and `render(row)` returns a node or text instead, or `null` to fall back to
+`value`. Both are called again only when the row changes. What is drawn in a cell keeps its own
+clicks and keys when it is a link or a form control.
+
+**Methods:** `list.element`, `list.setOptions(patch)`, `list.getWidth()`, `list.setWidth(px)` and
+`list.destroy()`, which leaves the chart as it found it. A chart that is destroyed first leaves a
+list that can still be destroyed.
+
+**The keyboard.** It is a `role="treegrid"` of `role="row"`s with one tab stop: Up, Down, Page Up,
+Page Down, Home and End move; Right opens a group and then steps into it; Left shuts it and then
+steps out to its parent; Enter and Space activate the row. The splitter is a `role="separator"`:
+Left, Right, Home and End move it.
+
+**The row hover.** A chart on its own lights no row: `--gantt-row-hover-color` is `transparent`, so
+an existing chart looks as it did. A task list turns on `display.rowHover` while it is attached,
+which gives that token the theme's colour (`--gantt-row-highlight-color`). To have a row hover
+without a list, set `display: { rowHover: true }`, or set the token yourself.
+
+**Tokens beside the chart.** The list has the class `gantt-scope`, which declares every `--gantt-*`
+token and honours `data-theme`. A sibling cannot inherit them from `.gantt`, so put the class on
+your own panels too, to use them there.
+
+**Its markup** is part of the contract, the same in vanilla and React: `div.gantt-task-list` (with
+`data-theme`, and `data-height="auto"`) holds `div.gantt-task-list__grid`, which holds
+`div.gantt-task-list__header` (`div.gantt-task-list__header-row`, then the `columnheader` cells) and
+`div.gantt-task-list__body` (`div.gantt-task-list__rows`, then the rows), and
+`div.gantt-task-list__splitter` (`data-resizing` while it is dragged). A
+`div.gantt-task-list__row` has `data-row`, `data-task-id`, and when they apply `data-group`,
+`data-stripe`, `data-hovered`, `data-placeholder` and `data-invalid`, with the task's `rowClassName`
+in its class. A `div.gantt-task-list__cell` has `data-column` and `data-align`, and the one of the
+tree column has `data-tree`, a `span.gantt-task-list__toggle` (`data-toggle`) and a
+`span.gantt-task-list__text`. In the chart, `.gantt__row` gets `data-hovered` and `data-focused`,
+`rect.gantt__row-hover` is the tint over that row, and `.gantt` gets `data-row-hover` for
+`display.rowHover`.
+
+The list writes these custom properties, which a replacement stylesheet has to size it from:
+
+| Property                          | Where    | Meaning                                                      |
+| --------------------------------- | -------- | ------------------------------------------------------------ |
+| `--gantt-task-list-width`         | the root | Its width                                                    |
+| `--gantt-task-list-columns`       | the root | The `grid-template-columns` of its rows                      |
+| `--gantt-task-list-header-height` | the root | The height of the chart's header                             |
+| `--gantt-task-list-row-height`    | the root | The height of a row                                          |
+| `--gantt-task-list-rows-height`   | the root | The height of all the rows                                   |
+| `--gantt-task-list-view-height`   | the root | The height of the chart's rows area; unset before it has one |
+| `--gantt-task-list-indent`        | the root | The indent of a level                                        |
+| `--gantt-task-list-y`             | a row    | Where the row lies                                           |
+| `--gantt-task-list-depth`         | a row    | Its level in the tree                                        |
 
 ## Locale and strings
 
@@ -801,57 +944,60 @@ set is drawn translucent over the bar instead of as given. The outline of a hove
 Every custom property below is declared on `.gantt`. A dash in the Dark column means the dark
 theme keeps the light value (sizes and widths).
 
-| Token                              | Light                                                      | Dark                      | Used for                                                  |
-| ---------------------------------- | ---------------------------------------------------------- | ------------------------- | --------------------------------------------------------- |
-| `--gantt-font-family`              | `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif` | —                         | Every text of the chart, header and bar labels            |
-| `--gantt-font-size`                | `12px`                                                     | —                         | Every text of the chart                                   |
-| `--gantt-transition-duration`      | `120ms`                                                    | —                         | Fade of the handles (none under `prefers-reduced-motion`) |
-| `--gantt-background-color`         | `#fff`                                                     | `#15171c`                 | The chart's background                                    |
-| `--gantt-foreground-color`         | `#1b2230`                                                  | `#e4e8ef`                 | Default text, the current header cell                     |
-| `--gantt-border-color`             | `#d3d9e1`                                                  | `#333a46`                 | Header borders and cell separators                        |
-| `--gantt-border-width`             | `1px`                                                      | —                         | Header borders, the outline of a hovered bar              |
-| `--gantt-header-background-color`  | `#f5f6f8`                                                  | `#1c1f26`                 | The header                                                |
-| `--gantt-header-text-color`        | `#465163`                                                  | `#a9b3c3`                 | Header labels                                             |
-| `--gantt-header-current-color`     | `rgb(229 72 77 / 10%)`                                     | `rgb(255 99 105 / 16%)`   | The header cell that contains today                       |
-| `--gantt-header-range-color`       | `rgb(37 99 235 / 14%)`                                     | `rgb(110 160 255 / 20%)`  | The hovered bar's range in the header                     |
-| `--gantt-grid-line-color`          | `#e7eaef`                                                  | `#242932`                 | Grid lines                                                |
-| `--gantt-grid-line-width`          | `1px`                                                      | —                         | Grid lines                                                |
-| `--gantt-grid-major-line-color`    | `#c8cfd9`                                                  | `#3a4252`                 | Major grid lines (month, year boundaries)                 |
-| `--gantt-grid-major-line-width`    | `1px`                                                      | —                         | Major grid lines                                          |
-| `--gantt-grid-minor-line-color`    | `#eff1f4`                                                  | `#1e222a`                 | Minor grid lines (the snap steps inside a column, dotted) |
-| `--gantt-row-stripe-color`         | `rgb(15 23 42 / 3.5%)`                                     | `rgb(255 255 255 / 3.5%)` | Striped rows (the `rowStripes` display option)            |
-| `--gantt-row-invalid-color`        | `rgb(229 72 77 / 8%)`                                      | `rgb(255 99 105 / 12%)`   | A row whose task is invalid                               |
-| `--gantt-row-placeholder-color`    | `rgb(100 116 139 / 8%)`                                    | `rgb(148 163 184 / 8%)`   | A placeholder row (a task of type `placeholder`)          |
-| `--gantt-nonworking-color`         | `rgb(100 116 139 / 10%)`                                   | `rgb(148 163 184 / 9%)`   | Non-working days, `fill` mode                             |
-| `--gantt-nonworking-stripe-color`  | `rgb(100 116 139 / 30%)`                                   | `rgb(148 163 184 / 26%)`  | Non-working days, `stripes` mode (the pattern's lines)    |
-| `--gantt-highlight-color`          | `#f5b301`                                                  | `#f5b301`                 | Highlighted days; a highlight's `color` overrides it      |
-| `--gantt-highlight-opacity`        | `0.2`                                                      | `0.16`                    | Opacity of highlights, so any colour stays readable       |
-| `--gantt-today-color`              | `#e5484d`                                                  | `#ff6369`                 | The today line and the marker in the header               |
-| `--gantt-today-width`              | `1.5px`                                                    | —                         | The today line                                            |
-| `--gantt-popover-background-color` | `#fff`                                                     | `#222731`                 | Tooltips, the link menu and day labels: background        |
-| `--gantt-popover-foreground-color` | `#1b2230`                                                  | `#e4e8ef`                 | Popover text                                              |
-| `--gantt-popover-border-color`     | `#d3d9e1`                                                  | `#3a4252`                 | Popover border, action button border                      |
-| `--gantt-popover-shadow-color`     | `rgb(15 23 42 / 18%)`                                      | `rgb(0 0 0 / 55%)`        | Popover shadow                                            |
-| `--gantt-popover-radius`           | `6px`                                                      | —                         | Popover corner radius                                     |
-| `--gantt-popover-max-width`        | `320px`                                                    | —                         | Widest a popover grows before its text wraps              |
-| `--gantt-bar-color`                | `#3f6fd1`                                                  | `#4170d3`                 | Bars without their own colour                             |
-| `--gantt-bar-progress-shade-color` | `#000`                                                     | `#000`                    | What the progress colour is mixed towards                 |
-| `--gantt-bar-progress-shade`       | `30%`                                                      | `35%`                     | How much of the shade the progress colour has             |
-| `--gantt-bar-label-color`          | `#fff`                                                     | `#fff`                    | A bar's label inside the bar                              |
-| `--gantt-bar-label-outside-color`  | `#1b2230`                                                  | `#e4e8ef`                 | A bar's label next to the bar                             |
-| `--gantt-bar-selected-color`       | `#111827`                                                  | `#f3f4f6`                 | The outline of a selected bar                             |
-| `--gantt-bar-selected-width`       | `2px`                                                      | —                         | Outline of a selected, conflicting or invalid bar         |
-| `--gantt-bar-conflict-color`       | `#e5484d`                                                  | `#ff6369`                 | The outline of a bar in conflict                          |
-| `--gantt-bar-invalid-color`        | `#d97706`                                                  | `#f0a43a`                 | The (dashed) outline of an invalid bar                    |
-| `--gantt-handle-color`             | `rgb(255 255 255 / 55%)`                                   | `rgb(255 255 255 / 50%)`  | Resize and progress handles                               |
-| `--gantt-link-color`               | `#7a8699`                                                  | `#8794a8`                 | Link arrows                                               |
-| `--gantt-link-width`               | `1.5px`                                                    | —                         | Link arrows                                               |
-| `--gantt-link-selected-color`      | `#2563eb`                                                  | `#6ea0ff`                 | A selected or hovered link, a valid link preview          |
-| `--gantt-link-selected-width`      | `2.5px`                                                    | —                         | A selected link, the link preview                         |
-| `--gantt-link-conflict-color`      | `#e5484d`                                                  | `#ff6369`                 | A link in conflict or in a cycle, an invalid preview      |
-| `--gantt-link-hit-width`           | `12px`                                                     | —                         | Width of the invisible area that catches clicks on a link |
-| `--gantt-focus-ring-color`         | `#2563eb`                                                  | `#7aa7ff`                 | Keyboard focus ring (`:focus-visible`)                    |
-| `--gantt-focus-ring-width`         | `2px`                                                      | —                         | Keyboard focus ring                                       |
+| Token                              | Light                                                      | Dark                      | Used for                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `--gantt-font-family`              | `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif` | —                         | Every text of the chart, header and bar labels                                                               |
+| `--gantt-font-size`                | `12px`                                                     | —                         | Every text of the chart                                                                                      |
+| `--gantt-transition-duration`      | `120ms`                                                    | —                         | Fade of the handles (none under `prefers-reduced-motion`)                                                    |
+| `--gantt-background-color`         | `#fff`                                                     | `#15171c`                 | The chart's background                                                                                       |
+| `--gantt-foreground-color`         | `#1b2230`                                                  | `#e4e8ef`                 | Default text, the current header cell                                                                        |
+| `--gantt-border-color`             | `#d3d9e1`                                                  | `#333a46`                 | Header borders and cell separators                                                                           |
+| `--gantt-border-width`             | `1px`                                                      | —                         | Header borders, the outline of a hovered bar                                                                 |
+| `--gantt-header-background-color`  | `#f5f6f8`                                                  | `#1c1f26`                 | The header                                                                                                   |
+| `--gantt-header-text-color`        | `#465163`                                                  | `#a9b3c3`                 | Header labels                                                                                                |
+| `--gantt-header-current-color`     | `rgb(229 72 77 / 10%)`                                     | `rgb(255 99 105 / 16%)`   | The header cell that contains today                                                                          |
+| `--gantt-header-range-color`       | `rgb(37 99 235 / 14%)`                                     | `rgb(110 160 255 / 20%)`  | The hovered bar's range in the header                                                                        |
+| `--gantt-grid-line-color`          | `#e7eaef`                                                  | `#242932`                 | Grid lines                                                                                                   |
+| `--gantt-grid-line-width`          | `1px`                                                      | —                         | Grid lines                                                                                                   |
+| `--gantt-grid-major-line-color`    | `#c8cfd9`                                                  | `#3a4252`                 | Major grid lines (month, year boundaries)                                                                    |
+| `--gantt-grid-major-line-width`    | `1px`                                                      | —                         | Major grid lines                                                                                             |
+| `--gantt-grid-minor-line-color`    | `#eff1f4`                                                  | `#1e222a`                 | Minor grid lines (the snap steps inside a column, dotted)                                                    |
+| `--gantt-row-stripe-color`         | `rgb(15 23 42 / 3.5%)`                                     | `rgb(255 255 255 / 3.5%)` | Striped rows (the `rowStripes` display option)                                                               |
+| `--gantt-row-invalid-color`        | `rgb(229 72 77 / 8%)`                                      | `rgb(255 99 105 / 12%)`   | A row whose task is invalid                                                                                  |
+| `--gantt-row-placeholder-color`    | `rgb(100 116 139 / 8%)`                                    | `rgb(148 163 184 / 8%)`   | A placeholder row (a task of type `placeholder`)                                                             |
+| `--gantt-row-hover-color`          | `transparent`                                              | `transparent`             | The tint over the row that is lit or focused; on with `display.rowHover` and a task list, or set it yourself |
+| `--gantt-row-highlight-color`      | `rgb(37 99 235 / 8%)`                                      | `rgb(110 160 255 / 12%)`  | The colour `--gantt-row-hover-color` takes when it is on                                                     |
+| `--gantt-row-selected-color`       | `rgb(37 99 235 / 16%)`                                     | `rgb(110 160 255 / 24%)`  | A selected row of a task list                                                                                |
+| `--gantt-nonworking-color`         | `rgb(100 116 139 / 10%)`                                   | `rgb(148 163 184 / 9%)`   | Non-working days, `fill` mode                                                                                |
+| `--gantt-nonworking-stripe-color`  | `rgb(100 116 139 / 30%)`                                   | `rgb(148 163 184 / 26%)`  | Non-working days, `stripes` mode (the pattern's lines)                                                       |
+| `--gantt-highlight-color`          | `#f5b301`                                                  | `#f5b301`                 | Highlighted days; a highlight's `color` overrides it                                                         |
+| `--gantt-highlight-opacity`        | `0.2`                                                      | `0.16`                    | Opacity of highlights, so any colour stays readable                                                          |
+| `--gantt-today-color`              | `#e5484d`                                                  | `#ff6369`                 | The today line and the marker in the header                                                                  |
+| `--gantt-today-width`              | `1.5px`                                                    | —                         | The today line                                                                                               |
+| `--gantt-popover-background-color` | `#fff`                                                     | `#222731`                 | Tooltips, the link menu and day labels: background                                                           |
+| `--gantt-popover-foreground-color` | `#1b2230`                                                  | `#e4e8ef`                 | Popover text                                                                                                 |
+| `--gantt-popover-border-color`     | `#d3d9e1`                                                  | `#3a4252`                 | Popover border, action button border                                                                         |
+| `--gantt-popover-shadow-color`     | `rgb(15 23 42 / 18%)`                                      | `rgb(0 0 0 / 55%)`        | Popover shadow                                                                                               |
+| `--gantt-popover-radius`           | `6px`                                                      | —                         | Popover corner radius                                                                                        |
+| `--gantt-popover-max-width`        | `320px`                                                    | —                         | Widest a popover grows before its text wraps                                                                 |
+| `--gantt-bar-color`                | `#3f6fd1`                                                  | `#4170d3`                 | Bars without their own colour                                                                                |
+| `--gantt-bar-progress-shade-color` | `#000`                                                     | `#000`                    | What the progress colour is mixed towards                                                                    |
+| `--gantt-bar-progress-shade`       | `30%`                                                      | `35%`                     | How much of the shade the progress colour has                                                                |
+| `--gantt-bar-label-color`          | `#fff`                                                     | `#fff`                    | A bar's label inside the bar                                                                                 |
+| `--gantt-bar-label-outside-color`  | `#1b2230`                                                  | `#e4e8ef`                 | A bar's label next to the bar                                                                                |
+| `--gantt-bar-selected-color`       | `#111827`                                                  | `#f3f4f6`                 | The outline of a selected bar                                                                                |
+| `--gantt-bar-selected-width`       | `2px`                                                      | —                         | Outline of a selected, conflicting or invalid bar                                                            |
+| `--gantt-bar-conflict-color`       | `#e5484d`                                                  | `#ff6369`                 | The outline of a bar in conflict                                                                             |
+| `--gantt-bar-invalid-color`        | `#d97706`                                                  | `#f0a43a`                 | The (dashed) outline of an invalid bar                                                                       |
+| `--gantt-handle-color`             | `rgb(255 255 255 / 55%)`                                   | `rgb(255 255 255 / 50%)`  | Resize and progress handles                                                                                  |
+| `--gantt-link-color`               | `#7a8699`                                                  | `#8794a8`                 | Link arrows                                                                                                  |
+| `--gantt-link-width`               | `1.5px`                                                    | —                         | Link arrows                                                                                                  |
+| `--gantt-link-selected-color`      | `#2563eb`                                                  | `#6ea0ff`                 | A selected or hovered link, a valid link preview                                                             |
+| `--gantt-link-selected-width`      | `2.5px`                                                    | —                         | A selected link, the link preview                                                                            |
+| `--gantt-link-conflict-color`      | `#e5484d`                                                  | `#ff6369`                 | A link in conflict or in a cycle, an invalid preview                                                         |
+| `--gantt-link-hit-width`           | `12px`                                                     | —                         | Width of the invisible area that catches clicks on a link                                                    |
+| `--gantt-focus-ring-color`         | `#2563eb`                                                  | `#7aa7ff`                 | Keyboard focus ring (`:focus-visible`)                                                                       |
+| `--gantt-focus-ring-width`         | `2px`                                                      | —                         | Keyboard focus ring                                                                                          |
 
 Geometry is not a token: the row height, bar height, bar radius and every coordinate come from
 the chart's options and are written by the renderer (`layout.rowHeight`, `layout.barHeight`, …).
@@ -1031,8 +1177,8 @@ On top of that:
   The HTML node a `renderBarLabel` returns lives in `.gantt__bar-label-content` inside it: its box
   is the bar's (inside) or as wide as the estimated text (outside, where the node may overflow).
 - Presentation attributes the renderer writes on the nodes, which a stylesheet should leave alone:
-  `fill="none"` on `.gantt__link-path` and `.gantt__link-hit` (so they are not filled black without
-  a sheet), `fill="url(#<prefix>-stripes)"` on `.gantt__nonworking-day` in `stripes` mode,
+  `fill="none"` on `.gantt__link-path`, `.gantt__link-hit` and `.gantt__row-hover` (so they are not
+  filled black without a sheet), `fill="url(#<prefix>-stripes)"` on `.gantt__nonworking-day` in `stripes` mode,
   `text-anchor` and `dy` on SVG label text, `overflow="visible"` on an outside `foreignObject`
   label, and the geometry (`x`, `y`, `width`, `height`, `rx`, `ry`, `points`, `d`, `cx`, `cy`,
   `r`). Never set `r` (or any of those) in CSS: a CSS value out-ranks the attribute.
@@ -1312,12 +1458,15 @@ What the chart does today:
 - Colours come from tokens, in a light and a dark theme (`prefers-color-scheme` when `theme` is
   `'auto'`).
 
+The [task list](#task-list) is a `role="treegrid"` that the keyboard walks, with a focusable
+splitter, and it is the way to give keyboard users the plan today.
+
 What it does not do yet (planned for 1.0): bars, links and handles are not focusable and have no
 roles, so a screen reader reads the chart as an unlabelled graphic apart from its region and its
 tooltips; dragging has no keyboard equivalent (move and resize with arrow keys); changes are not
 announced; the contrast of the default themes has not been audited against WCAG AA. If your users
-rely on assistive technology, give them the same plan as a table or a list next to the chart, and
-let them edit it there.
+rely on assistive technology, give them the same plan as a table or a list next to the chart (the
+task list is one), and let them edit it there.
 
 ## Browser support
 
@@ -1332,8 +1481,9 @@ input is tested in Chromium only, and iOS momentum scrolling is not tested autom
 
 Minified and gzipped, the JavaScript of this package is about 20 kB on top of
 [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#size), which is about 56 kB for the part `createGantt` uses.
-The stylesheet (`@ganttlane/dom/styles.css`) is shipped as written, not minified: 24 kB, which is
-6.2 kB gzipped. A build that minifies your CSS brings it to about 13.7 kB, under 3 kB gzipped.
+The [task list](#task-list), a subpath of its own, adds about 4.7 kB when you import it.
+The stylesheet (`@ganttlane/dom/styles.css`) is shipped as written, not minified: 30 kB, which is
+7.3 kB gzipped. A build that minifies your CSS brings it to about 18 kB, under 4 kB gzipped.
 `pnpm size` in the repository checks the budgets, `pnpm size:report --package dom` breaks the
 package down by layer, and `pnpm bench` measures the performance numbers.
 
@@ -1349,9 +1499,8 @@ Limits you should know about today (what is planned for 1.0 is listed at the end
   `@ganttlane/react` renders its container on a server and draws the chart after hydration.
 - **Left to right only.** `.gantt` sets `direction: ltr` whatever the page says; `direction: 'rtl'`
   is reported as unsupported.
-- **No left-hand task list** and no toolbar. Line your own list up with the rows through
-  `gantt.getRowMetrics(id)`; the toolbar options are reserved.
-- **Bars are not selected by clicking** (`select()` and a click on an arrow select), and there is no
+- **No toolbar:** its options are reserved.
+- **A click selects one task** (`selection.onClick`, or `select()` for several), and there is no
   keyboard editing, context menu, pinch or `Ctrl` + wheel zoom (`zoomTo()` zooms from code), sticky
   bar labels, expected-progress marker or markers.
 - With `layout.height: 'auto'` no ancestor between the chart and what scrolls it may clip
@@ -1363,7 +1512,7 @@ Limits you should know about today (what is planned for 1.0 is listed at the end
   [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#limits-and-roadmap)).
 
 Planned for 1.0: zoom gestures and a toolbar, selection and keyboard navigation with ARIA roles
-and keyboard editing, undo and redo hotkeys, a task list, markers, sticky labels and the
+and keyboard editing, undo and redo hotkeys, markers, sticky labels and the
 expected-progress marker, right-to-left charts, week-start and weekend defaults from the locale,
 the `push-forward` propagation policy, a context menu, and dev-time hints for old option names with
 a frappe-gantt option adapter.

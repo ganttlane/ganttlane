@@ -31,6 +31,7 @@ import {
   type LayerScheduler,
 } from './scheduler';
 import { createScrollSync } from './scroll';
+import { setAttr } from './shared';
 import { createSkeleton, type HeightOption, resolveHeight, type ThemeOption } from './skeleton';
 import { type GanttStrings, type GanttStringsInput, resolveStrings } from './strings';
 
@@ -340,6 +341,7 @@ export function mountRenderer<TCore extends RendererCore>(
       }
       const previous = rendered;
       rendered = snapshot;
+      if (display !== renderedDisplay) setAttr(skeleton.root, 'data-row-hover', display.rowHover);
       renderedDisplay = display;
       if (strings !== renderedStrings) skeleton.setLabel(strings.chartLabel);
       renderedStrings = strings;

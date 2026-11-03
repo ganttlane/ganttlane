@@ -3,7 +3,8 @@
  *
  * - Everything lives in `@layer gantt`, so any application style (unlayered) wins without
  *   `!important`, and no rule is more specific than a class plus `data-*` / pseudo-class.
- * - The look is driven by `--gantt-*` tokens declared on `.gantt` (documented in README.md).
+ * - The look is driven by `--gantt-*` tokens declared on `.gantt` (documented in README.md), and
+ *   on `.gantt-scope`, for anything beside a chart that wants them: a sibling cannot inherit them.
  *   `data-theme="light"` is the default, `"dark"` swaps the token values, and `"auto"` swaps
  *   them under `prefers-color-scheme: dark`. Rules never change between themes, only tokens do.
  * - CSP-safe: no `url()`, no `@import`; the renderer only sets custom properties (CSSOM) and
@@ -103,7 +104,8 @@
    * `--gantt-highlight-color` are also written per element by the renderer (a task's `color`,
    * a highlight's `color`); an element without its own value inherits the theme's.
    */
-  .gantt {
+  .gantt,
+  .gantt-scope {
     color-scheme: light;
 
     --gantt-font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -128,6 +130,9 @@
     --gantt-row-stripe-color: rgb(15 23 42 / 3.5%);
     --gantt-row-invalid-color: rgb(229 72 77 / 8%);
     --gantt-row-placeholder-color: rgb(100 116 139 / 8%);
+    --gantt-row-hover-color: transparent;
+    --gantt-row-highlight-color: rgb(37 99 235 / 8%);
+    --gantt-row-selected-color: rgb(37 99 235 / 16%);
     --gantt-nonworking-color: rgb(100 116 139 / 10%);
     --gantt-nonworking-stripe-color: rgb(100 116 139 / 30%);
     --gantt-highlight-color: #f5b301;
@@ -165,7 +170,8 @@
   }
 
   /* TOKENS, dark: only the values that differ; sizes and widths stay. */
-  .gantt[data-theme='dark'] {
+  .gantt[data-theme='dark'],
+  .gantt-scope[data-theme='dark'] {
     color-scheme: dark;
 
     --gantt-background-color: #15171c;
@@ -183,6 +189,9 @@
     --gantt-row-stripe-color: rgb(255 255 255 / 3.5%);
     --gantt-row-invalid-color: rgb(255 99 105 / 12%);
     --gantt-row-placeholder-color: rgb(148 163 184 / 8%);
+    --gantt-row-hover-color: transparent;
+    --gantt-row-highlight-color: rgb(110 160 255 / 12%);
+    --gantt-row-selected-color: rgb(110 160 255 / 24%);
     --gantt-nonworking-color: rgb(148 163 184 / 9%);
     --gantt-nonworking-stripe-color: rgb(148 163 184 / 26%);
     --gantt-highlight-color: #f5b301;
@@ -213,7 +222,8 @@
 
   /* TOKENS, auto: the same values as `dark`, applied only while the system prefers dark. */
   @media (prefers-color-scheme: dark) {
-    .gantt[data-theme='auto'] {
+    .gantt[data-theme='auto'],
+    .gantt-scope[data-theme='auto'] {
       color-scheme: dark;
 
       --gantt-background-color: #15171c;
@@ -231,6 +241,9 @@
       --gantt-row-stripe-color: rgb(255 255 255 / 3.5%);
       --gantt-row-invalid-color: rgb(255 99 105 / 12%);
       --gantt-row-placeholder-color: rgb(148 163 184 / 8%);
+      --gantt-row-hover-color: transparent;
+      --gantt-row-highlight-color: rgb(110 160 255 / 12%);
+      --gantt-row-selected-color: rgb(110 160 255 / 24%);
       --gantt-nonworking-color: rgb(148 163 184 / 9%);
       --gantt-nonworking-stripe-color: rgb(148 163 184 / 26%);
       --gantt-highlight-color: #f5b301;
@@ -373,6 +386,19 @@
 
   .gantt__row[data-invalid] {
     fill: var(--gantt-row-invalid-color);
+  }
+
+  /*
+   * The tint of the row that is lit or focused, over what the row shows. The token is `transparent`
+   * unless `display.rowHover` (a task list turns it on) gives it the theme's colour, or you set it.
+   */
+  .gantt[data-row-hover] {
+    --gantt-row-hover-color: var(--gantt-row-highlight-color);
+  }
+
+  .gantt__row-hover {
+    fill: var(--gantt-row-hover-color);
+    pointer-events: none;
   }
 
   /* The fill of a stripes-mode day is a pattern reference the renderer sets; only fill mode is CSS. */
@@ -777,9 +803,209 @@
     cursor: not-allowed;
   }
 
+  /*
+   * THE TASK LIST (`@ganttlane/dom/task-list`, `TaskList` of `@ganttlane/react`). Its sizes are the
+   * chart's: the list writes them as custom properties on its root. Rows are placed by the chart's
+   * metrics, so only some of them need exist. With `data-height="auto"` it is as tall as its rows,
+   * in the box that scrolls the chart; else its body scrolls with a hidden scrollbar, the chart's
+   * being the one to see.
+   */
+  /* As specific as the blocks of the themes, and after them: a list always lights its rows. */
+  .gantt-task-list[data-theme] {
+    --gantt-row-hover-color: var(--gantt-row-highlight-color);
+  }
+
+  .gantt-task-list {
+    position: relative;
+    box-sizing: border-box;
+    flex: none;
+    width: var(--gantt-task-list-width, 280px);
+    height: 100%;
+    overflow: clip;
+    border-inline-end: var(--gantt-border-width) solid var(--gantt-border-color);
+    color: var(--gantt-foreground-color);
+    background: var(--gantt-background-color);
+    font-family: var(--gantt-font-family);
+    font-size: var(--gantt-font-size);
+    line-height: 1.2;
+  }
+
+  /* As tall as its rows, also as a flex item of the box that scrolls, which would stretch it. */
+  .gantt-task-list[data-height='auto'] {
+    align-self: flex-start;
+    height: auto;
+  }
+
+  .gantt-task-list__header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: var(--gantt-task-list-header-height, 0);
+    color: var(--gantt-header-text-color);
+    background: var(--gantt-header-background-color);
+    font-weight: 600;
+  }
+
+  .gantt-task-list__header-row,
+  .gantt-task-list__row {
+    display: grid;
+    grid-template-columns: var(--gantt-task-list-columns, minmax(0, 1fr));
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .gantt-task-list__header-row {
+    height: 100%;
+    border-block-end: var(--gantt-border-width) solid var(--gantt-border-color);
+  }
+
+  .gantt-task-list__body {
+    height: var(--gantt-task-list-view-height, auto);
+    overflow: hidden auto;
+    overflow-anchor: none;
+    scroll-behavior: auto;
+    scrollbar-width: none;
+  }
+
+  .gantt-task-list__body::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gantt-task-list[data-height='auto'] .gantt-task-list__body {
+    height: auto;
+    overflow: visible;
+  }
+
+  .gantt-task-list__rows {
+    position: relative;
+    height: var(--gantt-task-list-rows-height, auto);
+  }
+
+  .gantt-task-list__row {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: var(--gantt-task-list-row-height, 0);
+    outline: none;
+    cursor: default;
+    transform: translateY(var(--gantt-task-list-y, 0));
+    /* A row that gets the focus natively scrolls into view below the sticky header. */
+    scroll-margin-top: var(--gantt-task-list-header-height, 0);
+  }
+
+  .gantt-task-list__row[data-stripe] {
+    background-color: var(--gantt-row-stripe-color);
+  }
+
+  .gantt-task-list__row[data-placeholder] {
+    background-color: var(--gantt-row-placeholder-color);
+  }
+
+  .gantt-task-list__row[data-invalid] {
+    background-color: var(--gantt-row-invalid-color);
+  }
+
+  .gantt-task-list__row[data-hovered] {
+    background-image: linear-gradient(var(--gantt-row-hover-color), var(--gantt-row-hover-color));
+  }
+
+  .gantt-task-list__row[aria-selected='true'] {
+    background-image: linear-gradient(
+      var(--gantt-row-selected-color),
+      var(--gantt-row-selected-color)
+    );
+  }
+
+  .gantt-task-list__row:focus-visible {
+    outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
+    outline-offset: calc(var(--gantt-focus-ring-width) * -1);
+  }
+
+  .gantt-task-list__row[data-group] {
+    font-weight: 600;
+  }
+
+  .gantt-task-list__cell {
+    min-width: 0;
+    padding-inline: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .gantt-task-list__cell[data-align='center'] {
+    text-align: center;
+  }
+
+  .gantt-task-list__cell[data-align='end'] {
+    text-align: end;
+  }
+
+  .gantt-task-list__cell[data-tree] {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-inline-start: calc(
+      4px + var(--gantt-task-list-depth, 0) * var(--gantt-task-list-indent, 16px)
+    );
+  }
+
+  .gantt-task-list__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The toggle: a chevron that turns when the group is open; a task keeps the room, empty. */
+  .gantt-task-list__toggle {
+    position: relative;
+    flex: none;
+    width: 14px;
+    height: 14px;
+  }
+
+  .gantt-task-list__toggle::before {
+    transition: transform var(--gantt-transition-duration) ease;
+  }
+
+  .gantt-task-list__row[data-group] .gantt-task-list__toggle::before {
+    content: '';
+    position: absolute;
+    inset: 3px 4px 3px 2px;
+    border: solid currentcolor;
+    border-width: 0 2px 2px 0;
+    opacity: 0.7;
+    transform: translate(25%, 0) rotate(-45deg) scale(0.9);
+  }
+
+  .gantt-task-list__row[aria-expanded='true'] .gantt-task-list__toggle::before {
+    transform: translate(0, -25%) rotate(45deg) scale(0.9);
+  }
+
+  .gantt-task-list__splitter {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: 3;
+    width: 6px;
+    outline: none;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .gantt-task-list__splitter[hidden] {
+    display: none;
+  }
+
+  .gantt-task-list__splitter:is(:hover, :focus-visible, [data-resizing]) {
+    background: var(--gantt-focus-ring-color);
+  }
+
   /* MOTION: the last rule of the sheet, so it beats every transition above. */
   @media (prefers-reduced-motion: reduce) {
-    .gantt * {
+    .gantt *,
+    .gantt-task-list *,
+    .gantt-task-list ::before {
       transition: none;
       animation: none;
     }

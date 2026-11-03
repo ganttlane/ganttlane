@@ -7,6 +7,7 @@ export default defineConfig({
     index: 'src/index.ts',
     'dom-utils': 'src/dom-utils/index.ts',
     facade: 'src/facade.ts',
+    'task-list': 'src/task-list/index.ts',
   },
   format: 'esm',
   platform: 'browser',

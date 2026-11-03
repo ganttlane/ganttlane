@@ -254,22 +254,78 @@ describe('createGantt: methods', () => {
       'removeLink',
       'expand',
       'collapse',
+      'toggle',
       'expandAll',
       'collapseAll',
       'select',
       'selectLink',
       'clearSelection',
+      'setHoveredRow',
+      'focusTask',
       'getTask',
       'getLink',
       'getVisibleRange',
       'getRowMetrics',
       'getBarRect',
+      'getRows',
+      'getRowWindow',
+      'getLayoutMetrics',
       'undo',
       'redo',
     ] as const;
 
     for (const name of same) expect(gantt[name]).toBe(gantt.core[name]);
     expect(gantt.edit).toBe(gantt.core.edit);
+  });
+
+  it('FR-ROW-6: getAppearance says what the renderer draws, and appearanceChange when it changes', () => {
+    const { gantt, container, frames } = create({
+      theme: 'dark',
+      layout: { height: 300 },
+      display: { rowStripes: 'group' },
+    });
+    const first = gantt.getAppearance();
+    expect(first).toEqual({ theme: 'dark', height: 300, rowStripes: 'group', rowHover: false });
+    expect(Object.isFrozen(first)).toBe(true);
+    const seen: unknown[] = [];
+    const off = gantt.on('appearanceChange', (appearance) => seen.push(appearance));
+
+    // Nothing the appearance shows: the same object, and no event.
+    gantt.setOptions({ viewMode: 'week', display: { today: false } });
+    expect(gantt.getAppearance()).toBe(first);
+    expect(seen).toEqual([]);
+
+    gantt.setOptions({ theme: 'light' });
+    gantt.setOptions({ layout: { height: 'auto' } });
+    gantt.setOptions({ display: { rowStripes: 'row', rowHover: true } });
+    expect(seen).toEqual([
+      { theme: 'light', height: 300, rowStripes: 'group', rowHover: false },
+      { theme: 'light', height: 'auto', rowStripes: 'group', rowHover: false },
+      { theme: 'light', height: 'auto', rowStripes: 'row', rowHover: true },
+    ]);
+    frames.step();
+    expect(container.querySelector('.gantt')?.hasAttribute('data-row-hover')).toBe(true);
+    gantt.setOptions({ display: { rowHover: undefined } });
+    frames.step();
+    expect(container.querySelector('.gantt')?.hasAttribute('data-row-hover')).toBe(false);
+
+    off();
+    gantt.setOptions({ theme: 'dark' });
+    expect(seen).toHaveLength(4);
+    gantt.destroy();
+    const late = vi.fn();
+    gantt.on('appearanceChange', late)();
+    gantt.setOptions({ theme: 'light' });
+    expect(late).not.toHaveBeenCalled();
+  });
+
+  it('FR-SCROLL-2: scrollTo moves the chart', () => {
+    const { gantt, frames, container } = create();
+    const scroller = container.querySelector<HTMLElement>('.gantt__scroller')!;
+    const write = vi.spyOn(scroller, 'scrollTo');
+    gantt.scrollTo({ left: 40, behavior: 'instant' });
+    frames.step();
+    expect(write).toHaveBeenCalledWith({ left: 40, behavior: 'instant' });
   });
 
   it('FR-API-3: queries read the chart as drawn', () => {
