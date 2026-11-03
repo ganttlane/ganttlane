@@ -24,6 +24,7 @@ export const BAR_FLAGS = {
   dragging: 4,
   resizing: 8,
   conflict: 16,
+  tabStop: 32,
 } as const;
 
 /** What the layer draws for one bar: a task of the window with everything its view reads. */
@@ -373,6 +374,7 @@ export function updateBarView(view: BarView, item: BarItem, env: BarEnv): void {
   }
   const { task } = model;
   const can = resolvePermissions(model, env.editing);
+  const { barFocus } = env.display;
   setAttrs(view.node, {
     class: withClass('gantt__bar', task.className),
     'data-task-id': String(bar.id),
@@ -386,6 +388,11 @@ export function updateBarView(view: BarView, item: BarItem, env: BarEnv): void {
     'data-readonly': !(can.move || can.resize || can.progress),
     'data-invalid': !model.valid,
     'data-conflict': (flags & BAR_FLAGS.conflict) !== 0,
+    // Only where bars take the focus: a bar has to have a name then, and say that it is selected.
+    tabindex: barFocus && ((flags & BAR_FLAGS.tabStop) !== 0 ? 0 : -1),
+    role: barFocus && 'button',
+    'aria-label': barFocus && model.name,
+    'aria-pressed': barFocus && String((flags & BAR_FLAGS.selected) !== 0),
   });
   setCssVar(
     view.node,

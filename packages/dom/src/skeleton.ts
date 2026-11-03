@@ -138,7 +138,7 @@ export function createSkeleton(document: Document, options: SkeletonOptions): Sk
   body.append(grid, links, bars, overlay);
   // A focusable, named region: keyboard users reach the chart and scroll it with the arrow keys
   // (Chromium and Firefox focus a scroller without focusable children by themselves, WebKit
-  // does not). Bars, links and handles get their own focus stops later (roving tabindex).
+  // does not). Bars get their own focus stop with `keyboard.barFocus`; links and handles later.
   const scroller = createHtml(
     document,
     'div',

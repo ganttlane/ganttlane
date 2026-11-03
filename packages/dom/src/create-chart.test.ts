@@ -218,9 +218,11 @@ describe('createChart', () => {
       'display',
       'hierarchy',
       'interaction',
+      'keyboard',
       'layout',
       'scheduling',
       'scroll',
+      'selection',
       'strings',
       'timeline',
     ]);

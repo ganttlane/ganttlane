@@ -724,7 +724,7 @@
     stroke: var(--gantt-link-selected-color);
   }
 
-  /* FOCUS (bars, links and handles are not focusable yet; the scroller already is). */
+  /* FOCUS (bars with `keyboard.barFocus`; links and handles are not focusable yet). */
   .gantt__scroller:focus-visible {
     outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
     outline-offset: calc(var(--gantt-focus-ring-width) * -1);

@@ -51,6 +51,22 @@ export interface InputOptions {
 const EMPTY: HitTarget = { kind: 'empty' };
 
 /**
+ * Reads task ids back from the DOM, where they are text.
+ *
+ * @param core - The chart's core.
+ * @returns From a text, the id: `undefined` when the text is no id, or is two.
+ */
+export const taskIdIn =
+  (core: Pick<GanttCore, 'getSnapshot'>) =>
+  (raw: string): TaskId | undefined => {
+    const { taskById } = core.getSnapshot().state.derived.model;
+    const number = Number(raw);
+    const text = taskById.has(raw);
+    const numeric = String(number) === raw && taskById.has(number);
+    return text === numeric ? undefined : text ? raw : number;
+  };
+
+/**
  * A touch that moves farther than this (px) before it is released is a swipe, not a tap, on a bar
  * that cannot be moved; the default of the machine's own touch drag threshold.
  */
@@ -156,14 +172,7 @@ export function mountInput(options: InputOptions): Dispose {
   const measure = (): PointerFrame =>
     (frame = measureFrame(scroller, root.querySelector('.gantt__header')));
 
-  /** Task ids are text in the DOM: `undefined` when the text is no id, or is two. */
-  const taskId = (raw: string): TaskId | undefined => {
-    const { taskById } = core.getSnapshot().state.derived.model;
-    const number = Number(raw);
-    const text = taskById.has(raw);
-    const numeric = String(number) === raw && taskById.has(number);
-    return text === numeric ? undefined : text ? raw : number;
-  };
+  const taskId = taskIdIn(core);
 
   const key = (event: KeyboardEvent): void => {
     if (core.getSnapshot().feedback.phase !== 'idle') core.send(keyInput(event));

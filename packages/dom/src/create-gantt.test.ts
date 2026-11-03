@@ -285,7 +285,13 @@ describe('createGantt: methods', () => {
       display: { rowStripes: 'group' },
     });
     const first = gantt.getAppearance();
-    expect(first).toEqual({ theme: 'dark', height: 300, rowStripes: 'group', rowHover: false });
+    expect(first).toEqual({
+      theme: 'dark',
+      height: 300,
+      rowStripes: 'group',
+      rowHover: false,
+      multiSelect: false,
+    });
     expect(Object.isFrozen(first)).toBe(true);
     const seen: unknown[] = [];
     const off = gantt.on('appearanceChange', (appearance) => seen.push(appearance));
@@ -299,9 +305,9 @@ describe('createGantt: methods', () => {
     gantt.setOptions({ layout: { height: 'auto' } });
     gantt.setOptions({ display: { rowStripes: 'row', rowHover: true } });
     expect(seen).toEqual([
-      { theme: 'light', height: 300, rowStripes: 'group', rowHover: false },
-      { theme: 'light', height: 'auto', rowStripes: 'group', rowHover: false },
-      { theme: 'light', height: 'auto', rowStripes: 'row', rowHover: true },
+      { theme: 'light', height: 300, rowStripes: 'group', rowHover: false, multiSelect: false },
+      { theme: 'light', height: 'auto', rowStripes: 'group', rowHover: false, multiSelect: false },
+      { theme: 'light', height: 'auto', rowStripes: 'row', rowHover: true, multiSelect: false },
     ]);
     frames.step();
     expect(container.querySelector('.gantt')?.hasAttribute('data-row-hover')).toBe(true);

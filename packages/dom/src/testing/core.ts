@@ -128,6 +128,9 @@ export function createFakeCore(initial: GanttSnapshot = fakeSnapshot()): FakeCor
     handlers: () => [...events.values()].reduce((sum, set) => sum + set.size, 0),
     getTask: vi.fn<RendererCore['getTask']>(() => undefined),
     getLink: vi.fn<RendererCore['getLink']>(() => undefined),
+    focusTask: vi.fn<RendererCore['focusTask']>(() => undefined),
+    scrollToTask: vi.fn<RendererCore['scrollToTask']>(() => undefined),
+    getLayoutMetrics: vi.fn<RendererCore['getLayoutMetrics']>(),
     getSnapshot: () => snapshot,
     subscribe(listener) {
       listeners.add(listener);
@@ -211,6 +214,11 @@ export function observeCore(inner: GanttCore): ObservedCore {
     }),
     on: (name, handler) => inner.on(name, handler),
     getTask: (id) => inner.getTask(id),
+    focusTask: (id) => {
+      inner.focusTask(id);
+    },
+    scrollToTask: (id, options) => inner.scrollToTask(id, options),
+    getLayoutMetrics: () => inner.getLayoutMetrics(),
     getLink: (id) => inner.getLink(id),
   };
 }

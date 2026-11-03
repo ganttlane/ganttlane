@@ -1,5 +1,6 @@
-import type { GanttCore, GanttSnapshot } from '@ganttlane/core';
+import type { GanttCore, GanttSnapshot, TaskId } from '@ganttlane/core';
 
+import { mountBarFocus } from './bar-focus';
 import { assertContainer } from './container';
 import { type DisplayOptions, type ResolvedDisplay, resolveDisplay } from './display';
 import {
@@ -51,6 +52,9 @@ export type RendererCore = Pick<
   | 'on'
   | 'getTask'
   | 'getLink'
+  | 'focusTask'
+  | 'scrollToTask'
+  | 'getLayoutMetrics'
 >;
 
 /**
@@ -152,6 +156,14 @@ export interface MountedRenderer<TCore extends RendererCore = RendererCore> {
    * `createGantt`'s `hideTooltip()`.
    */
   hideTooltip(): void;
+  /**
+   * Moves the browser's focus to the bar of a task and scrolls to it. Does nothing unless bars take
+   * the focus (`keyboard.barFocus`) and the task has a bar in a visible row. `createGantt`'s
+   * `focusBar()`.
+   *
+   * @param id - The task.
+   */
+  focusBar(id: TaskId): void;
   /** The current display options, resolved. */
   readonly display: ResolvedDisplay;
   /** The current strings, resolved: the defaults with the `strings` option over them. */
@@ -203,6 +215,7 @@ export function mountRenderer<TCore extends RendererCore>(
   let setHeight = (_height: HeightOption | undefined): void => undefined;
   let setTheme = (_theme: ThemeOption): void => undefined;
   let hideTooltip = (): void => undefined;
+  let focusBar = (_id: TaskId): void => undefined;
 
   const destroy = (): void => {
     if (destroyed) return;
@@ -323,6 +336,16 @@ export function mountRenderer<TCore extends RendererCore>(
     };
     for (const name of LAYER_ORDER) mountLayer(name);
 
+    const barFocus = mountBarFocus({
+      core,
+      scroller: skeleton.scroller,
+      signal: abort.signal,
+      enabled: () => display.barFocus,
+      flush: scheduler.flush,
+    });
+    disposables.add(barFocus.dispose);
+    focusBar = barFocus.focus;
+
     let rendered: GanttSnapshot | undefined;
     let renderedDisplay: ResolvedDisplay | undefined;
     // The skeleton was made with these.
@@ -372,6 +395,7 @@ export function mountRenderer<TCore extends RendererCore>(
           errors.push(error);
         }
       }
+      barFocus.sync();
       throwCollected(errors, 'Several layers failed to update');
     };
 
@@ -464,6 +488,9 @@ export function mountRenderer<TCore extends RendererCore>(
     },
     hideTooltip: () => {
       if (!destroyed) hideTooltip();
+    },
+    focusBar: (id) => {
+      if (!destroyed) focusBar(id);
     },
     setDisplay: (patch) => {
       if (destroyed) return;

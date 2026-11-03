@@ -50,6 +50,7 @@ export type {
   GanttOptions,
   GanttOptionsPatch,
   GanttVisualOptions,
+  KeyboardOptions,
   ToolbarOptions,
 } from './options';
 export type { MountedRenderer, RendererCore, RendererOptions } from './renderer';
@@ -103,6 +104,7 @@ export type {
   ChangeSet,
   ChangeSetIssue,
   ChangeSetIssueCode,
+  ClickInput,
   CommitResult,
   CommittedResult,
   Conflict,

@@ -3,6 +3,7 @@ import type { GanttCoreOptions, LinkRecord, OptionIssue, OptionIssueCode } from 
 import {
   DISPLAY_RULES,
   type DisplayOptions,
+  flag,
   func,
   GROUP_RULES,
   type GroupKey,
@@ -33,6 +34,16 @@ export interface ToolbarOptions {
   readonly viewModeSelect?: boolean | undefined;
   /** Zoom buttons. */
   readonly zoom?: boolean | undefined;
+}
+
+/** What the keyboard does in the chart. Merged field by field, like `display`. */
+export interface KeyboardOptions {
+  /**
+   * Bars take the keyboard focus, one tab stop for all of them. Up, Down, Home, End, Page Up and
+   * Page Down walk the bars, and Enter and Space on a bar are a click of it. Default `false`, and
+   * then bars cannot be focused.
+   */
+  readonly barFocus?: boolean | undefined;
 }
 
 /**
@@ -96,6 +107,8 @@ export interface GanttVisualOptions<TData = unknown> {
   readonly highlightTooltip?: HighlightTooltipOptions | undefined;
   /** The toolbar. Not available yet: off by default, and `unsupported-option` when on. */
   readonly toolbar?: false | ToolbarOptions | undefined;
+  /** What the keyboard does in the chart. */
+  readonly keyboard?: KeyboardOptions | undefined;
   /**
    * Group `layout` of the core, plus `height`, which only the renderer knows (`layout.height`): a
    * number of px, `'auto'` to grow with the rows and let the page scroll, or left out to fill the
@@ -150,6 +163,7 @@ const OWN: ReadonlySet<string> = new Set([
   'linkMenu',
   'highlightTooltip',
   'toolbar',
+  'keyboard',
   'renderer',
   'onIssues',
 ]);
@@ -158,7 +172,8 @@ const OWN: ReadonlySet<string> = new Set([
  * The option groups `setOptions` merges field by field with the group set before: a field left
  * out keeps its value and a field given as `undefined` returns to its default. They are the
  * core's groups (`calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`,
- * `interaction`) and the renderer's `display` and `strings`. Every other option is taken whole.
+ * `selection`, `interaction`) and the renderer's `display`, `strings` and `keyboard`. Every other
+ * option is taken whole.
  * A binding that works out *what changed* between two sets of options (React) needs this to say
  * "a field was removed" the way `setOptions` understands it.
  */
@@ -170,13 +185,16 @@ export const MERGED_OPTION_GROUPS: ReadonlySet<string> = new Set([
   'layout',
   'timeline',
   'scroll',
+  'selection',
   'interaction',
   'display',
   'strings',
+  'keyboard',
 ]);
 
 /** The display options that are lifted to the top level, and so are not read from `display`. */
 const LIFTED: ReadonlySet<string> = new Set([
+  'barFocus',
   'highlightDays',
   'tooltip',
   'linkMenu',
@@ -287,10 +305,8 @@ export function displayOf(
   creating: boolean,
   onRemove: (link: LinkRecord) => unknown,
 ): DisplayOptions | undefined {
-  const touched = ['display', 'highlights', 'tooltip', 'linkMenu', 'highlightTooltip'].some(
-    (key) => key in source,
-  );
-  if (!creating && !touched) return undefined;
+  const touched = ['display', 'highlights', 'tooltip', 'linkMenu', 'highlightTooltip', 'keyboard'];
+  if (!creating && !touched.some((key) => key in source)) return undefined;
   // A `display` that is not an object, or is `undefined`, puts every plain option back.
   const plain = isRecord(source.display)
     ? source.display
@@ -300,6 +316,11 @@ export function displayOf(
   const patch: Record<string, unknown> = Object.fromEntries(
     Object.entries(plain).filter(([key]) => !LIFTED.has(key)),
   );
+  if ('keyboard' in source) {
+    const { keyboard } = source;
+    if (!isRecord(keyboard)) patch.barFocus = undefined;
+    else if ('barFocus' in keyboard) patch.barFocus = keyboard.barFocus;
+  }
   if ('highlights' in source) patch.highlightDays = highlightsOf(source.highlights);
   if ('tooltip' in source) patch.tooltip = groupOf('tooltip', source.tooltip);
   if ('highlightTooltip' in source) {
@@ -372,6 +393,7 @@ const HEIGHT: Rule = [(value) => resolveHeight(value) === value];
 const GROUPS: Readonly<Record<string, Readonly<Record<string, Rule>>>> = {
   display: DISPLAY_RULES,
   strings: STRING_RULES,
+  keyboard: { barFocus: flag(false) },
   ...GROUP_RULES,
 };
 
@@ -386,6 +408,7 @@ const CHECKED = [
   'linkMenu',
   'highlightTooltip',
   'toolbar',
+  'keyboard',
   'direction',
   'onIssues',
 ] as const;

@@ -34,6 +34,7 @@ interface Seen {
   readonly draft: GanttSnapshot['state']['draft'];
   readonly selection: GanttSnapshot['selection'];
   readonly feedback: GanttSnapshot['feedback'];
+  readonly focused: TaskId | undefined;
   readonly epoch: number;
 }
 
@@ -51,7 +52,10 @@ function sameList<T>(a: readonly T[], b: readonly T[]): boolean {
  *   the CSSOM, and the state flags `data-selected`, `data-hovered`, `data-dragging`,
  *   `data-resizing`, `data-locked`, `data-readonly`, `data-movable`, `data-invalid`,
  *   `data-conflict` (each present or absent; `data-movable` is the task's `move` permission, so
- *   a bar that may only be resized or linked lacks it). Children: `rect.gantt__bar-track` and
+ *   a bar that may only be resized or linked lacks it). With `keyboard.barFocus` also `tabindex`
+ *   (`0` on the one tab stop: the focused bar, else the last one that was if it is still drawn,
+ *   else the first drawn), `role="button"`, `aria-label` and `aria-pressed`, and the focused bar is
+ *   drawn wherever it is, because the browser would lose the focus with its node. Children: `rect.gantt__bar-track` and
  *   `rect.gantt__bar-progress`, or
  *   `polygon.gantt__bar-milestone`; the label `.gantt__bar-label[data-placement]` (a `text`, or
  *   a `foreignObject` for a custom node); and, only where the task's permissions allow the
@@ -89,6 +93,7 @@ export function createBarsLayer(options: BarsLayerOptions = {}): RendererLayer<L
   let seen: Seen | undefined;
   let selectedTasks: readonly TaskId[] | undefined;
   let selected: ReadonlySet<TaskId> = new Set();
+  let tabStop: TaskId | undefined;
 
   return {
     mount(next): void {
@@ -131,7 +136,14 @@ export function createBarsLayer(options: BarsLayerOptions = {}): RendererLayer<L
 
       const { derived, draft } = snapshot.state;
       const { selection, feedback } = snapshot;
-      const bars = barsInWindow(snapshot.window, snapshot.layout);
+      const { barFocus } = display;
+      const focused = barFocus ? snapshot.focusedTask : undefined;
+      let bars = barsInWindow(snapshot.window, snapshot.layout);
+      const pinned = focused === undefined ? undefined : snapshot.layout.getBarRect(focused);
+      // In row order, which keeps its node where it is: a node that moves loses the focus.
+      if (pinned !== undefined && !bars.includes(pinned)) {
+        bars = [...bars, pinned].sort((a, b) => a.rowIndex - b.rowIndex);
+      }
       const last = seen;
       if (
         last?.epoch === env.epoch &&
@@ -140,6 +152,7 @@ export function createBarsLayer(options: BarsLayerOptions = {}): RendererLayer<L
         last.draft === draft &&
         last.selection === selection &&
         last.feedback === feedback &&
+        last.focused === focused &&
         sameList(last.bars, bars)
       ) {
         return;
@@ -158,6 +171,8 @@ export function createBarsLayer(options: BarsLayerOptions = {}): RendererLayer<L
       const resizing = gesture === 'resize-start' || gesture === 'resize-end';
       const active =
         resizing || gesture === 'move' || gesture === 'progress' ? feedback.id : undefined;
+      tabStop = focused ?? tabStop;
+      if (!bars.some((bar) => bar.id === tabStop)) tabStop = bars[0]?.id;
       const items: BarItem[] = [];
       for (const bar of bars) {
         const model = derived.model.taskById.get(bar.id);
@@ -167,6 +182,7 @@ export function createBarsLayer(options: BarsLayerOptions = {}): RendererLayer<L
         if (hovered === bar.id) flags |= BAR_FLAGS.hovered;
         if (active === bar.id) flags |= resizing ? BAR_FLAGS.resizing : BAR_FLAGS.dragging;
         if (derived.conflicts.has(bar.id)) flags |= BAR_FLAGS.conflict;
+        if (barFocus && tabStop === bar.id) flags |= BAR_FLAGS.tabStop;
         items.push({
           bar,
           model,
@@ -182,6 +198,7 @@ export function createBarsLayer(options: BarsLayerOptions = {}): RendererLayer<L
         draft,
         selection,
         feedback,
+        focused,
         epoch: env.epoch,
       };
       throwCollected(env.errors.splice(0), 'Several bar labels failed to render');

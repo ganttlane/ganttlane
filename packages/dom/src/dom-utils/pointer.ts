@@ -111,7 +111,7 @@ export function pointerOutsideBody(event: PointerEvent, frame: PointerFrame): bo
   );
 }
 
-const modifiersOf = (event: MouseEvent | KeyboardEvent): InteractionModifiers => ({
+export const modifiersOf = (event: MouseEvent | KeyboardEvent): InteractionModifiers => ({
   alt: event.altKey,
   shift: event.shiftKey,
   ctrl: event.ctrlKey,

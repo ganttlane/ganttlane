@@ -11,6 +11,7 @@ import {
   type IssuesPayload,
   type Listener,
   type OptionIssue,
+  type TaskId,
   type Unsubscribe,
 } from '@ganttlane/core';
 
@@ -51,6 +52,8 @@ export interface GanttAppearance {
   readonly rowStripes: RowStripesOption;
   /** `display.rowHover`. */
   readonly rowHover: boolean;
+  /** `selection.multiple`, which a list beside the chart follows. */
+  readonly multiSelect: boolean;
 }
 
 /**
@@ -204,6 +207,12 @@ export interface Gantt<TData = unknown> {
   readonly getIssues: () => GanttIssues;
   /** Closes the popover that is open: a task tooltip, the link menu or a day label. */
   readonly hideTooltip: () => void;
+  /**
+   * Moves the browser's focus to the bar of a task and scrolls to it: `focusTask` says which task
+   * has the focus, and does not take it from where it is. Does nothing unless `keyboard.barFocus`
+   * is on, the chart is mounted and the task has a bar in a visible row.
+   */
+  readonly focusBar: (id: TaskId) => void;
 
   // ---- edit session and history ----
 
@@ -451,6 +460,7 @@ export function createChart<TData = unknown>(
   let height = (given.layout as { height?: HeightOption } | undefined)?.height;
   let display: ResolvedDisplay = resolveDisplay(displayOf(given, true, removeLink));
   let strings: GanttStrings = resolveStrings(given.strings as GanttStringsInput | undefined);
+  let multiSelect = isRecord(given.selection) && given.selection.multiple === true;
   let renderer: MountedRenderer<GanttCore<TData>> | undefined;
   const appearanceNow = (): GanttAppearance =>
     Object.freeze({
@@ -458,6 +468,7 @@ export function createChart<TData = unknown>(
       height: resolveHeight(height),
       rowStripes: display.rowStripes,
       rowHover: display.rowHover,
+      multiSelect,
     });
   let appearance = appearanceNow();
   const syncAppearance = (): void => {
@@ -529,6 +540,11 @@ export function createChart<TData = unknown>(
       renderer?.setDisplay(displayPatch);
     }
     if ('onIssues' in source) onIssues = handlerOf(source.onIssues);
+    if ('selection' in source) {
+      const { selection } = source;
+      if (!isRecord(selection)) multiSelect = false;
+      else if ('multiple' in selection) multiSelect = selection.multiple === true;
+    }
     const forCore = coreOf(source);
     try {
       if (!isRecord(patch)) core.setOptions(patch);
@@ -561,6 +577,9 @@ export function createChart<TData = unknown>(
     getIssues,
     hideTooltip: () => {
       renderer?.hideTooltip();
+    },
+    focusBar: (id) => {
+      renderer?.focusBar(id);
     },
     get canUndo() {
       return core.canUndo;

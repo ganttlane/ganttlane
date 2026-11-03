@@ -96,6 +96,11 @@ export interface DisplayOptions<TData = unknown> {
    * list attached to the chart turns it on.
    */
   readonly rowHover?: boolean | undefined;
+  /**
+   * Whether bars take the keyboard focus (a roving tabindex). Default `false`. `createGantt` takes
+   * it as `keyboard.barFocus`.
+   */
+  readonly barFocus?: boolean | undefined;
   /** Bar labels. Default `'auto'`. */
   readonly barLabel?: BarLabelOption | undefined;
   /** Custom bar label content. Default the task name. */
@@ -130,7 +135,10 @@ export interface DisplayOptions<TData = unknown> {
 export type GroupKey = 'tooltip' | 'linkMenu' | 'highlightTooltip';
 
 /** The display options that are plain values, which `createGantt` takes under `display`. */
-export type PlainDisplayKey = Exclude<keyof DisplayOptions, GroupKey | 'highlightDays'>;
+export type PlainDisplayKey = Exclude<
+  keyof DisplayOptions,
+  GroupKey | 'highlightDays' | 'barFocus'
+>;
 
 /** {@link DisplayOptions} with every default applied. Frozen. */
 export interface ResolvedDisplay {
@@ -141,6 +149,7 @@ export interface ResolvedDisplay {
   readonly highlightDays: readonly HighlightInput[];
   readonly rowStripes: RowStripesOption;
   readonly rowHover: boolean;
+  readonly barFocus: boolean;
   readonly barLabel: BarLabelOption;
   readonly renderBarLabel: BarLabelRenderer | undefined;
   readonly headerRangeHighlight: boolean;
@@ -161,6 +170,7 @@ export const DISPLAY_DEFAULTS: ResolvedDisplay = Object.freeze({
   highlightDays: Object.freeze([]),
   rowStripes: false,
   rowHover: false,
+  barFocus: false,
   barLabel: 'auto',
   renderBarLabel: undefined,
   headerRangeHighlight: true,
@@ -184,7 +194,7 @@ const oneOf = (...values: readonly unknown[]): Rule => [
   values[0],
 ];
 /** A rule for a boolean whose default is `fallback`. */
-const flag = (fallback: boolean): Rule => [(value) => typeof value === 'boolean', fallback];
+export const flag = (fallback: boolean): Rule => [(value) => typeof value === 'boolean', fallback];
 /** A rule for a function. */
 export const func: Rule = [(value) => typeof value === 'function'];
 /** A rule for a finite number, 0 or more, whose default is `fallback`. */
@@ -232,6 +242,7 @@ export const GROUP_RULES: Readonly<Record<GroupKey, Readonly<Record<string, Rule
 /** Every display option with its rule: the plain ones and the four that are lists or groups. */
 const ALL_RULES: { readonly [K in keyof ResolvedDisplay]: Rule } = {
   ...DISPLAY_RULES,
+  barFocus: flag(D.barFocus),
   highlightDays: [Array.isArray],
   tooltip: object,
   linkMenu: object,
