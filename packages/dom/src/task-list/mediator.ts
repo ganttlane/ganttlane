@@ -7,8 +7,8 @@ import { type TaskListHost, treeAction } from './model';
 const LIST_DRIVES_MS = 120;
 /** How far the arrow keys move the splitter, in px. */
 const SPLITTER_STEP = 16;
-/** A bar of a chart, which holds the focus by itself. */
-const BAR = '.gantt__bar';
+/** A bar that takes the focus (`keyboard.barFocus`): it holds the focus by itself, like a row. */
+const BAR = '.gantt__bar[tabindex]';
 /** What takes a click or a key for itself when it is drawn in a cell. */
 const INTERACTIVE = 'a,button,input,select,textarea,label,[contenteditable]';
 
@@ -258,8 +258,11 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
       if (body.contains(event.relatedTarget as Node | null)) return;
       focusWas = undefined;
       // A bar of the same tasks takes it: it says so itself, with no gap between.
-      const bar = closest(event.relatedTarget, BAR);
-      if (bar === null || gantt.getRowMetrics(bar.dataset.taskId ?? '') === undefined) {
+      const raw = closest(event.relatedTarget, BAR)?.dataset.taskId;
+      if (
+        raw === undefined ||
+        (gantt.getRowMetrics(raw) ?? gantt.getRowMetrics(Number(raw))) === undefined
+      ) {
         gantt.focusTask(undefined);
       }
     },

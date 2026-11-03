@@ -213,6 +213,98 @@ describe('createTaskList: beside bars that take the focus', () => {
   });
 });
 
+describe('createTaskList: a bar with something focusable in its label', () => {
+  const withButton = (more: Partial<Parameters<typeof createGantt>[1]> = {}): Fixture =>
+    create(
+      {},
+      {
+        display: {
+          barLabel: 'inside',
+          renderBarLabel: () => {
+            const button = document.createElement('button');
+            button.textContent = 'Open';
+            return button;
+          },
+        },
+        ...more,
+      },
+    );
+  const buttonOf = ({ chart }: Fixture, id: string): HTMLElement =>
+    chart.querySelector<HTMLElement>(`.gantt__bar[data-task-id="${id}"] button`)!;
+
+  it('FR-SEL-3: with the options off, a button in a bar takes the focus from a row like anything else', () => {
+    const fixture = withButton();
+    const heard: unknown[] = [];
+    fixture.gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    fixture.row('a')?.focus();
+    fixture.flush();
+    buttonOf(fixture, 'g').focus();
+    expect(fixture.gantt.core.getSnapshot().focusedTask).toBeUndefined();
+    expect(heard).toEqual(['a', null]);
+  });
+
+  it('FR-SEL-3: with the options off, the list does not take the focus back from what has it next', () => {
+    const fixture = withButton();
+    fixture.row('a')?.focus();
+    fixture.flush();
+    buttonOf(fixture, 'g').focus();
+    fixture.flush();
+    const input = document.createElement('input');
+    document.body.append(input);
+    input.focus();
+    fixture.gantt.setHoveredRow('z');
+    fixture.flush();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('FR-SEL-3: with bars that take the focus, the button keeps it, and its task is the focused one', () => {
+    const fixture = withButton({ keyboard: { barFocus: true } });
+    fixture.row('a')?.focus();
+    fixture.flush();
+    const button = buttonOf(fixture, 'g');
+    button.focus();
+    fixture.flush();
+    expect(document.activeElement).toBe(button);
+    expect(fixture.gantt.core.getSnapshot().focusedTask).toBe('g');
+  });
+});
+
+describe('createTaskList: numeric ids beside bars that take the focus', () => {
+  const NUMBERED = [
+    { id: 1, name: 'One', start: '2026-03-02', end: '2026-03-06' },
+    { id: 2, name: 'Two', start: '2026-03-09', end: '2026-03-13' },
+    { id: 3, name: 'Three', start: '2026-03-16', end: '2026-03-20' },
+  ];
+
+  it('FR-SEL-3: moving between rows and bars reports each id, as a number, with no gap', () => {
+    const { gantt, chart, side, flush } = create(
+      {},
+      { tasks: NUMBERED, keyboard: { barFocus: true } },
+    );
+    const heard: unknown[] = [];
+    gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    const rowOf = (id: number): HTMLElement =>
+      side.querySelector<HTMLElement>(`.gantt-task-list__row[data-task-id="${String(id)}"]`)!;
+    rowOf(1).focus();
+    flush();
+    chart.querySelector<SVGElement>('.gantt__bar[data-task-id="2"]')?.focus();
+    flush();
+    rowOf(3).focus();
+    flush();
+    expect(heard).toEqual([1, 2, 3]);
+    expect(document.activeElement).toBe(rowOf(3));
+  });
+
+  it('FR-SEL-3: the keys walk the bars of numeric ids', () => {
+    const { gantt, chart, flush } = create({}, { tasks: NUMBERED, keyboard: { barFocus: true } });
+    const bar = chart.querySelector<SVGElement>('.gantt__bar[data-task-id="1"]')!;
+    bar.focus();
+    press(bar, 'ArrowDown');
+    flush();
+    expect(gantt.core.getSnapshot().focusedTask).toBe(2);
+  });
+});
+
 describe('createTaskList: selection.multiple', () => {
   const multiple = (more: Partial<Parameters<typeof createGantt>[1]> = {}): Fixture =>
     create({}, { selection: { multiple: true }, ...more });
