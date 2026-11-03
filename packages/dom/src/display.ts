@@ -101,6 +101,13 @@ export interface DisplayOptions<TData = unknown> {
    * it as `keyboard.barFocus`.
    */
   readonly barFocus?: boolean | undefined;
+  /**
+   * Whether a click on a bar selects it, so that a bar can say it is pressed. Default `false`.
+   * `createGantt` takes it from `selection.onClick`.
+   */
+  readonly clickSelects?: boolean | undefined;
+  /** Whether Ctrl or Cmd adds to the selection. Default `false`. From `selection.multiple`. */
+  readonly multiSelect?: boolean | undefined;
   /** Bar labels. Default `'auto'`. */
   readonly barLabel?: BarLabelOption | undefined;
   /** Custom bar label content. Default the task name. */
@@ -137,7 +144,7 @@ export type GroupKey = 'tooltip' | 'linkMenu' | 'highlightTooltip';
 /** The display options that are plain values, which `createGantt` takes under `display`. */
 export type PlainDisplayKey = Exclude<
   keyof DisplayOptions,
-  GroupKey | 'highlightDays' | 'barFocus'
+  GroupKey | 'highlightDays' | 'barFocus' | 'clickSelects' | 'multiSelect'
 >;
 
 /** {@link DisplayOptions} with every default applied. Frozen. */
@@ -150,6 +157,8 @@ export interface ResolvedDisplay {
   readonly rowStripes: RowStripesOption;
   readonly rowHover: boolean;
   readonly barFocus: boolean;
+  readonly clickSelects: boolean;
+  readonly multiSelect: boolean;
   readonly barLabel: BarLabelOption;
   readonly renderBarLabel: BarLabelRenderer | undefined;
   readonly headerRangeHighlight: boolean;
@@ -171,6 +180,8 @@ export const DISPLAY_DEFAULTS: ResolvedDisplay = Object.freeze({
   rowStripes: false,
   rowHover: false,
   barFocus: false,
+  clickSelects: false,
+  multiSelect: false,
   barLabel: 'auto',
   renderBarLabel: undefined,
   headerRangeHighlight: true,
@@ -243,6 +254,8 @@ export const GROUP_RULES: Readonly<Record<GroupKey, Readonly<Record<string, Rule
 const ALL_RULES: { readonly [K in keyof ResolvedDisplay]: Rule } = {
   ...DISPLAY_RULES,
   barFocus: flag(D.barFocus),
+  clickSelects: flag(D.clickSelects),
+  multiSelect: flag(D.multiSelect),
   highlightDays: [Array.isArray],
   tooltip: object,
   linkMenu: object,

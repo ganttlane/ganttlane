@@ -134,15 +134,34 @@ describe('keyboard.barFocus: the roving tabindex', () => {
     expect(fixture.bar('a')?.getAttribute('tabindex')).toBe('-1');
   });
 
-  it('FR-SEL-3: a bar has a role and a name, and says whether it is selected', () => {
+  it('FR-SEL-3: a bar has a role and a name', () => {
     const fixture = create();
     const bar = fixture.bar('a');
     expect(bar?.getAttribute('role')).toBe('button');
     expect(bar?.getAttribute('aria-label')).toBe('Alpha');
-    expect(bar?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('FR-SEL-3: a bar says aria-pressed only where a click selects it', () => {
+    const fixture = create();
+    const bar = fixture.bar('a');
+    expect(bar?.hasAttribute('aria-pressed')).toBe(false);
     fixture.gantt.select(['a']);
     fixture.frames.step();
+    expect(bar?.hasAttribute('aria-pressed')).toBe(false);
+    fixture.gantt.setOptions({ selection: { onClick: true } });
+    fixture.frames.step();
     expect(bar?.getAttribute('aria-pressed')).toBe('true');
+    fixture.gantt.setOptions({ selection: { onClick: false } });
+    fixture.frames.step();
+    expect(bar?.hasAttribute('aria-pressed')).toBe(false);
+  });
+
+  it('FR-SEL-3: a task without a name still gives its bar a name, and no empty attribute', () => {
+    const fixture = create({
+      tasks: [{ id: 'unnamed', name: '', start: '2026-03-02', end: '2026-03-06' }],
+      keyboard: { barFocus: true },
+    });
+    expect(fixture.bar('unnamed')?.getAttribute('aria-label')).toBe('unnamed');
   });
 
   it('FR-SEL-3: the focus of a bar is the focused task, and leaving says so once', () => {
@@ -379,6 +398,32 @@ describe('keyboard.barFocus: focus from elsewhere and focus that is lost', () =>
     expect(active()).toBeFalsy();
   });
 
+  it('FR-SEL-3: focusTask(undefined) does not let the bar with the focus scroll away and lose it', () => {
+    const fixture = create({ tasks: MANY, keyboard: { barFocus: true } });
+    fixture.bar('t1')?.focus();
+    fixture.frames.step();
+    fixture.gantt.focusTask(undefined);
+    fixture.frames.step();
+    fixture.gantt.scrollTo({ top: 1000, behavior: 'instant' });
+    fixture.frames.step();
+    fixture.frames.step();
+    expect(active()).toBe('t1');
+    expect(focused(fixture)).toBe('t1');
+  });
+
+  it('FR-SEL-3: the same while the bar is already out of the window', () => {
+    const fixture = create({ tasks: MANY, keyboard: { barFocus: true } });
+    fixture.bar('t1')?.focus();
+    fixture.gantt.scrollTo({ top: 1000, behavior: 'instant' });
+    fixture.frames.step();
+    fixture.frames.step();
+    fixture.gantt.focusTask(undefined);
+    fixture.frames.step();
+    fixture.frames.step();
+    expect(active()).toBe('t1');
+    expect(focused(fixture)).toBe('t1');
+  });
+
   it('FR-SEL-3: going to a bar of another chart lets go of the task here', () => {
     const fixture = create();
     const other = create({
@@ -399,6 +444,30 @@ describe('keyboard.barFocus: focus from elsewhere and focus that is lost', () =>
     expect(fixture.bar('g1')).toBeNull();
     expect(active()).toBe(fixture.stops()[0]);
     expect(focused(fixture)).toBe(fixture.stops()[0]);
+  });
+
+  it('FR-SEL-3: a bar whose node loses the focus in a draw gets it back, and the task stays', () => {
+    // What Chromium does when a sort moves the node of the focused bar: `focusout`, nothing to take
+    // it, and the focus on the body. Happy DOM keeps the focus on a moved node, so it is sent here.
+    const tasks = MANY.slice(0, 3);
+    const fixture = create({ tasks, keyboard: { barFocus: true } });
+    const heard: unknown[] = [];
+    fixture.gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    const bar = fixture.bar('t1')!;
+    bar.focus();
+    fixture.frames.step();
+    const bars = bar.parentElement as Element;
+    const original = bars.insertBefore.bind(bars);
+    vi.spyOn(bars, 'insertBefore').mockImplementation((node: Node, before: Node | null) => {
+      if (node === bar) bar.blur();
+      return original(node, before);
+    });
+    fixture.gantt.setTasks([...tasks].reverse());
+    fixture.frames.step();
+    expect(fixture.bars()).toEqual(['t2', 't1', 't0']);
+    expect(active()).toBe('t1');
+    expect(focused(fixture)).toBe('t1');
+    expect(heard).toEqual(['t1']);
   });
 
   it('FR-SEL-3: a bar whose task went away hands the focus on too', () => {
@@ -467,6 +536,13 @@ describe('keyboard.barFocus: the option', () => {
     fixture.gantt.setOptions({ selection: { multiple: true } });
     fixture.gantt.setOptions({ selection: undefined });
     expect(fixture.gantt.getAppearance().multiSelect).toBe(false);
+  });
+
+  it('FR-SEL-3: selection joins the display without touching a chart that does not use it', () => {
+    const fixture = create({ selection: { onClick: true }, keyboard: { barFocus: true } });
+    expect(fixture.bar('a')?.getAttribute('aria-pressed')).toBe('false');
+    expect(fixture.gantt.core.getSnapshot().selection.tasks).toEqual([]);
+    expect(fixture.gantt.getIssues().options).toEqual([]);
   });
 
   it('FR-API-3: destroying a chart leaves no listener behind', () => {

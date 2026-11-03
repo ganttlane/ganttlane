@@ -54,8 +54,9 @@ function sameList<T>(a: readonly T[], b: readonly T[]): boolean {
  *   `data-conflict` (each present or absent; `data-movable` is the task's `move` permission, so
  *   a bar that may only be resized or linked lacks it). With `keyboard.barFocus` also `tabindex`
  *   (`0` on the one tab stop: the focused bar, else the last one that was if it is still drawn,
- *   else the first drawn), `role="button"`, `aria-label` and `aria-pressed`, and the focused bar is
- *   drawn wherever it is, because the browser would lose the focus with its node. Children: `rect.gantt__bar-track` and
+ *   else the first drawn), `role="button"`, `aria-label`, and `aria-pressed` where a click selects,
+ *   and the focused bar is drawn wherever it is, because the browser would lose the focus with its
+ *   node. Children: `rect.gantt__bar-track` and
  *   `rect.gantt__bar-progress`, or
  *   `polygon.gantt__bar-milestone`; the label `.gantt__bar-label[data-placement]` (a `text`, or
  *   a `foreignObject` for a custom node); and, only where the task's permissions allow the

@@ -28,8 +28,18 @@ export interface BarFocusOptions {
 export interface BarFocus {
   /** Moves the browser's focus to the bar of a task and scrolls to it. */
   readonly focus: (id: TaskId) => void;
-  /** Call it after every draw: the focus follows `snapshot.focusedTask`, and a bar that went away. */
-  sync(): void;
+  /**
+   * Call it before every draw: a bar with the browser's focus is the focused task, also after a
+   * `focusTask(undefined)`, or it would not be kept in the document.
+   */
+  claim(): void;
+  /**
+   * Draws, and then the focus follows `snapshot.focusedTask`, and a bar that went away or was moved:
+   * a browser may take the focus from a node that is moved or removed.
+   *
+   * @param draw - Draws the layers; does not throw.
+   */
+  draw(draw: () => void): void;
   /** Lets go of the focused task, if a bar had it. */
   readonly dispose: Dispose;
 }
@@ -47,13 +57,17 @@ const NEAREST: ScrollToTaskOptions = {
  * be tabbed to, and the keys walk from it. The bars layer draws `tabindex` and keeps the focused bar
  * in the document; this is the behaviour.
  *
- * - **Focus.** A bar with the browser's focus, however it got it, is `focusTask`. A press focuses a
+ * - **Focus.** A bar with the browser's focus, however it got it, is `focusTask`, and takes that back
+ *   at the next draw from a `focusTask(undefined)`, which does not move the focus. A press focuses a
  *   bar by itself, also with the pointer captured on the scroller, and shows no ring. A `focusTask`
  *   from elsewhere moves the focus only while a bar has it: the surface that holds the focus keeps
  *   it, so a list beside the chart and the bars share one focused task and do not take it from each
  *   other. `focus` is how to move it onto a bar from anywhere.
- * - **A bar that goes away.** Firefox and WebKit send no `focusout` for an element that leaves the
- *   document, so `sync` looks at where the focus is now, and hands it to the tab stop.
+ * - **A bar that goes away or is moved.** Firefox and WebKit send no `focusout` for an element that
+ *   leaves the document, and Chromium sends one that looks like any other, also for a node that only
+ *   moves when rows are sorted. So what happens during a draw says nothing, and the end of the draw
+ *   looks at where the focus is now, and hands it to the tab stop, which is that same bar if it is
+ *   still there.
  * - **Scrolling.** Firefox does not scroll to an SVG group that takes the focus, and the others do it
  *   their own way, so a move never lets the browser scroll: it is always `preventScroll` and
  *   `scrollToTask`.
@@ -73,7 +87,11 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
   /** Whether a bar had the browser's focus when last looked at. */
   let held = false;
   let armed = false;
+  /** Whether the layers are drawing: a bar that loses the focus now is being moved or removed. */
+  let drawing = false;
 
+  const activeElement = (): Element | null | undefined =>
+    (scroller.getRootNode() as Partial<DocumentOrShadowRoot>).activeElement;
   /** The bar of this chart a node is in. */
   const barOf = (node: EventTarget | null | undefined): SVGElement | null => {
     const bar = (node as Partial<Element> | null | undefined)?.closest?.<SVGElement>('.gantt__bar');
@@ -133,15 +151,16 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
       if (bar.matches(':focus-visible')) core.scrollToTask(id, NEAREST);
     });
     on('focusout', (event, _bar, id) => {
-      const { focusedTask, layout } = core.getSnapshot();
-      // Its bar is going away: `sync` hands the focus on.
-      if (layout.getBarRect(id) === undefined) return;
+      // Its node is being moved or removed: the end of the draw hands the focus on.
+      if (drawing) return;
       held = false;
       // A bar or a row of the same tasks takes it: that says so itself, with no gap between.
       const next = (event.relatedTarget as Partial<Element> | null)?.closest?.(
         '.gantt__bar,[data-row]',
       );
-      if (focusedTask === id && idOf(next) === undefined) core.focusTask(undefined);
+      if (core.getSnapshot().focusedTask === id && idOf(next) === undefined) {
+        core.focusTask(undefined);
+      }
     });
     on('keydown', (event, bar, id) => {
       const { feedback, layout } = core.getSnapshot();
@@ -185,13 +204,21 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
 
   return {
     focus,
-    sync(): void {
+    claim(): void {
+      if (!enabled() || core.getSnapshot().focusedTask !== undefined) return;
+      const id = idOf(barOf(activeElement()));
+      if (id !== undefined) core.focusTask(id);
+    },
+    draw(draw: () => void): void {
+      drawing = true;
+      draw();
+      drawing = false;
       if (!enabled()) {
         release();
         return;
       }
       if (!armed) arm();
-      const active = (scroller.getRootNode() as Partial<DocumentOrShadowRoot>).activeElement;
+      const active = activeElement();
       const bar = barOf(active);
       const { focusedTask } = core.getSnapshot();
       if (bar !== null) {

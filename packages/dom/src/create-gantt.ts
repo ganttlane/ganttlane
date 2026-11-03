@@ -460,7 +460,6 @@ export function createChart<TData = unknown>(
   let height = (given.layout as { height?: HeightOption } | undefined)?.height;
   let display: ResolvedDisplay = resolveDisplay(displayOf(given, true, removeLink));
   let strings: GanttStrings = resolveStrings(given.strings as GanttStringsInput | undefined);
-  let multiSelect = isRecord(given.selection) && given.selection.multiple === true;
   let renderer: MountedRenderer<GanttCore<TData>> | undefined;
   const appearanceNow = (): GanttAppearance =>
     Object.freeze({
@@ -468,7 +467,7 @@ export function createChart<TData = unknown>(
       height: resolveHeight(height),
       rowStripes: display.rowStripes,
       rowHover: display.rowHover,
-      multiSelect,
+      multiSelect: display.multiSelect,
     });
   let appearance = appearanceNow();
   const syncAppearance = (): void => {
@@ -540,11 +539,6 @@ export function createChart<TData = unknown>(
       renderer?.setDisplay(displayPatch);
     }
     if ('onIssues' in source) onIssues = handlerOf(source.onIssues);
-    if ('selection' in source) {
-      const { selection } = source;
-      if (!isRecord(selection)) multiSelect = false;
-      else if ('multiple' in selection) multiSelect = selection.multiple === true;
-    }
     const forCore = coreOf(source);
     try {
       if (!isRecord(patch)) core.setOptions(patch);

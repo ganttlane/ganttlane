@@ -126,8 +126,8 @@ for (const renderer of RENDERERS) {
       await expect(bar(page, 't0')).toBeFocused();
       expect(await focusRingShown(bar(page, 't0'))).toBe(true);
       expect(await focusedTask(page)).toBe('t0');
-      const ring = await bar(page, 't0').evaluate((node) => getComputedStyle(node).stroke);
-      expect(ring).not.toBe('none');
+      const ring = await track(page, 't0').evaluate((node) => getComputedStyle(node).outlineStyle);
+      expect(ring).toBe('solid');
 
       // Past the last bar is the next thing on the page; a page with nothing there keeps the focus
       // in Firefox, which has no browser window to give it to here.
@@ -242,6 +242,116 @@ for (const renderer of RENDERERS) {
       expect(errors).toEqual([]);
     });
 
+    test(`FR-SEL-3: rows that are sorted leave the focus on its bar, with no gap (${renderer.name})`, async ({
+      page,
+    }) => {
+      const errors = watchErrors(page);
+      await open(page, renderer, { list: '0', barFocus: '1', tasks: '9' });
+      await page.evaluate(() => {
+        const w = window as never as {
+          __gantt: Hook & {
+            getRows(): readonly {
+              id: string;
+              name: string;
+              record: { start: Date; end: Date };
+            }[];
+            setTasks(tasks: readonly unknown[]): void;
+          };
+          __sort: () => void;
+          __heard: unknown[];
+        };
+        let tasks = w.__gantt.getRows().map(({ id, name, record: { start, end } }) => {
+          return { id, name, start, end };
+        });
+        w.__gantt.setTasks(tasks);
+        w.__sort = () => {
+          tasks = [...tasks].reverse();
+          w.__gantt.setTasks(tasks);
+        };
+        w.__heard = [];
+        w.__gantt.on('focusChange', (record) => {
+          w.__heard.push((record as { id: string } | null)?.id ?? null);
+        });
+      });
+      const ids = (): Promise<(string | null)[]> =>
+        page
+          .locator('.gantt__bar')
+          .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-task-id')));
+      await expect.poll(ids).toHaveLength(9);
+      const before = await ids();
+      await bar(page, 't3').focus();
+      await page.evaluate(() => {
+        (window as never as { __sort: () => void }).__sort();
+      });
+      await expect.poll(ids).toEqual([...before].reverse());
+      await expect(bar(page, 't3')).toBeFocused();
+      expect(await focusedTask(page)).toBe('t3');
+      expect(
+        await page.evaluate(() => (window as never as { __heard: unknown[] }).__heard),
+      ).toEqual(['t3']);
+      expect(errors).toEqual([]);
+    });
+
+    test(`FR-SEL-3: focusTask(undefined) leaves the bar with the focus, and a scroll does not take it (${renderer.name})`, async ({
+      page,
+    }) => {
+      await open(page, renderer, { list: '0', barFocus: '1' });
+      await bar(page, 't0').focus();
+      await page.evaluate(() => {
+        const gantt = (
+          window as never as {
+            __gantt: { focusTask(id: undefined): void; scrollTo(to: object): void };
+          }
+        ).__gantt;
+        gantt.focusTask(undefined);
+        gantt.scrollTo({ top: 1500, behavior: 'instant' });
+      });
+      await expect
+        .poll(() => scroller(page).evaluate((node) => node.scrollTop))
+        .toBeGreaterThan(1000);
+      await expect(bar(page, 't0')).toBeFocused();
+      await expect.poll(() => focusedTask(page)).toBe('t0');
+    });
+
+    test(`FR-SEL-3: the ring and the state of a bar show at once, and pressing Enter changes what is seen (${renderer.name})`, async ({
+      page,
+    }) => {
+      await open(page, renderer, { list: '0', barFocus: '1', multiple: '1' });
+      const look = (): Promise<{ stroke: string; ring: string; color: string }> =>
+        track(page, 't1').evaluate((node) => {
+          const style = getComputedStyle(node);
+          return { stroke: style.stroke, ring: style.outlineStyle, color: style.outlineColor };
+        });
+      await scroller(page).focus();
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('ArrowDown');
+      await expect(bar(page, 't1')).toBeFocused();
+      const plain = await look();
+      expect(plain.ring).toBe('solid');
+
+      await page.keyboard.press('Enter');
+      await expect(bar(page, 't1')).toHaveAttribute('aria-pressed', 'true');
+      const pressed = await look();
+      expect(pressed.ring).toBe('solid');
+      expect(pressed.color).toBe(plain.color);
+      expect(pressed.stroke).not.toBe(plain.stroke);
+      expect(pressed.stroke).not.toBe(plain.color);
+
+      await page.keyboard.press('ControlOrMeta+Enter');
+      await expect(bar(page, 't1')).toHaveAttribute('aria-pressed', 'false');
+      expect(await look()).toEqual(plain);
+
+      // No ring without the keyboard: a press shows the state and nothing more.
+      await track(page, 't2').click();
+      await expect(bar(page, 't2')).toBeFocused();
+      const pressedByMouse = await track(page, 't2').evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { stroke: style.stroke, ring: style.outlineStyle };
+      });
+      expect(pressedByMouse.ring).toBe('none');
+      expect(pressedByMouse.stroke).toBe(pressed.stroke);
+    });
+
     test(`FR-SEL-3: focusBar moves the focus from anywhere and shows the bar, in every engine (${renderer.name})`, async ({
       page,
     }) => {
@@ -338,6 +448,66 @@ for (const renderer of RENDERERS) {
       await page.keyboard.press('Tab');
       await expect(bar(page, 't3')).toBeFocused();
       expect(await focusRingShown(bar(page, 't3'))).toBe(true);
+    });
+
+    test(`FR-SEL-3: with the options off, a button in a bar's label takes the focus from a row, and the list does not take it back (${renderer.name})`, async ({
+      page,
+    }) => {
+      await open(page, renderer);
+      await page.evaluate(() => {
+        (window as never as { __gantt: { setOptions(options: object): void } }).__gantt.setOptions({
+          display: {
+            barLabel: 'inside',
+            renderBarLabel: () => {
+              const button = document.createElement('button');
+              button.textContent = 'Open';
+              return button;
+            },
+          },
+        });
+        document.body.append(document.createElement('input'));
+      });
+      const button = bar(page, 't2').locator('button');
+      await expect(button).toBeVisible();
+      await row(page, 't1').focus();
+      await button.focus();
+      await expect(button).toBeFocused();
+      await expect.poll(() => focusedTask(page)).toBeUndefined();
+
+      const input = page.locator('body > input');
+      await input.focus();
+      await track(page, 't5').hover();
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      await expect(input).toBeFocused();
+    });
+
+    test(`FR-SEL-3: with bars that take the focus, a button in a label keeps it (${renderer.name})`, async ({
+      page,
+    }) => {
+      await open(page, renderer, { barFocus: '1' });
+      await page.evaluate(() => {
+        (window as never as { __gantt: { setOptions(options: object): void } }).__gantt.setOptions({
+          display: {
+            barLabel: 'inside',
+            renderBarLabel: () => {
+              const button = document.createElement('button');
+              button.textContent = 'Open';
+              return button;
+            },
+          },
+        });
+      });
+      const button = bar(page, 't2').locator('button');
+      await expect(button).toBeVisible();
+      await row(page, 't1').focus();
+      await button.focus();
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      await expect(button).toBeFocused();
+      expect(await focusedTask(page)).toBe('t2');
     });
 
     test(`FR-SEL-3: without barFocus the list works as before: a focusTask brings its row the focus (${renderer.name})`, async ({
@@ -534,18 +704,3 @@ for (const renderer of RENDERERS) {
     });
   });
 }
-
-test('FR-SEL-3: the ring is drawn on the bar: the stroke of its track is the focus colour', async ({
-  page,
-}) => {
-  await open(page, RENDERERS[0], { list: '0', barFocus: '1' });
-  const strokeOf = (): Promise<string> =>
-    track(page, 't0').evaluate((node) => getComputedStyle(node).stroke);
-  const before = await strokeOf();
-  await scroller(page).focus();
-  await page.keyboard.press('Tab');
-  await expect(bar(page, 't0')).toBeFocused();
-  const ring = await strokeOf();
-  expect(ring).not.toBe(before);
-  expect(ring).not.toBe('none');
-});

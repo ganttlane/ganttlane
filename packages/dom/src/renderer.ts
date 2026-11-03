@@ -358,6 +358,7 @@ export function mountRenderer<TCore extends RendererCore>(
       scrollSync.catchUp();
       // Where the page is, for a chart of automatic height: read before anything is written.
       scrollSync.measure();
+      barFocus.claim();
       const snapshot = core.getSnapshot();
       if (snapshot === rendered && display === renderedDisplay && strings === renderedStrings) {
         return;
@@ -388,14 +389,15 @@ export function mountRenderer<TCore extends RendererCore>(
       }
 
       const errors: unknown[] = [];
-      for (const layer of updaters) {
-        try {
-          layer.update(snapshot, previous);
-        } catch (error) {
-          errors.push(error);
+      barFocus.draw(() => {
+        for (const layer of updaters) {
+          try {
+            layer.update(snapshot, previous);
+          } catch (error) {
+            errors.push(error);
+          }
         }
-      }
-      barFocus.sync();
+      });
       throwCollected(errors, 'Several layers failed to update');
     };
 

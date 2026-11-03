@@ -195,11 +195,20 @@ export const MERGED_OPTION_GROUPS: ReadonlySet<string> = new Set([
 /** The display options that are lifted to the top level, and so are not read from `display`. */
 const LIFTED: ReadonlySet<string> = new Set([
   'barFocus',
+  'clickSelects',
+  'multiSelect',
   'highlightDays',
   'tooltip',
   'linkMenu',
   'highlightTooltip',
 ]);
+
+/** The fields of groups that the renderer draws by: the group, the field, the display option. */
+const BORROWED = [
+  ['keyboard', 'barFocus', 'barFocus'],
+  ['selection', 'onClick', 'clickSelects'],
+  ['selection', 'multiple', 'multiSelect'],
+] as const;
 
 /**
  * What goes to the core: the given options without the renderer's. `layout` loses `height`, and
@@ -305,7 +314,15 @@ export function displayOf(
   creating: boolean,
   onRemove: (link: LinkRecord) => unknown,
 ): DisplayOptions | undefined {
-  const touched = ['display', 'highlights', 'tooltip', 'linkMenu', 'highlightTooltip', 'keyboard'];
+  const touched = [
+    'display',
+    'highlights',
+    'tooltip',
+    'linkMenu',
+    'highlightTooltip',
+    'keyboard',
+    'selection',
+  ];
   if (!creating && !touched.some((key) => key in source)) return undefined;
   // A `display` that is not an object, or is `undefined`, puts every plain option back.
   const plain = isRecord(source.display)
@@ -316,10 +333,11 @@ export function displayOf(
   const patch: Record<string, unknown> = Object.fromEntries(
     Object.entries(plain).filter(([key]) => !LIFTED.has(key)),
   );
-  if ('keyboard' in source) {
-    const { keyboard } = source;
-    if (!isRecord(keyboard)) patch.barFocus = undefined;
-    else if ('barFocus' in keyboard) patch.barFocus = keyboard.barFocus;
+  for (const [group, field, key] of BORROWED) {
+    const value = source[group];
+    if (!(group in source)) continue;
+    if (!isRecord(value)) patch[key] = undefined;
+    else if (field in value) patch[key] = value[field];
   }
   if ('highlights' in source) patch.highlightDays = highlightsOf(source.highlights);
   if ('tooltip' in source) patch.tooltip = groupOf('tooltip', source.tooltip);

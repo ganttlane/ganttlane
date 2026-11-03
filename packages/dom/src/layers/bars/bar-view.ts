@@ -374,7 +374,7 @@ export function updateBarView(view: BarView, item: BarItem, env: BarEnv): void {
   }
   const { task } = model;
   const can = resolvePermissions(model, env.editing);
-  const { barFocus } = env.display;
+  const { barFocus, clickSelects } = env.display;
   setAttrs(view.node, {
     class: withClass('gantt__bar', task.className),
     'data-task-id': String(bar.id),
@@ -388,11 +388,12 @@ export function updateBarView(view: BarView, item: BarItem, env: BarEnv): void {
     'data-readonly': !(can.move || can.resize || can.progress),
     'data-invalid': !model.valid,
     'data-conflict': (flags & BAR_FLAGS.conflict) !== 0,
-    // Only where bars take the focus: a bar has to have a name then, and say that it is selected.
+    // Only where bars take the focus: a bar has to have a name then, and is a toggle only where a
+    // click on it selects.
     tabindex: barFocus && ((flags & BAR_FLAGS.tabStop) !== 0 ? 0 : -1),
     role: barFocus && 'button',
-    'aria-label': barFocus && model.name,
-    'aria-pressed': barFocus && String((flags & BAR_FLAGS.selected) !== 0),
+    'aria-label': barFocus && (model.name === '' ? String(bar.id) : model.name),
+    'aria-pressed': barFocus && clickSelects && String((flags & BAR_FLAGS.selected) !== 0),
   });
   setCssVar(
     view.node,
