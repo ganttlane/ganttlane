@@ -546,4 +546,4 @@ export {
 /**
  * Version of the `@ganttlane/core` package (`scripts/sync-version.mjs` keeps it in step).
  */
-export const VERSION: string = '0.0.0';
+export const VERSION: string = '0.1.0';
