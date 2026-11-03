@@ -138,7 +138,8 @@ function toDayStart(iso: string): DateTimeMs {
 
 describe('@ganttlane/core', () => {
   it('exposes a version string', () => {
-    expect(VERSION).toBe('0.0.0');
+    // That it is the version of the manifest is tested in `@ganttlane/dom`: no Node here.
+    expect(VERSION).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   it('exposes exactly the public runtime API', () => {

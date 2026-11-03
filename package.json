@@ -33,7 +33,7 @@
     "test:tz": "for tz in UTC America/New_York America/Santiago Europe/Kyiv Asia/Kolkata Pacific/Chatham; do echo \"core tests in TZ=$tz\" && TZ=$tz vitest run --project core --reporter=dot || exit 1; done",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json && tsc -p e2e && pnpm -r --parallel typecheck",
-    "version-packages": "changeset version && pnpm install --lockfile-only"
+    "version-packages": "changeset version && node scripts/sync-version.mjs && pnpm install --lockfile-only"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",

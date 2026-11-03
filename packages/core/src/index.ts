@@ -544,6 +544,6 @@ export {
 } from './viewport';
 
 /**
- * Version of the `@ganttlane/core` package; `'0.0.0'` until the first release.
+ * Version of the `@ganttlane/core` package (`scripts/sync-version.mjs` keeps it in step).
  */
 export const VERSION: string = '0.0.0';

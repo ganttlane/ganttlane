@@ -1,11 +1,14 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import * as dom from './index';
 import { LAYER_ORDER, VERSION } from './index';
 
 describe('@ganttlane/dom', () => {
-  it('re-exports the core version', () => {
-    expect(VERSION).toBe('0.0.0');
+  it('re-exports the core version, which is the version of its manifest too', () => {
+    const manifest = readFileSync(`${import.meta.dirname}/../package.json`, 'utf8');
+    expect(VERSION).toBe((JSON.parse(manifest) as { version: string }).version);
   });
 
   it('FR-API-1: exports the facade, the renderer and the layer order (the types are not values)', () => {
