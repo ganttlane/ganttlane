@@ -85,6 +85,18 @@ export default defineConfig({
       title: 'ganttlane',
       description:
         'An interactive Gantt chart library for the web: a framework-agnostic TypeScript core, a vanilla DOM renderer with a themable stylesheet, and React bindings.',
+      logo: {
+        light: './src/assets/brand/logo-light.svg',
+        dark: './src/assets/brand/logo-dark.svg',
+        alt: 'ganttlane',
+        replacesTitle: true,
+      },
+      head: [
+        {
+          tag: 'link',
+          attrs: { rel: 'apple-touch-icon', href: '/ganttlane/apple-touch-icon.png' },
+        },
+      ],
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ganttlane/ganttlane' }],
       editLink: { baseUrl: 'https://github.com/ganttlane/ganttlane/edit/main/apps/site/' },
       customCss: ['./src/styles/site.css'],

@@ -1,4 +1,9 @@
-# ganttlane
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/site/src/assets/brand/logo-dark.svg">
+    <img alt="ganttlane" src="apps/site/src/assets/brand/logo-light.svg" width="340">
+  </picture>
+</h1>
 
 An interactive Gantt chart library for the web: a framework-agnostic TypeScript core, a vanilla DOM
 renderer with a themable stylesheet, and React bindings. Plans with thousands of tasks stay smooth
