@@ -4,6 +4,7 @@ import { act, createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Gantt } from './Gantt';
+import { TaskList } from './TaskList';
 import type { ListenerTracker } from './testing';
 import {
   cleanUpDocument,
@@ -15,6 +16,7 @@ import {
 import { chartOf, charts, forgetCharts } from './testing/charts';
 import { collect, Harness } from './testing/harness';
 import type { GanttHandle, GanttInstance, GanttReactOptions } from './types';
+import { useGantt } from './use-gantt';
 import { useGanttState } from './use-gantt-state';
 
 vi.mock('@ganttlane/dom/facade', async (importOriginal) => {
@@ -53,6 +55,23 @@ afterEach(() => {
   cleanUpDocument();
 });
 
+/** A chart and its task list, in the component that hides. */
+function PlanWithList({
+  capture,
+}: {
+  readonly capture: (instance: GanttInstance) => void;
+}): ReactElement {
+  const gantt = useGantt(options());
+  const { setContainer } = gantt;
+  capture(gantt);
+  return (
+    <>
+      <TaskList gantt={gantt} />
+      <div ref={setContainer} />
+    </>
+  );
+}
+
 function options(extra: Partial<GanttReactOptions> = {}): GanttReactOptions {
   return {
     defaultTasks: TASKS,
@@ -67,6 +86,25 @@ describe.skipIf(Activity === undefined)('a chart in a hidden <Activity>', () => 
     const Wrapper = Activity!;
     return <Wrapper mode={mode}>{node}</Wrapper>;
   };
+
+  it('FR-REACT-8: a task list comes back with the chart, and its row hover with it', async () => {
+    const { capture, latest } = collect();
+    const plan = <PlanWithList capture={capture} />;
+    const view = await renderInto(page('visible', plan));
+    const instance = latest();
+    expect(instance.getAppearance().rowHover).toBe(true);
+    act(() => {
+      instance.collapse('p');
+    });
+
+    await view.render(page('hidden', plan));
+    expect(view.container.querySelector('.gantt')).toBeNull();
+
+    await view.render(page('visible', plan));
+    expect(instance.getAppearance().rowHover).toBe(true);
+    const rows = [...view.container.querySelectorAll<HTMLElement>('.gantt-task-list__row')];
+    expect(rows.map((row) => row.dataset.taskId)).toEqual(['a', 'b', 'p']);
+  });
 
   it('FR-REACT-5: hiding removes the chart and ends its core; showing makes it again with its state', async () => {
     const { capture, latest } = collect();

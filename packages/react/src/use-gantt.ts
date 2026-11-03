@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useReducer, useState } from 'react';
+import {
+  type DependencyList,
+  type EffectCallback,
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useState,
+} from 'react';
 
 import { type Controller, createController } from './controller';
 import type { GanttInstance, GanttReactOptions } from './types';
@@ -8,9 +15,9 @@ import type { GanttInstance, GanttReactOptions } from './types';
  * none: React 18 warns about a layout effect on the server. Looked up when the hook runs, not
  * when the module loads: importing this package reads no global.
  */
-export function useIsomorphicLayoutEffect(effect: () => void): void {
+export function useIsomorphicLayoutEffect(effect: EffectCallback, deps?: DependencyList): void {
   const useEffectOfHost = typeof document === 'undefined' ? useEffect : useLayoutEffect;
-  useEffectOfHost(effect);
+  useEffectOfHost(effect, deps);
 }
 
 const next = (count: number): number => count + 1;

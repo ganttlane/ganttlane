@@ -14,7 +14,7 @@ and the bar label, a `ref` handle, StrictMode and server rendering.
 > reference of the package.
 
 > **Status:** `0.x`: the API may still change between minor versions until `1.0`. Compound
-> components and a task list come later (see [Limits and roadmap](#limits-and-roadmap)).
+> components come later (see [Limits and roadmap](#limits-and-roadmap)).
 
 Coming from frappe-gantt, or from a modified fork of it? See the [migration guide](https://github.com/ganttlane/ganttlane/blob/main/MIGRATION.md).
 
@@ -31,6 +31,7 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 - [Methods](#methods)
 - [`patchTasks` on a server: `@ganttlane/react/core`](#patchtasks-on-a-server-ganttlanereactcore)
 - [Hooks](#hooks)
+- [`TaskList`](#tasklist)
 - [Slots: tooltip, link menu and bar label as `ReactNode`](#slots-tooltip-link-menu-and-bar-label-as-reactnode)
 - [The `ref` handle](#the-ref-handle)
 - [StrictMode, server rendering and hidden trees](#strictmode-server-rendering-and-hidden-trees)
@@ -421,9 +422,10 @@ The methods of the chart are the ones of the vanilla [`Gantt`](https://github.co
 (`useRef<GanttHandle>(null)`) and the **instance** `useGantt` returns. They are data
 (`setTasks`, `setLinks`, `updateTask`, `addLink`, `removeLink`), `setOptions` (an escape hatch: a prop
 that changes later wins over it), the view and scrolling (`setViewMode`, `zoomTo`, `scrollToDate`,
-`scrollToToday`, `scrollToTask`), rows (`expand`, `collapse`, `expandAll`, `collapseAll`), selection
-(`select`, `selectLink`, `clearSelection`), queries (`getTask`, `getLink`, `getVisibleRange`,
-`getRowMetrics`, `getBarRect`, `getIssues`), `hideTooltip`, the edit session (`edit.begin`,
+`scrollToToday`, `scrollToTask`, `scrollTo`), rows (`expand`, `collapse`, `toggle`, `expandAll`,
+`collapseAll`, `setHoveredRow`, `focusTask`), selection (`select`, `selectLink`, `clearSelection`),
+queries (`getTask`, `getLink`, `getVisibleRange`, `getRowMetrics`, `getBarRect`, `getRows`,
+`getRowWindow`, `getLayoutMetrics`, `getAppearance`, `getIssues`), `hideTooltip`, the edit session (`edit.begin`,
 `commit`, `rollback`, `getChanges`, `isOpen`, `isDirty`), history (`undo`, `redo`, `canUndo`,
 `canRedo`; they need `history: true`), `on` and `core`, plus `getSnapshot()` and `subscribe()`. See
 [The `ref` handle](#the-ref-handle) and [Hooks](#hooks) for how to hold them.
@@ -707,6 +709,58 @@ export function Plan() {
 - **One object.** With `useGantt` the handle is the instance the hook returns, and `ref` is for when
   you render `<Gantt>` and want its methods.
 
+## `TaskList`
+
+`<TaskList gantt={instance} />` is the list of tasks that a classic gantt tool has on its left: a row
+for every row of the chart at the same height and place, indented by depth, with a toggle on the
+groups, the columns you choose and a splitter on its end edge. It takes the instance of
+[`useGantt`](#hooks), which exists while your component renders, so the list also renders on a
+server. A `ref` of `<Gantt>` would be `null` until the commit.
+
+```tsx
+import '@ganttlane/react/styles.css';
+import { TaskList, useGantt } from '@ganttlane/react';
+
+const columns = [
+  { id: 'name', header: 'Task' },
+  { id: 'done', header: '%', width: 48, align: 'end', value: (row) => `${row.record.progress}` },
+];
+
+function Plan() {
+  const gantt = useGantt({
+    defaultTasks: tasks,
+    layout: { height: 500 },
+    selection: { onClick: true },
+  });
+  const { setContainer, slots } = gantt;
+  return (
+    <div style={{ display: 'flex' }}>
+      <TaskList gantt={gantt} columns={columns} />
+      <div ref={setContainer} style={{ flex: '1 1 0', minWidth: 0 }} />
+      {slots}
+    </div>
+  );
+}
+```
+
+| Prop                                     | What it does                                                                                                                        |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `gantt`                                  | The chart                                                                                                                           |
+| `columns`                                | `{ id, header, width, align, tree, value, render }[]`; `render` returns a `ReactNode`. Memoize them if your component renders often |
+| `width`, `defaultWidth`, `onWidthChange` | The width, controlled or uncontrolled (default `280`)                                                                               |
+| `minWidth`, `maxWidth`                   | What the splitter may do (default `120`, `640`)                                                                                     |
+| `splitter`, `indent`, `theme`, `strings` | The splitter, the indent of a level, its own theme (default the chart's), text                                                      |
+| `onRowClick`, `onRowDoubleClick`         | `(record, event)`, always the latest. `preventDefault()` keeps a click from selecting and scrolling                                 |
+| `id`, `className`, `style`               | Of its root                                                                                                                         |
+
+It keeps in sync what is expanded and selected, the row under the pointer or with the keyboard
+focus, the vertical position, the theme, the stripes and the sizes. With `layout.height: 'auto'`,
+in one box that scrolls both, the two cannot differ; with a fixed or filling height each has its own
+scroller, and the list can be **a frame behind during a fast fling**. A list turns on the chart's
+`display.rowHover`: a chart without one lights no row. The markup is the one of the vanilla list:
+see [its section](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#task-list)
+in the README of `@ganttlane/dom`, which also has the keyboard.
+
 ## StrictMode, server rendering and hidden trees
 
 - **StrictMode.** Mount, unmount, mount leaves one chart, no leaked listener, timer or
@@ -821,23 +875,24 @@ browser hydrates (`/react-ssr/`). What differs on 18.3:
 
 ## Size
 
-`@ganttlane/react` adds about 6.5 kB (min + gzip) to what an application already ships of
+`@ganttlane/react` adds about 8 kB (min + gzip) to what an application already ships of
 `@ganttlane/core` and `@ganttlane/dom` (budget 10 kB), React excluded.
 
 ## Limits and roadmap
 
 Limits you should know about today:
 
-- **Compound components, headless hooks as a public API, React Aria integration and a `TaskList`
-  component are not here yet** (planned for 1.0). What exists is `<Gantt>`, `useGantt`,
-  `useGanttState`, the `ref` handle and the three slots.
+- **Compound components, headless hooks as a public API and React Aria integration are not here
+  yet** (planned for 1.0). What exists is `<Gantt>`, `<TaskList>`, `useGantt`, `useGanttState`, the
+  `ref` handle and the three slots.
 - A hidden `<Activity>` takes the chart away and brings a new one back: uncontrolled data, view mode,
   expanded parents, selection and zoom are carried over, but an open edit session ends as a Cancel
   and the undo history is cleared (see
   [StrictMode, server rendering and hidden trees](#strictmode-server-rendering-and-hidden-trees)).
 - A React label does not have a measurable width, so `display.barLabel: 'auto'` puts it inside the
   bar; choose `'inside'` or `'outside'`. Each visible bar's label is one portal.
-- The server renders the container only; the chart is drawn after hydration.
+- The server renders the container only; the chart is drawn after hydration. A `<TaskList>` renders
+  its first rows.
 - Controlled `tasks` need `onTasksChange` while editing is on (development warns), and a new array
   with equal contents ends a pending draft.
 - The limits of the renderer and the core apply too: left to right only, no toolbar, no zoom

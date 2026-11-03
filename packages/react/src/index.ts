@@ -14,6 +14,8 @@
 
 export { Gantt } from './Gantt';
 export type { SlotKind, SlotRender } from './slots';
+export type { TaskListColumn, TaskListProps } from './TaskList';
+export { TaskList } from './TaskList';
 export type {
   ExpandedKeys,
   GanttControlledProps,
@@ -27,6 +29,12 @@ export type {
 } from './types';
 export { useGantt } from './use-gantt';
 export { useGanttState } from './use-gantt-state';
+export type {
+  TaskListColumnBase,
+  TaskListRowHandlers,
+  TaskListSharedOptions,
+  TaskListStrings,
+} from '@ganttlane/dom/task-list';
 
 // What controlled data needs, `patchTasks`, and the types of the data you
 // give and the events you get: the entry without the client directive, see `./core`.
