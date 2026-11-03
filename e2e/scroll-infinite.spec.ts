@@ -6,12 +6,16 @@ import {
   countMoves,
   DAY_MS,
   edgeMovement,
+  endMoves,
   expectDateAt,
+  handlings,
   openScrollPage,
   sample,
   settle,
+  startMoves,
   startRecording,
   stopRecording,
+  touchPan,
   trackErrors,
   worstJump,
 } from './scroll-support';
@@ -25,16 +29,19 @@ import {
  *
  * After each source the same things are asserted (`expectStable`):
  *
- * - **no jump.** For every `scroll` event, the date at the left edge moved by at most 1 px across
- *   the renderer's handling, which is where the range changes and `scrollLeft` is compensated
- *   (FR-TL-3); the header row drawn in that same task agrees with the new `scrollLeft`, and so
- *   does the content width (one render before paint);
+ * - **no jump.** For every `scroll` event and every frame, the date at the left edge moved by at
+ *   most 1 px across the renderer's handling, which is where the range changes and `scrollLeft`
+ *   is compensated (FR-TL-3: in the event handler for the position the event reports, and, where
+ *   the browser animates the scroll on the main thread, as Chromium does on Linux, in the frame
+ *   for the position the scroller has reached since); the header row drawn in that same task
+ *   agrees with the new `scrollLeft`, and so does the content width (one render before paint);
  * - **bounded DOM.** The number of bar nodes and of all nodes stays within the window's, however
  *   far the chart has been scrolled;
  * - **no errors** on the page.
  *
  * Touch needs a real pan gesture, which Playwright can only synthesize through the Chromium
- * DevTools protocol (`Input.synthesizeScrollGesture`); Firefox and WebKit skip that test.
+ * DevTools protocol (`touchPan`, from `Input.dispatchTouchEvent`); Firefox and WebKit skip that
+ * test.
  */
 
 /** The chart: a fortnight (560 px) per extension, within 400 px of an edge, from 2026-03-09. */
@@ -66,24 +73,20 @@ async function frames(page: Page, count = 2): Promise<void> {
 function expectStable(recording: Recording, first: Sample, label = 'run', scrolled = true): void {
   // A scroll to a date outside the range may move nothing but the range (same offset, new origin).
   if (scrolled) expect(recording.events.length, label).toBeGreaterThan(0);
-  // FR-TL-3: no jump across any event's handling, whatever the source scrolled.
+  // The renderer's work is in the scroll events and in the frames (see `Handling`).
+  const handled = handlings(recording);
+  // FR-TL-3: no jump across any event's or frame's handling, whatever the source scrolled.
   expect(worstJump(recording)).toBeLessThanOrEqual(1);
   // FR-TL-5: the content was resized in the event, and a compensated one also redrew the layers
   // (a header whose sticky cell is the one under the new `scrollLeft`) before the task ended.
-  expect(recording.events.filter((event) => !event.widthInSync)).toEqual([]);
-  expect(recording.events.filter((event) => event.compensated && !event.headerAtEdge)).toEqual([]);
+  expect(handled.filter((handling) => !handling.widthInSync)).toEqual([]);
+  expect(handled.filter((handling) => handling.compensated && !handling.headerAtEdge)).toEqual([]);
   // A range that grew at its start was compensated by a write to scrollLeft.
-  expect(recording.events.filter((event) => event.startMoved && !event.compensated)).toEqual([]);
+  expect(handled.filter((handling) => handling.startMoved && !handling.compensated)).toEqual([]);
   // FR-TL-4: the DOM is bounded by the window, not by the length of the timeline.
   expect(recording.maxBars).toBeLessThanOrEqual(30);
   expect(recording.maxNodes).toBeLessThanOrEqual(first.nodes * 1.5 + 50);
 }
-
-/** How many events moved the start (an extension or a trim of that side) and the end. */
-const startMoves = (recording: Recording): number =>
-  recording.events.filter((event) => event.startMoved).length;
-const endMoves = (recording: Recording): number =>
-  recording.events.filter((event) => event.endMoved).length;
 
 /** Keeps nothing but the page's own console noise out of the way: errors are what matters. */
 test.describe('infinite timeline in the DOM (FR-TL-8)', () => {
@@ -233,27 +236,29 @@ test.describe('infinite timeline in the DOM (FR-TL-8)', () => {
     );
     const errors = trackErrors(page);
     await openScrollPage(page, QUERY);
-    const centre = await parkMouse(page);
+    const box = await page.locator('#chart .gantt__scroller').boundingBox();
+    if (!box) throw new Error('the scroller has no box');
     const cdp = await page.context().newCDPSession(page);
-    const swipe = async (xDistance: number, preventFling: boolean): Promise<void> => {
-      await cdp.send('Input.synthesizeScrollGesture', {
-        x: centre.x,
-        y: centre.y,
-        xDistance,
-        gestureSourceType: 'touch',
-        speed: 6000,
-        preventFling,
-      });
+    // The finger lands near the edge the content is dragged away from, and travels across the
+    // scroller (a swipe cannot be longer than the scroller is wide).
+    const swipe = async (dx: number, fling: boolean): Promise<void> => {
+      const reach = Math.min(Math.abs(dx), box.width - 80);
+      await touchPan(
+        cdp,
+        { x: dx > 0 ? box.x + 40 : box.x + box.width - 40, y: box.y + box.height / 2 },
+        { dx: Math.sign(dx) * reach },
+        { speed: 6000, fling },
+      );
     };
     const first = await sample(page);
     await startRecording(page);
 
     // A positive distance drags the content to the right: towards the start.
-    for (let i = 0; i < 6; i += 1) await swipe(1000, true);
-    await swipe(900, false);
+    for (let i = 0; i < 6; i += 1) await swipe(1000, false);
+    await swipe(900, true);
     await settle(page);
-    for (let i = 0; i < 14; i += 1) await swipe(-1000, true);
-    await swipe(-1100, false);
+    for (let i = 0; i < 14; i += 1) await swipe(-1000, false);
+    await swipe(-1100, true);
     await settle(page);
 
     const recording = await stopRecording(page);

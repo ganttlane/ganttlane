@@ -328,6 +328,10 @@ export function mountRenderer<TCore extends RendererCore>(
     let renderedStrings = strings;
 
     const render = (): void => {
+      // Where the scroller is now, if the browser moved it after the last scroll event (a scroll
+      // it animates on the main thread does that every frame): the window is drawn for the
+      // position this frame paints, not for the one before.
+      scrollSync.catchUp();
       // Where the page is, for a chart of automatic height: read before anything is written.
       scrollSync.measure();
       const snapshot = core.getSnapshot();

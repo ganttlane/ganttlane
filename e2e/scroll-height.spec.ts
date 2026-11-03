@@ -5,16 +5,20 @@ import type { Box, PageLayout } from './scroll-support';
 import {
   barBox,
   DAY_MS,
+  endMoves,
   expectDateAt,
   farTask,
+  handlings,
   openScrollPage,
   pageLayout,
   sample,
   scrollCall,
   settle,
+  startMoves,
   startRecording,
   stopRecording,
   taskAt,
+  touchPan,
   trackErrors,
   worstJump,
 } from './scroll-support';
@@ -436,11 +440,11 @@ test.describe('scrolling and height (FR-SCROLL-1 … FR-SCROLL-3)', () => {
     const recording = await stopRecording(page);
     const layout = await pageLayout(page);
     expect(worstJump(recording)).toBeLessThanOrEqual(1);
-    expect(recording.events.filter((event) => event.compensated && !event.headerAtEdge)).toEqual(
-      [],
-    );
-    expect(recording.events.filter((event) => event.startMoved).length).toBeGreaterThanOrEqual(3);
-    expect(recording.events.filter((event) => event.endMoved).length).toBeGreaterThanOrEqual(3);
+    expect(
+      handlings(recording).filter((handling) => handling.compensated && !handling.headerAtEdge),
+    ).toEqual([]);
+    expect(startMoves(recording)).toBeGreaterThanOrEqual(3);
+    expect(endMoves(recording)).toBeGreaterThanOrEqual(3);
     expect(Math.abs((layout.pinScrollLeft ?? -1) - layout.scrollerScrollLeft)).toBeLessThanOrEqual(
       1,
     );
@@ -701,16 +705,8 @@ test.describe("height: 'auto' next to the application's own layout (review of st
     const x = (pin.left + pin.right) / 2;
     const y = (pin.top + pin.bottom) / 2;
     const cdp = await page.context().newCDPSession(page);
-    const swipe = async (xDistance: number, yDistance: number): Promise<void> => {
-      await cdp.send('Input.synthesizeScrollGesture', {
-        x,
-        y,
-        xDistance,
-        yDistance,
-        gestureSourceType: 'touch',
-        speed: 800,
-        preventFling: true,
-      });
+    const swipe = async (dx: number, dy: number): Promise<void> => {
+      await touchPan(cdp, { x, y }, { dx, dy }, { speed: 800 });
     };
     const before = (await pageLayout(page)).scrollerScrollLeft;
 

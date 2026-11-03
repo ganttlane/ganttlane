@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { CDPSession, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 /**
@@ -37,9 +37,15 @@ interface PageHandle {
         readonly scale: { readonly pxPerDay: number; xToDate(x: number): number };
       };
       readonly contentWidth: number;
+      /** The latest scroll request (the application asked for a scroll), by id. */
+      readonly scrollRequest?: { readonly id: number } | undefined;
     };
   };
-  /** Called by the page after every frame the renderer ran in (`apps/playground/src/scroll.ts`). */
+  /**
+   * Called by the page before and after the renderer's frame callbacks of every frame it ran in
+   * (`apps/playground/src/scroll.ts`).
+   */
+  beforeFrame?: (() => void) | undefined;
   onFrame?: (() => void) | undefined;
 }
 
@@ -151,14 +157,21 @@ export function trackErrors(page: Page): string[] {
   return errors;
 }
 
-/** One `scroll` event of the scroller, see {@link startRecording}. */
-export interface ScrollEventRecord {
-  /** The date at the left edge moved by this many px across the renderer's handling of the event. */
+/**
+ * What the renderer's work did to the chart, in one `scroll` event or in one frame. The renderer
+ * extends and trims the range, and compensates `scrollLeft`, in both: in the event handler for
+ * the position the event reports, and, in a frame, for the position the scroller has by then (a
+ * browser that animates a scroll on the main thread, as Chromium does on Linux, takes its next
+ * step between the event and the frame callbacks). A check of the range or of the compensation
+ * has to look at both.
+ */
+export interface Handling {
+  /** The date at the left edge moved by this many px across the renderer's work. */
   readonly jump: number;
-  /** Whether the range start / end moved while the event was handled. */
+  /** Whether the range start / end moved during it. */
   readonly startMoved: boolean;
   readonly endMoved: boolean;
-  /** The renderer wrote `scrollLeft` while handling the event: a compensation. */
+  /** The renderer wrote `scrollLeft` during it: a compensation (or a request it performed). */
   readonly compensated: boolean;
   /** The finest header row's cell under the left edge, in DOM coordinates, contains the edge. */
   readonly headerAtEdge: boolean;
@@ -166,13 +179,18 @@ export interface ScrollEventRecord {
   readonly widthInSync: boolean;
 }
 
+/** One `scroll` event of the scroller, see {@link startRecording}. */
+export type ScrollEventRecord = Handling;
+
 /**
  * One frame of a recording: what a paint at that moment would show. Sampled by the page at the
  * end of a frame in which the renderer ran, after its render, so the snapshot, the DOM and the
  * scroller's position are those of one picture (a timer after the frame can see the next
- * frame's scroll position next to the last frame's snapshot).
+ * frame's scroll position next to the last frame's snapshot). Its {@link Handling} is the
+ * renderer's frame callbacks'; a frame that performed a scroll request has a `jump` of 0, since
+ * moving the edge is what a request is for.
  */
-export interface FrameRecord {
+export interface FrameRecord extends Handling {
   /** The date at the left edge, from the snapshot's scale and the real `scrollLeft`. */
   readonly edge: number;
   readonly pxPerDay: number;
@@ -225,18 +243,57 @@ export async function startRecording(page: Page): Promise<void> {
       abort.abort();
     };
 
-    let before: { left: number; edge: number; start: number; end: number } | undefined;
+    /** The chart before a stretch of the renderer's work. */
+    interface Look {
+      readonly left: number;
+      readonly edge: number;
+      readonly start: number;
+      readonly end: number;
+      readonly request: number | undefined;
+    }
+    const look = (): Look => {
+      const { timeline, scrollRequest } = handle.core.getSnapshot();
+      const left = scroller.scrollLeft;
+      return {
+        left,
+        edge: timeline.scale.xToDate(left),
+        start: timeline.range.start,
+        end: timeline.range.end,
+        request: scrollRequest?.id,
+      };
+    };
+    // What the renderer's work since `since` did to the chart (`ignoreJump`: it performed a
+    // request, which moves the edge on purpose).
+    const handled = (since: Look, ignoreJump: boolean): Handling => {
+      const { timeline, contentWidth } = handle.core.getSnapshot();
+      const left = scroller.scrollLeft;
+      // The finest header row's cell with the sticky label is the one under the left edge.
+      const rows = [...root.querySelectorAll<HTMLElement>('.gantt__header-row')];
+      const cell = rows
+        .at(-1)
+        ?.querySelector<HTMLElement>('.gantt__header-label[data-sticky]')
+        ?.closest<HTMLElement>('.gantt__header-cell');
+      const x = Number.parseFloat(cell?.style.left ?? 'NaN');
+      const width = Number.parseFloat(cell?.style.width ?? 'NaN');
+      return {
+        jump: ignoreJump
+          ? 0
+          : ((timeline.scale.xToDate(left) - since.edge) / dayMs) * timeline.scale.pxPerDay,
+        startMoved: timeline.range.start !== since.start,
+        endMoved: timeline.range.end !== since.end,
+        compensated: left !== since.left,
+        headerAtEdge: x <= left + 0.5 && left < x + width + 0.5,
+        widthInSync:
+          root.style.getPropertyValue('--gantt-content-width') === `${String(contentWidth)}px`,
+      };
+    };
+
+    let before: Look | undefined;
     document.addEventListener(
       'scroll',
       (event) => {
         if (event.target !== scroller) return;
-        const { timeline } = handle.core.getSnapshot();
-        before = {
-          left: scroller.scrollLeft,
-          edge: timeline.scale.xToDate(scroller.scrollLeft),
-          start: timeline.range.start,
-          end: timeline.range.end,
-        };
+        before = look();
       },
       { capture: true, signal: abort.signal },
     );
@@ -244,35 +301,24 @@ export async function startRecording(page: Page): Promise<void> {
       'scroll',
       () => {
         if (!before) return;
-        const { timeline, contentWidth } = handle.core.getSnapshot();
-        const left = scroller.scrollLeft;
-        const edge = timeline.scale.xToDate(left);
-        // The finest header row's cell with the sticky label is the one under the left edge.
-        const rows = [...root.querySelectorAll<HTMLElement>('.gantt__header-row')];
-        const cell = rows
-          .at(-1)
-          ?.querySelector<HTMLElement>('.gantt__header-label[data-sticky]')
-          ?.closest<HTMLElement>('.gantt__header-cell');
-        const x = Number.parseFloat(cell?.style.left ?? 'NaN');
-        const width = Number.parseFloat(cell?.style.width ?? 'NaN');
-        state.events.push({
-          jump: ((edge - before.edge) / dayMs) * timeline.scale.pxPerDay,
-          startMoved: timeline.range.start !== before.start,
-          endMoved: timeline.range.end !== before.end,
-          compensated: left !== before.left,
-          headerAtEdge: x <= left + 0.5 && left < x + width + 0.5,
-          widthInSync:
-            root.style.getPropertyValue('--gantt-content-width') === `${String(contentWidth)}px`,
-        });
+        state.events.push(handled(before, false));
         before = undefined;
       },
       { signal: abort.signal },
     );
-    // What a frame painted: the page calls `onFrame` when the renderer's frame callbacks are done
-    // (not a timer after the frame, which can read the next frame's scroll position next to this
-    // frame's snapshot), so the snapshot, the DOM and `scrollLeft` are those of one picture.
+    // What a frame painted: the page calls `beforeFrame` and `onFrame` around the renderer's frame
+    // callbacks (not a timer after the frame, which can read the next frame's scroll position
+    // next to this frame's snapshot), so the snapshot, the DOM and `scrollLeft` are those of one
+    // picture, and what the callbacks did can be told from what they found.
+    let beforeFrame: Look | undefined;
+    // The request the snapshot had when the last frame ended: one the next frame finds that is
+    // another is the one that frame performs.
+    let seenRequest = handle.core.getSnapshot().scrollRequest?.id;
+    handle.beforeFrame = (): void => {
+      beforeFrame = look();
+    };
     handle.onFrame = (): void => {
-      const { timeline } = handle.core.getSnapshot();
+      const { timeline, scrollRequest } = handle.core.getSnapshot();
       const left = scroller.scrollLeft;
       const finest = [...root.querySelectorAll('.gantt__header-row')].at(-1);
       const cells = [...(finest?.querySelectorAll<HTMLElement>('.gantt__header-cell') ?? [])];
@@ -283,7 +329,12 @@ export async function startRecording(page: Page): Promise<void> {
         first = Math.min(first, x);
         last = Math.max(last, x + Number.parseFloat(cell.style.width));
       }
+      const since = beforeFrame ?? look();
+      beforeFrame = undefined;
+      const performed = since.request !== seenRequest;
+      seenRequest = scrollRequest?.id;
       state.frames.push({
+        ...handled(since, performed),
         edge: timeline.scale.xToDate(left),
         pxPerDay: timeline.scale.pxPerDay,
         left,
@@ -293,6 +344,7 @@ export async function startRecording(page: Page): Promise<void> {
       });
     };
     abort.signal.addEventListener('abort', () => {
+      handle.beforeFrame = undefined;
       handle.onFrame = undefined;
     });
   });
@@ -314,21 +366,41 @@ export async function stopRecording(page: Page): Promise<Recording> {
   };
 }
 
-/** How many events so far moved the range start / end, read while a recording runs. */
+/**
+ * How many times so far the range start / end moved, in a scroll event or in a frame (the
+ * renderer extends and trims in whichever sees the scroller's new position first), read while a
+ * recording runs.
+ */
 export async function countMoves(page: Page): Promise<{ startMoves: number; endMoves: number }> {
   return page.evaluate(() => {
     const state = (window as unknown as { __ganttRecorder?: RecorderState }).__ganttRecorder;
     if (!state) throw new Error('no recording was started');
+    const handlings = [...state.events, ...state.frames];
     return {
-      startMoves: state.events.filter((event) => event.startMoved).length,
-      endMoves: state.events.filter((event) => event.endMoved).length,
+      startMoves: handlings.filter((handling) => handling.startMoved).length,
+      endMoves: handlings.filter((handling) => handling.endMoved).length,
     };
   });
 }
 
-/** The most the date at the left edge moved across any event's handling, in px. */
+/** What the renderer did in every scroll event and every frame of a recording. */
+export const handlings = (recording: Recording): readonly Handling[] => [
+  ...recording.events,
+  ...recording.frames,
+];
+
+/** How many times the range start moved (an extension or a trim of that side) and the end. */
+export const startMoves = (recording: Recording): number =>
+  handlings(recording).filter((handling) => handling.startMoved).length;
+export const endMoves = (recording: Recording): number =>
+  handlings(recording).filter((handling) => handling.endMoved).length;
+
+/**
+ * The most the date at the left edge moved across the renderer's work in any event or frame, in
+ * px (a frame that performed a request does not count: the request moves it).
+ */
 export const worstJump = (recording: Recording): number =>
-  Math.max(0, ...recording.events.map((event) => Math.abs(event.jump)));
+  Math.max(0, ...handlings(recording).map((handling) => Math.abs(handling.jump)));
 
 /** A box in viewport coordinates. */
 export interface Box {
@@ -462,4 +534,64 @@ export async function scrollCall(page: Page, call: ScrollCall): Promise<void> {
     else if (input.method === 'scrollToToday') handle.core.scrollToToday(input.options);
     else handle.core.scrollToDate(input.date, input.options);
   }, call);
+}
+
+/** A point in the page's viewport, in CSS px. */
+export interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * Pans with one finger through the Chromium DevTools protocol (`Input.dispatchTouchEvent`):
+ * touch down on `from`, drag by `by` in steps of 16 ms, lift. The browser turns it into a pan
+ * as it does a real one (`pointercancel` when it takes the touch for itself, scroll events,
+ * `touch-action` honoured). Chromium only: Playwright has no touch pan for Firefox and WebKit.
+ *
+ * With `fling` the finger lifts while it is still moving at `speed`, and the browser carries on
+ * scrolling (momentum); without it the finger rests for a moment before it lifts, so that
+ * nothing is left over. The events carry their own timestamps, so the speed is the one asked
+ * for however busy the machine is.
+ *
+ * It is not `Input.synthesizeScrollGesture`, which would do the same in one call: with
+ * `gestureSourceType: 'touch'` that gesture scrolls nothing on Linux, headless or not (the page
+ * gets `pointermove` events for the finger but never a `touchmove`, and the browser never takes
+ * the touch for a pan), while `Input.dispatchTouchEvent` works on every platform.
+ *
+ * @param cdp - A DevTools session of the page (`page.context().newCDPSession(page)`).
+ * @param from - Where the finger lands.
+ * @param by - How far it moves, the content following it: negative `dx` scrolls towards the end.
+ * @param options - `speed` in px per second (default 1500), `fling` (default `false`).
+ */
+export async function touchPan(
+  cdp: CDPSession,
+  from: Point,
+  by: { readonly dx?: number; readonly dy?: number },
+  options: { readonly speed?: number; readonly fling?: boolean } = {},
+): Promise<void> {
+  const { dx = 0, dy = 0 } = by;
+  const { speed = 1500, fling = false } = options;
+  const interval = 16;
+  const steps = Math.max(2, Math.ceil(Math.hypot(dx, dy) / ((speed * interval) / 1000)));
+  const start = Date.now() / 1000;
+  const send = async (
+    type: 'touchStart' | 'touchMove' | 'touchEnd',
+    touchPoints: readonly Point[],
+    ms: number,
+  ): Promise<void> => {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: [...touchPoints],
+      timestamp: start + ms / 1000,
+    });
+  };
+  await send('touchStart', [from], 0);
+  for (let step = 1; step <= steps; step += 1) {
+    await send(
+      'touchMove',
+      [{ x: from.x + (dx * step) / steps, y: from.y + (dy * step) / steps }],
+      step * interval,
+    );
+  }
+  await send('touchEnd', [], steps * interval + (fling ? 0 : 150));
 }

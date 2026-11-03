@@ -21,9 +21,10 @@
  *   of the application above the chart's header.
  *
  * `window.__ganttScroll` holds the core, the renderer, the container and the task ids, and
- * `onFrame`, which the page calls at the end of every frame the renderer ran in: the e2e specs
- * sample the chart there, when the snapshot and the DOM agree. A change of the query string needs a
- * reload: the chart is created once.
+ * `beforeFrame` and `onFrame`, which the page calls before and after the renderer's frame
+ * callbacks in every frame it ran in: the e2e specs sample the chart there, when the snapshot and
+ * the DOM agree, and tell what the callbacks did from what they found. A change of the query
+ * string needs a reload: the chart is created once.
  */
 import '@ganttlane/dom/styles.css';
 import './playground.css';
@@ -42,7 +43,9 @@ export interface ScrollPage {
   readonly container: HTMLElement;
   /** The ids of the plan's tasks, in the order they were given. */
   readonly taskIds: readonly (string | number)[];
-  /** Called after every frame the renderer ran in (its frame callbacks), see the file's comment. */
+  /** Called before the renderer's frame callbacks of every frame it ran in, see the file's comment. */
+  beforeFrame?: () => void;
+  /** Called after them. */
   onFrame?: () => void;
 }
 
@@ -165,11 +168,13 @@ const core = createGanttCore({
   },
 });
 
-// The browser's own frames, with a hook after each: the renderer renders (and the drag autoscroll
-// steps) in the callbacks it asks for, and `onFrame` runs once they are done.
+// The browser's own frames, with a hook around each: the renderer renders (and the drag autoscroll
+// steps) in the callbacks it asks for, `beforeFrame` runs before them and `onFrame` once they are
+// done.
 const frames: FrameSource = {
   request: (callback) =>
     requestAnimationFrame(() => {
+      window.__ganttScroll?.beforeFrame?.();
       callback();
       window.__ganttScroll?.onFrame?.();
     }),

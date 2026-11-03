@@ -656,6 +656,152 @@ describe('user scroll', () => {
   });
 });
 
+describe('a scroll the browser animates on the main thread', () => {
+  // Chromium does that where the scroller is not composited (Linux, by default): in each frame the
+  // scroll event reports the step taken in the frame before, and the next step is taken after
+  // the event and before the frame callbacks, so a render that went by the event alone would
+  // draw the window of a position the frame does not paint.
+
+  /** A renderer over a fake core whose layers note what the core had been told when they drew. */
+  function mountNoting() {
+    const container = createContainer();
+    const fake = createFakeCore();
+    const frames = createManualFrames();
+    const told: number[] = [];
+    mountRenderer(container, fake, {
+      frames,
+      layers: {
+        bars: () => ({
+          mount: () => undefined,
+          update: () => told.push(fake.scroll.mock.calls.length),
+          destroy: () => undefined,
+        }),
+      } satisfies LayerFactories,
+    });
+    const scroller = container.querySelector<HTMLElement>('.gantt__scroller')!;
+    return { fake, frames, scroller, told };
+  }
+
+  it('FR-SCROLL-2, FR-TL-2: a scroller the browser moved after its scroll event is reported again before the frame draws', () => {
+    const { fake, frames, scroller, told } = mountNoting();
+    scroller.scrollLeft = 100;
+    scroller.dispatchEvent(new Event('scroll'));
+    fake.publish(fakeSnapshot({ contentWidth: 2000 }));
+    // The animation's next step.
+    scroller.scrollLeft = 700;
+
+    frames.step();
+
+    expect(fake.scroll.mock.calls).toEqual([[{ left: 100, top: 0 }], [{ left: 700, top: 0 }]]);
+    // Both reports came before the layers drew (the first draw is the mount's).
+    expect(told).toEqual([0, 2]);
+  });
+
+  it('FR-SCROLL-2: follows the vertical position the same way', () => {
+    const { fake, frames, scroller } = mountNoting();
+    scroller.scrollTop = 40;
+    scroller.dispatchEvent(new Event('scroll'));
+    fake.publish(fakeSnapshot({ contentWidth: 2000 }));
+    scroller.scrollTop = 900;
+
+    frames.step();
+
+    expect(fake.scroll).toHaveBeenLastCalledWith({ left: 0, top: 900 });
+  });
+
+  it('FR-SCROLL-2: a scroller that stayed where its event said is not reported again', () => {
+    const { fake, frames, scroller } = mountNoting();
+    scroller.scrollLeft = 100;
+    scroller.dispatchEvent(new Event('scroll'));
+    fake.publish(fakeSnapshot({ contentWidth: 2000 }));
+
+    frames.step();
+
+    expect(fake.scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it('FR-SCROLL-1, FR-SCROLL-2: nothing is reported before the browser has scrolled, or after the renderer did', () => {
+    const { fake, frames, scroller } = mountNoting();
+    // A position the renderer put the scroller at, or that no event has told of, is the core's own.
+    scroller.scrollLeft = 300;
+    fake.publish(fakeSnapshot({ contentWidth: 2000 }));
+    frames.step();
+    expect(fake.scroll).not.toHaveBeenCalled();
+
+    scroller.scrollLeft = 350;
+    scroller.dispatchEvent(new Event('scroll'));
+    fake.publish(fakeSnapshot({ contentWidth: 2100 }));
+    fake.publish(
+      fakeSnapshot({ contentWidth: 2100, scrollRequest: request({ id: 1, left: 900 }) }),
+    );
+    // The request is performed by this frame's render: the scroller is the core's from then on.
+    frames.step();
+    scroller.scrollLeft = 905;
+    fake.publish(
+      fakeSnapshot({ contentWidth: 2200, scrollRequest: request({ id: 1, left: 900 }) }),
+    );
+    frames.step();
+
+    expect(fake.scroll.mock.calls).toEqual([[{ left: 350, top: 0 }]]);
+  });
+
+  it('FR-SCROLL-2: while a request is not performed yet the position is not the core', () => {
+    const { fake, frames, scroller } = mountNoting();
+    scroller.scrollLeft = 100;
+    scroller.dispatchEvent(new Event('scroll'));
+    scroller.scrollLeft = 160;
+    // The request is in the snapshot, but this render is the one that performs it.
+    fake.publish(fakeSnapshot({ scrollRequest: request({ id: 1, left: 900 }) }));
+
+    frames.step();
+
+    expect(fake.scroll.mock.calls).toEqual([[{ left: 100, top: 0 }]]);
+  });
+
+  it('FR-SCROLL-2, FR-TL-2: with the real core every frame is drawn for the position it paints', () => {
+    const container = createContainer();
+    const core = observeCore(
+      createTestCore({
+        timeline: { infinite: { extendBy: '2w' } },
+        scroll: { initial: '2026-03-09' },
+      }),
+    );
+    const frames = createManualFrames();
+    const drawn: { snapshot: number; scroller: number }[] = [];
+    const scrollerOf = (): HTMLElement => container.querySelector<HTMLElement>('.gantt__scroller')!;
+    mountRenderer(container, core, {
+      frames,
+      layers: {
+        grid: () => ({
+          mount: () => undefined,
+          update: (snapshot) =>
+            drawn.push({
+              snapshot: snapshot.timeline.scrollLeft,
+              scroller: scrollerOf().scrollLeft,
+            }),
+          destroy: () => undefined,
+        }),
+      },
+    });
+    const scroller = scrollerOf();
+    drawn.length = 0;
+
+    // The first step is taken before the first frame; then, in each frame, the event reports the
+    // step before and the next one follows it.
+    scroller.scrollLeft += 150;
+    for (let frame = 0; frame < 8; frame += 1) {
+      scroller.dispatchEvent(new Event('scroll'));
+      scroller.scrollLeft += 150;
+      frames.step();
+    }
+
+    expect(drawn).toHaveLength(8);
+    for (const { snapshot, scroller: live } of drawn) expect(snapshot).toBe(live);
+    // And it went on: the last frame's position is the scroller's.
+    expect(core.getSnapshot().timeline.scrollLeft).toBe(scroller.scrollLeft);
+  });
+});
+
 describe('keyboard scrolling', () => {
   it('FR-TL-2: the scroller is a focusable region named by `strings.chartLabel`', () => {
     const container = createContainer();

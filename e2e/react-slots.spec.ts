@@ -265,7 +265,18 @@ for (const build of BUILDS) {
       await input.click();
       await expect(input).toBeFocused();
 
-      await page.keyboard.type('xyz', { delay: 60 });
+      // One key at a time, each waited for. The new name reaches the input a frame after the key,
+      // through the page's `tasks` and the chart's tooltip, and until it does the browser's
+      // controlled-input rule puts the old value back: a key typed in between (on a busy machine
+      // a frame can take longer than the 60 ms the test used to leave between keys, which
+      // WebKit on Linux does under load) is appended to that and looks lost. A focus or an input
+      // the chart really lost still shows, as a key that does not arrive, and in the checks below.
+      let name = 'Planning';
+      for (const key of 'xyz') {
+        await page.keyboard.type(key);
+        name += key;
+        await expect(input).toHaveValue(name);
+      }
 
       await expect(input).toHaveValue('Planningxyz');
       await expect(input).toBeFocused();

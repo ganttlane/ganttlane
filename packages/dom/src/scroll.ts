@@ -117,6 +117,19 @@ export interface ScrollSync {
    */
   viewport(size: ElementSize): ElementSize;
   /**
+   * Tells the core where the scroller is when a render is about to draw, if it has moved since
+   * the last time the core was told: the position a scroll event reported can be a frame old.
+   * A browser that animates a scroll on the main thread (a smooth `scrollTo`, a keyboard
+   * scroll) fires the events of one frame's step before the next step is taken and runs the
+   * frame callbacks after it, so the render of a frame would draw the window of the position
+   * before the one the frame paints; at a few hundred px a frame that is more than the overscan.
+   * Call it at the start of every render. It does nothing until a scroll event has reported a
+   * position, and after the renderer itself has moved the scroller (a request, the first
+   * placement) until the next event: only the browser's own movement is followed. When it
+   * finds the scroller moved, the core's answer schedules the next frame, which looks again.
+   */
+  catchUp(): void;
+  /**
    * Reads where the page is relative to the chart and tells the core (its `scrollTop` is how
    * far the page has scrolled past the top of the chart, and its viewport height is the page's),
    * when the page moved or was resized since the last call. Call it at the start of every render:
@@ -150,9 +163,15 @@ const SETTLE_STEPS = 4;
  *   `scroll` event they all end in is the only trigger: it reports `scrollLeft` /
  *   `scrollTop` to `core.scroll`. Browsers fire it at most once per frame, before
  *   `requestAnimationFrame` callbacks, which is the "once per frame" the core expects. Nothing
- *   but those two properties is read. A writer that is not this module (the
- *   autoscroll) must move the scroller relative to where it is now (`scrollByInstant`), never
- *   from a position of its own: a compensation may have moved it since the writer last looked.
+ *   but those two properties is read. The position an event reports can be a frame old, though:
+ *   a scroll that the browser animates on the main thread (a smooth `scrollTo`, a keyboard
+ *   scroll; Chromium does that wherever it does not composite the scroller, which on Linux is
+ *   the default) takes its next step after the event and before the frame callbacks, so the
+ *   frame that renders is painted at a position the core has not heard of.
+ *   {@link ScrollSync.catchUp}, at the start of every render, reports it. A writer that is not
+ *   this module (the autoscroll) must move the scroller relative to where it is now
+ *   (`scrollByInstant`), never from a position of its own: a compensation may have moved it
+ *   since the writer last looked.
  * - **Compensation.** When the core extends or trims the range it answers with a
  *   {@link ViewportChange}: the new content width is written first, then the compensated offset
  *   (`scrollTo` with `behavior: 'instant'`, so that a page that sets `scroll-behavior: smooth`
@@ -214,9 +233,17 @@ export function createScrollSync(options: ScrollSyncOptions): ScrollSync {
    * drops it.
    */
   let wanted: number | undefined;
+  /**
+   * Where the scroller was when the core was last told by the browser's own scrolling (a scroll
+   * event or {@link ScrollSync.catchUp}), `undefined` until then and after the renderer moved
+   * the scroller itself: what {@link ScrollSync.catchUp} compares the scroller with. `top` is the
+   * scroller's own, which a chart of automatic height does not have.
+   */
+  let reported: { readonly left: number; readonly top: number | undefined } | undefined;
 
   /** Moves the scroller to `left` at once, and remembers it when the content could not hold it. */
   const goTo = (left: number, top?: number): void => {
+    reported = undefined;
     // A member that is `undefined` is a member that is left out (WebIDL), which the type of
     // `ScrollToOptions` (`exactOptionalPropertyTypes`) does not say.
     scroller.scrollTo({ left, top, behavior: 'instant' } as ScrollToOptions);
@@ -251,6 +278,11 @@ export function createScrollSync(options: ScrollSyncOptions): ScrollSync {
       // follows the page's CSS `scroll-behavior`, and a smooth compensation is a visible jump.
       if (compensated) scroller.scrollTo({ left, behavior: 'instant' });
       if (host !== undefined) pin.scrollTo({ left, behavior: 'instant' });
+      // The scroller after the write (the browser clamps it), which is what the core has now.
+      reported = {
+        left: compensated ? scroller.scrollLeft : left,
+        top: host === undefined ? top : undefined,
+      };
       if (compensated) flush();
     }
   };
@@ -287,6 +319,7 @@ export function createScrollSync(options: ScrollSyncOptions): ScrollSync {
   return {
     apply({ from, left, top, behavior }): void {
       wanted = undefined;
+      reported = undefined;
       if (from !== undefined) scroller.scrollTo({ left: from, behavior: 'instant' });
       // The scroller scrolls both ways, or, with an automatic height, sideways only.
       const own = host === undefined ? top : undefined;
@@ -337,6 +370,15 @@ export function createScrollSync(options: ScrollSyncOptions): ScrollSync {
       requestFrame();
     },
     report,
+    catchUp(): void {
+      if (reported === undefined) return;
+      if (
+        scroller.scrollLeft !== reported.left ||
+        (host === undefined && scroller.scrollTop !== reported.top)
+      ) {
+        report();
+      }
+    },
     onFrameMove(listener): () => void {
       frameListeners.add(listener);
       return () => {
