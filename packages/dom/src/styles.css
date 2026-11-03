@@ -737,9 +737,10 @@
     outline: none;
   }
 
-  .gantt__bar:focus-visible {
-    stroke: var(--gantt-focus-ring-color);
-    stroke-width: var(--gantt-focus-ring-width);
+  /* An outline, beside the stroke that says a bar is selected, invalid or in conflict. */
+  .gantt__bar:focus-visible > :is(.gantt__bar-track, .gantt__bar-milestone) {
+    outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
+    outline-offset: var(--gantt-focus-ring-width);
   }
 
   .gantt__link:focus-visible {

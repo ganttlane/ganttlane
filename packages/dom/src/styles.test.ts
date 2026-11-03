@@ -493,10 +493,12 @@ describe('styles.css: the unstyled contract', () => {
         expect(order > 0 || (order === 0 && index(selected) > index(state)), state).toBe(true);
       }
     }
-    // A focused bar shows its ring over the selection, which is its own state, not the keyboard's.
-    const focus = '.gantt__bar:focus-visible';
-    const order = compare(specificity(focus), specificity(selected));
-    expect(order > 0 || (order === 0 && index(focus) > index(selected))).toBe(true);
+    // The ring is an outline, so it takes no stroke from the selection, nor from invalid or conflict.
+    const ring = '.gantt__bar:focus-visible > :is(.gantt__bar-track, .gantt__bar-milestone)';
+    expect(valueOf(ring, 'outline')).toBe(
+      'var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color)',
+    );
+    expect(valueOf('.gantt__bar:focus-visible', 'stroke')).toBeUndefined();
   });
 
   it('FR-EDIT-7: the sheet draws no geometry: the renderer writes the radius of a handle, the bounds of a bar', () => {
