@@ -97,6 +97,117 @@ async function plan(props: PlanProps = {}): Promise<{
   return { gantt: gantt!, view };
 }
 
+describe('<TaskList>: beside bars that take the focus, and selection.multiple', () => {
+  const bar = (id: string): SVGElement =>
+    document.querySelector<SVGElement>(`.gantt__bar[data-task-id="${id}"]`)!;
+  const withBars = { keyboard: { barFocus: true } };
+  const clickWith = (node: Element | null, init: MouseEventInit): void => {
+    node?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ...init }));
+  };
+
+  it('FR-SEL-3: a bar with the focus keeps it, and the list follows with its tab stop', async () => {
+    const { gantt } = await plan({ options: withBars });
+    await run(() => {
+      bar('g').focus();
+      frames.step();
+    });
+    expect(document.activeElement).toBe(bar('g'));
+    expect(gantt.getSnapshot().focusedTask).toBe('g');
+    expect(row('g')?.tabIndex).toBe(0);
+  });
+
+  it('FR-SEL-3: a row with the focus keeps it, and the bar follows with its tab stop', async () => {
+    await plan({ options: withBars });
+    await run(() => {
+      row('g')?.focus();
+      frames.step();
+    });
+    expect(document.activeElement).toBe(row('g'));
+    expect(bar('g').getAttribute('tabindex')).toBe('0');
+  });
+
+  it('FR-SEL-3: moving between a row and a bar reports the new task with no gap', async () => {
+    const { gantt } = await plan({ options: withBars });
+    const heard: unknown[] = [];
+    gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    await run(() => {
+      row('a')?.focus();
+    });
+    await run(() => {
+      bar('g').focus();
+    });
+    await run(() => {
+      row('g1')?.focus();
+    });
+    expect(heard).toEqual(['a', 'g', 'g1']);
+  });
+
+  it('FR-SEL-3: focusBar is on the instance, and moves the focus from the list to a bar', async () => {
+    const { gantt } = await plan({ options: withBars });
+    await run(() => {
+      row('a')?.focus();
+    });
+    await run(() => {
+      gantt.focusBar('g1');
+      frames.step();
+    });
+    expect(document.activeElement).toBe(bar('g1'));
+  });
+
+  it('FR-SEL-2: Ctrl or Cmd adds a row and takes it out, and the grid says it can', async () => {
+    const { gantt } = await plan({ options: { selection: { multiple: true } } });
+    expect(document.querySelector('[role="treegrid"]')?.getAttribute('aria-multiselectable')).toBe(
+      'true',
+    );
+    await run(() => {
+      row('a')?.click();
+    });
+    await run(() => {
+      clickWith(row('g1'), { ctrlKey: true });
+    });
+    await run(() => {
+      clickWith(row('g2'), { metaKey: true });
+    });
+    expect(gantt.getSnapshot().selection.tasks).toEqual(['a', 'g1', 'g2']);
+    expect(row('g1')?.getAttribute('aria-selected')).toBe('true');
+    await run(() => {
+      clickWith(row('g1'), { ctrlKey: true });
+    });
+    expect(gantt.getSnapshot().selection.tasks).toEqual(['a', 'g2']);
+  });
+
+  it('FR-SEL-2: off by default Ctrl + click selects one and the grid does not say it can', async () => {
+    const { gantt } = await plan();
+    expect(document.querySelector('[aria-multiselectable]')).toBeNull();
+    await run(() => {
+      row('a')?.click();
+    });
+    await run(() => {
+      clickWith(row('g1'), { ctrlKey: true });
+    });
+    expect(gantt.getSnapshot().selection.tasks).toEqual(['g1']);
+  });
+
+  it('FR-SEL-2: a selection.multiple taken off the props turns it off, field by field', async () => {
+    const { gantt, view } = await plan({
+      options: { selection: { onClick: true, multiple: true } },
+    });
+    expect(gantt.getAppearance().multiSelect).toBe(true);
+    await view.render(<Plan options={{ selection: { onClick: true } }} />);
+    expect(gantt.getAppearance().multiSelect).toBe(false);
+  });
+
+  it('FR-SEL-3: keyboard.barFocus follows its prop', async () => {
+    const { view } = await plan({ options: withBars });
+    expect(bar('a').getAttribute('tabindex')).toBe('0');
+    await view.render(<Plan options={{}} />);
+    await run(() => {
+      frames.step();
+    });
+    expect(bar('a').hasAttribute('tabindex')).toBe(false);
+  });
+});
+
 describe('<TaskList>: the rows', () => {
   it('FR-REACT-8: a row for every row of the chart, at its height and place, with its tree state', async () => {
     await plan();

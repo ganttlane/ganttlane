@@ -95,6 +95,183 @@ const press = (target: Element, key: string, init: KeyboardEventInit = {}): Keyb
 const toggleOf = (row: HTMLElement | null): HTMLElement =>
   row!.querySelector<HTMLElement>('[data-toggle]')!;
 
+describe('createTaskList: beside bars that take the focus', () => {
+  const withBars = (more: Partial<Parameters<typeof createGantt>[1]> = {}): Fixture =>
+    create({}, { keyboard: { barFocus: true }, ...more });
+  const barOf = (chart: HTMLElement, id: string): SVGElement =>
+    chart.querySelector<SVGElement>(`.gantt__bar[data-task-id="${id}"]`)!;
+
+  it('FR-SEL-3: a bar with the focus keeps it, and the row only follows', () => {
+    const { gantt, chart, row, flush } = withBars();
+    barOf(chart, 'g').focus();
+    flush();
+    expect(document.activeElement).toBe(barOf(chart, 'g'));
+    expect(gantt.core.getSnapshot().focusedTask).toBe('g');
+    expect(row('g')?.tabIndex).toBe(0);
+    expect(row('a')?.tabIndex).toBe(-1);
+  });
+
+  it('FR-SEL-3: a row with the focus keeps it, and the bar only follows', () => {
+    const { chart, row, flush } = withBars();
+    row('g')?.focus();
+    flush();
+    expect(document.activeElement).toBe(row('g'));
+    expect(barOf(chart, 'g').getAttribute('tabindex')).toBe('0');
+    expect(barOf(chart, 'a').getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('FR-SEL-3: the keys walk the surface that has the focus, and the other follows', () => {
+    const { gantt, chart, row, flush } = withBars();
+    barOf(chart, 'a').focus();
+    press(barOf(chart, 'a'), 'ArrowDown');
+    flush();
+    expect(document.activeElement).toBe(barOf(chart, 'g'));
+    expect(row('g')?.tabIndex).toBe(0);
+
+    row('g')?.focus();
+    flush();
+    press(row('g')!, 'ArrowDown');
+    flush();
+    expect(document.activeElement).toBe(row('g1'));
+    expect(barOf(chart, 'g1').getAttribute('tabindex')).toBe('0');
+    expect(gantt.core.getSnapshot().focusedTask).toBe('g1');
+  });
+
+  it('FR-SEL-3: moving between a row and a bar reports the new task with no gap', () => {
+    const { gantt, chart, row, flush } = withBars();
+    const heard: unknown[] = [];
+    gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    row('a')?.focus();
+    flush();
+    barOf(chart, 'g').focus();
+    flush();
+    row('g1')?.focus();
+    flush();
+    expect(heard).toEqual(['a', 'g', 'g1']);
+    expect(document.activeElement).toBe(row('g1'));
+  });
+
+  it('FR-SEL-3: going from a row to a bar of another chart lets go of the task here', () => {
+    const { gantt, row, flush } = withBars();
+    const other = createContainer();
+    const another = createGantt(other, {
+      tasks: [{ id: 'other', name: 'Other', start: '2026-03-02', end: '2026-03-06' }],
+      keyboard: { barFocus: true },
+      renderer: { frames: createManualFrames() },
+    });
+    row('a')?.focus();
+    flush();
+    other.querySelector<SVGElement>('.gantt__bar')?.focus();
+    expect(gantt.core.getSnapshot().focusedTask).toBeUndefined();
+    another.destroy();
+  });
+
+  it('FR-SEL-3: a focusTask from elsewhere stays with the surface that holds the focus', () => {
+    const { gantt, chart, row, flush } = withBars();
+    barOf(chart, 'a').focus();
+    flush();
+    gantt.focusTask('g1');
+    flush();
+    expect(document.activeElement).toBe(barOf(chart, 'g1'));
+
+    row('a')?.focus();
+    flush();
+    gantt.focusTask('g2');
+    flush();
+    expect(document.activeElement).toBe(row('g2'));
+  });
+
+  it('FR-SEL-3: a focusTask with the focus on neither goes to the row, as without bars', () => {
+    const { gantt, row, flush } = withBars();
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    outside.focus();
+    gantt.focusTask('g1');
+    flush();
+    expect(document.activeElement).toBe(row('g1'));
+  });
+
+  it('FR-SEL-3: a bar that goes away is the chart\u2019s to hand on, not the list\u2019s', () => {
+    const { gantt, chart, flush } = withBars();
+    barOf(chart, 'g1').focus();
+    flush();
+    gantt.collapse('g');
+    flush();
+    expect(document.activeElement?.classList.contains('gantt__bar')).toBe(true);
+    expect(chart.contains(document.activeElement)).toBe(true);
+  });
+
+  it('FR-SEL-2: the selection made on a bar shows on the row, and the other way round', () => {
+    const { chart, row, flush } = withBars({ selection: { onClick: true, multiple: true } });
+    press(barOf(chart, 'a'), 'Enter');
+    flush();
+    expect(row('a')?.getAttribute('aria-selected')).toBe('true');
+    row('g')?.click();
+    flush();
+    expect(barOf(chart, 'g').getAttribute('aria-pressed')).toBe('true');
+    expect(barOf(chart, 'a').getAttribute('aria-pressed')).toBe('false');
+  });
+});
+
+describe('createTaskList: selection.multiple', () => {
+  const multiple = (more: Partial<Parameters<typeof createGantt>[1]> = {}): Fixture =>
+    create({}, { selection: { multiple: true }, ...more });
+  const selected = ({ gantt }: Fixture): readonly unknown[] =>
+    gantt.core.getSnapshot().selection.tasks;
+  const clickWith = (node: Element | null, init: MouseEventInit): void => {
+    node?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ...init }));
+  };
+
+  it('FR-SEL-2: Ctrl or Cmd + click adds a row and takes it out; a plain click selects one', () => {
+    const fixture = multiple();
+    fixture.row('a')?.click();
+    clickWith(fixture.row('g1'), { ctrlKey: true });
+    clickWith(fixture.row('g2'), { metaKey: true });
+    expect(selected(fixture)).toEqual(['a', 'g1', 'g2']);
+    clickWith(fixture.row('g1'), { ctrlKey: true });
+    expect(selected(fixture)).toEqual(['a', 'g2']);
+    fixture.row('z')?.click();
+    expect(selected(fixture)).toEqual(['z']);
+  });
+
+  it('FR-SEL-2: Ctrl or Cmd with Enter or Space adds a row and takes it out', () => {
+    const fixture = multiple();
+    fixture.row('a')?.focus();
+    expect(press(fixture.row('a')!, 'Enter', { ctrlKey: true }).defaultPrevented).toBe(true);
+    press(fixture.row('g1')!, ' ', { metaKey: true });
+    expect(selected(fixture)).toEqual(['a', 'g1']);
+    press(fixture.row('a')!, ' ', { ctrlKey: true });
+    expect(selected(fixture)).toEqual(['g1']);
+  });
+
+  it('FR-SEL-2: other keys with Ctrl or Cmd stay the browser\u2019s', () => {
+    const fixture = multiple();
+    fixture.row('a')?.focus();
+    expect(press(fixture.row('a')!, 'ArrowDown', { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(press(fixture.row('a')!, 'Home', { metaKey: true }).defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(fixture.row('a'));
+  });
+
+  it('FR-SEL-2: off by default Ctrl + click selects one and Ctrl + Enter is left alone', () => {
+    const fixture = create();
+    fixture.row('a')?.click();
+    clickWith(fixture.row('g1'), { ctrlKey: true });
+    expect(selected(fixture)).toEqual(['g1']);
+    expect(press(fixture.row('a')!, 'Enter', { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(selected(fixture)).toEqual(['g1']);
+  });
+
+  it('FR-SEL-2: the grid says it is multiselectable only then, and follows the option', () => {
+    const fixture = multiple();
+    const grid = fixture.side.querySelector('[role="treegrid"]');
+    expect(grid?.getAttribute('aria-multiselectable')).toBe('true');
+    fixture.gantt.setOptions({ selection: { multiple: false } });
+    fixture.flush();
+    expect(grid?.hasAttribute('aria-multiselectable')).toBe(false);
+    expect(create().side.querySelector('[aria-multiselectable]')).toBeNull();
+  });
+});
+
 describe('createTaskList: the rows', () => {
   it('FR-ROW-6: a row for every row of the chart, at its height and place, with its tree state', () => {
     const { side, row, ids } = create();

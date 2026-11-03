@@ -276,6 +276,7 @@ export function createTaskList<TData = unknown>(
       'aria-label': strings.label,
       'aria-colcount': columns.length,
       'aria-rowcount': gantt.getRows().length + 1,
+      'aria-multiselectable': appearance.multiSelect && 'true',
     });
     setAttrs(splitter, {
       'aria-label': strings.resize,

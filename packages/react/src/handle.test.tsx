@@ -82,6 +82,7 @@ describe('<Gantt ref> (FR-REACT-3)', () => {
       'getAppearance',
       'getIssues',
       'hideTooltip',
+      'focusBar',
       'undo',
       'redo',
       'on',

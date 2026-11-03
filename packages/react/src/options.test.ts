@@ -143,6 +143,15 @@ describe('diffOptions', () => {
     expect(diffOptions({}, {})).toBe(undefined);
   });
 
+  it('FR-SEL-2: the fields of selection and keyboard go one by one, so a removed one is reset', () => {
+    expect(
+      diffOptions(
+        { selection: { onClick: true, multiple: true }, keyboard: { barFocus: true } },
+        { selection: { onClick: true } },
+      ),
+    ).toEqual({ selection: { multiple: undefined }, keyboard: { barFocus: undefined } });
+  });
+
   it('FR-REACT-1: options written inline are equal while their data is', () => {
     const prev = {
       locale: 'en',

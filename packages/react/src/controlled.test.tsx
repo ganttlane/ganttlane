@@ -797,16 +797,18 @@ describe('controlled and uncontrolled selectedKeys', () => {
 
   function SelectionOwner({
     follow,
+    selection,
     onSelectionChange,
     capture,
   }: {
     follow: boolean;
+    selection?: GanttReactOptions['selection'];
     onSelectionChange: (keys: readonly (string | number)[], link: string | undefined) => void;
     capture: (gantt: GanttInstance) => void;
   }): ReactElement {
     const [keys, setKeys] = useState<readonly (string | number)[]>(['a']);
     const gantt = useGantt({
-      ...base({ tasks: TASKS, links: LINKS }),
+      ...base({ tasks: TASKS, links: LINKS, selection }),
       selectedKeys: keys,
       onSelectionChange: (next, link) => {
         onSelectionChange(next, link);
@@ -926,6 +928,49 @@ describe('controlled and uncontrolled selectedKeys', () => {
     expect(selectedOf(latest())).toEqual(['b']);
     expect(onSelectionChange).toHaveBeenCalledTimes(1);
     await view.unmount();
+  });
+
+  it('FR-SEL-2: Ctrl + click reports the next keys, and the owner\u2019s state decides', async () => {
+    const ctrlClick = (gantt: GanttInstance, id: string): void => {
+      const { x, y, width, height } = gantt.getBarRect(id)!;
+      const at = { pointerId: 1, x: x + width / 2, y: y + height / 2, modifiers: { ctrl: true } };
+      act(() => {
+        gantt.core.send({ type: 'down', ...at, time: 0 });
+        gantt.core.send({ type: 'up', ...at, time: 1 });
+      });
+    };
+    const selection = { onClick: true, multiple: true };
+
+    const held = collect();
+    const refused = vi.fn();
+    const view = await renderInto(
+      <SelectionOwner
+        follow={false}
+        selection={selection}
+        onSelectionChange={refused}
+        capture={held.capture}
+      />,
+    );
+    ctrlClick(held.latest(), 'b');
+    expect(refused).toHaveBeenLastCalledWith(['a', 'b'], undefined);
+    expect(selectedOf(held.latest())).toEqual(['a']);
+    await view.unmount();
+
+    const followed = collect();
+    const taken = vi.fn();
+    const again = await renderInto(
+      <SelectionOwner
+        follow
+        selection={selection}
+        onSelectionChange={taken}
+        capture={followed.capture}
+      />,
+    );
+    ctrlClick(followed.latest(), 'b');
+    expect(selectedOf(followed.latest())).toEqual(['a', 'b']);
+    ctrlClick(followed.latest(), 'a');
+    expect(selectedOf(followed.latest())).toEqual(['b']);
+    await again.unmount();
   });
 
   it('FR-REACT-1: the same selectedKeys again, or an equal array, select nothing twice', async () => {

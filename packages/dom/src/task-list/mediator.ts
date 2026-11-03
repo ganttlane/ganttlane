@@ -7,6 +7,8 @@ import { type TaskListHost, treeAction } from './model';
 const LIST_DRIVES_MS = 120;
 /** How far the arrow keys move the splitter, in px. */
 const SPLITTER_STEP = 16;
+/** A bar of a chart, which holds the focus by itself. */
+const BAR = '.gantt__bar';
 /** What takes a click or a key for itself when it is drawn in a cell. */
 const INTERACTIVE = 'a,button,input,select,textarea,label,[contenteditable]';
 
@@ -14,7 +16,8 @@ const INTERACTIVE = 'a,button,input,select,textarea,label,[contenteditable]';
 export interface TaskListRowHandlers<TData = unknown> {
   /**
    * A row was clicked, or Enter or Space pressed on it (not its toggle). Then the task is selected
-   * and scrolled to, unless you call `event.preventDefault()`.
+   * (with `selection.multiple` on the chart, Ctrl or Cmd adds it or takes it out) and scrolled to,
+   * unless you call `event.preventDefault()`.
    */
   readonly onRowClick?:
     ((record: TaskRecord<TData>, event: MouseEvent | KeyboardEvent) => void) | undefined;
@@ -69,9 +72,11 @@ const closest = (target: EventTarget | null, selector: string): HTMLElement | nu
  *   one under the hand on another thread, so during a fast fling the other can be a frame behind;
  *   at rest they are the same to within a pixel.
  * - **Rows.** A click selects and scrolls to the task, the toggle opens or shuts its group, the
- *   keys walk the tree (`treeAction`). The pointer lights the chart's row (`setHoveredRow`).
+ *   keys walk the tree (`treeAction`). With `selection.multiple` on the chart, Ctrl or Cmd adds the
+ *   task to the selected ones or takes it out. The pointer lights the chart's row (`setHoveredRow`).
  * - **Focus.** The row with the browser's focus is `focusTask`; a `focusTask` from elsewhere brings
- *   the browser's focus to that row, and a row that goes away hands it to the tab stop.
+ *   the browser's focus to that row, and a row that goes away hands it to the tab stop. A bar of the
+ *   chart that has the focus (`keyboard.barFocus`) keeps it: the row only follows.
  * - **Row hover.** A chart shows none on its own: `display.rowHover` turns it on while the list is
  *   there, also after the chart was replaced with its state (a hidden `<Activity>`).
  * - **Splitter.** Pointer and keys; the view draws the width.
@@ -153,7 +158,14 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
   const activate = (row: GanttRow<TData>, event: MouseEvent | KeyboardEvent): void => {
     handlers().onRowClick?.(row.record, event);
     if (event.defaultPrevented) return;
-    gantt.select([row.id]);
+    const { tasks } = snapshot().selection;
+    gantt.select(
+      !(gantt.getAppearance().multiSelect && (event.ctrlKey || event.metaKey))
+        ? [row.id]
+        : tasks.includes(row.id)
+          ? tasks.filter((id) => id !== row.id)
+          : [...tasks, row.id],
+    );
     gantt.scrollToTask(row.id, { align: 'nearest', alignY: 'nearest', expand: false });
   };
   listen(
@@ -187,7 +199,11 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
       const found = hit(event);
       if (found === undefined) return;
       // Keys typed into something drawn in a cell are that thing's.
-      if (event.target !== found.node || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.target !== found.node || event.altKey) return;
+      // Ctrl and Cmd belong to the browser, except to add a task to the selected ones.
+      const adds =
+        gantt.getAppearance().multiSelect && (event.key === 'Enter' || event.key === ' ');
+      if ((event.ctrlKey || event.metaKey) && !adds) return;
       const { rowHeight, viewportHeight, headerHeight } = gantt.getLayoutMetrics();
       const page = Math.max(Math.floor((viewportHeight - headerHeight) / rowHeight) - 1, 1);
       const action = treeAction(event.key, gantt.getRows(), found.row.id, page);
@@ -241,7 +257,11 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
       if (closest(event.target, '[data-row]')?.dataset.taskId !== String(focusedTask)) return;
       if (body.contains(event.relatedTarget as Node | null)) return;
       focusWas = undefined;
-      gantt.focusTask(undefined);
+      // A bar of the same tasks takes it: it says so itself, with no gap between.
+      const bar = closest(event.relatedTarget, BAR);
+      if (bar === null || gantt.getRowMetrics(bar.dataset.taskId ?? '') === undefined) {
+        gantt.focusTask(undefined);
+      }
     },
     { signal },
   );
@@ -310,6 +330,11 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
           focusWas !== undefined && (active === null || active === body.ownerDocument.body);
         focusWas = undefined;
         if (lost) body.querySelector<HTMLElement>('[tabindex="0"]')?.focus({ preventScroll: true });
+        return;
+      }
+      // A bar holds the focus: the row only follows, and is no place to bring it back to.
+      if (closest(active ?? null, BAR) !== null) {
+        focusWas = undefined;
         return;
       }
       focusWas = focusedTask;

@@ -282,6 +282,7 @@ export function TaskList<TData = unknown>(props: TaskListProps<TData>): ReactEle
         aria-label={strings.label}
         aria-colcount={columns.length}
         aria-rowcount={rows.length + 1}
+        aria-multiselectable={appearance.multiSelect || undefined}
       >
         <div className="gantt-task-list__header" role="rowgroup">
           <div className="gantt-task-list__header-row" role="row" aria-rowindex={1}>
