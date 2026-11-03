@@ -181,6 +181,7 @@ export type {
   CancelInput,
   CancelPreviewEffect,
   ClickEffect,
+  ClickInput,
   CommitEffect,
   CreateLinkEffect,
   EditingOption,

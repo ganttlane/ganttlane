@@ -1,5 +1,5 @@
 import { deepFreeze } from '@ganttlane/fixtures';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { PointerInput } from '../interaction';
 import type { Task, TaskId } from '../model';
@@ -305,6 +305,161 @@ describe('createGanttCore: selection by clicks', () => {
     expect(gantt.getSnapshot().selection.tasks).toEqual(['phase']);
     click(gantt, { x: 390, y: 1 });
     expect(gantt.getSnapshot().selection.tasks).toEqual([]);
+  });
+
+  describe('selection.multiple', () => {
+    const clickWith = (
+      gantt: GanttCore,
+      point: { x: number; y: number },
+      modifiers: { ctrl?: boolean; meta?: boolean },
+    ): void => {
+      const event = { pointerId: 1, x: point.x, y: point.y, time: 0, modifiers };
+      gantt.send({ type: 'down', ...event });
+      gantt.send({ type: 'up', ...event });
+    };
+
+    it('FR-SEL-2: Ctrl or Cmd + click adds a task and takes it out, in click order', () => {
+      const gantt = chart({ selection: { onClick: true, multiple: true } });
+      const heard: unknown[] = [];
+      gantt.on('selectionChange', (keys) => heard.push(keys));
+      click(gantt, barMiddle(gantt, 'phase'));
+      clickWith(gantt, barMiddle(gantt, 'design'), { ctrl: true });
+      clickWith(gantt, barMiddle(gantt, 'one'), { meta: true });
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['phase', 'design', 'one']);
+      clickWith(gantt, barMiddle(gantt, 'design'), { ctrl: true });
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['phase', 'one']);
+      expect(heard).toEqual([
+        ['phase'],
+        ['phase', 'design'],
+        ['phase', 'design', 'one'],
+        ['phase', 'one'],
+      ]);
+    });
+
+    it('FR-SEL-2: a plain click still selects one task, and the last toggled off leaves none', () => {
+      const gantt = chart({ selection: { onClick: true, multiple: true } });
+      clickWith(gantt, barMiddle(gantt, 'phase'), { ctrl: true });
+      clickWith(gantt, barMiddle(gantt, 'design'), { ctrl: true });
+      click(gantt, barMiddle(gantt, 'one'));
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['one']);
+      clickWith(gantt, barMiddle(gantt, 'one'), { meta: true });
+      expect(gantt.getSnapshot().selection.tasks).toEqual([]);
+    });
+
+    it('FR-SEL-2: off by default a modifier changes nothing, as before the option existed', () => {
+      const gantt = chart({ selection: { onClick: true } });
+      click(gantt, barMiddle(gantt, 'phase'));
+      clickWith(gantt, barMiddle(gantt, 'design'), { ctrl: true });
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['design']);
+    });
+
+    it('FR-SEL-2: without onClick a click selects nothing, with or without the modifier', () => {
+      const gantt = chart({ selection: { multiple: true } });
+      clickWith(gantt, barMiddle(gantt, 'design'), { ctrl: true });
+      click(gantt, barMiddle(gantt, 'phase'));
+      expect(gantt.getSnapshot().selection.tasks).toEqual([]);
+    });
+
+    it('FR-SEL-2: Ctrl or Cmd on an empty part keeps the selection that clearOnEmptyClick clears', () => {
+      const gantt = chart({
+        selection: { onClick: true, clearOnEmptyClick: true, multiple: true },
+      });
+      click(gantt, barMiddle(gantt, 'phase'));
+      clickWith(gantt, { x: 390, y: 1 }, { ctrl: true });
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['phase']);
+      click(gantt, { x: 390, y: 1 });
+      expect(gantt.getSnapshot().selection.tasks).toEqual([]);
+    });
+
+    it('FR-SEL-2: a double click with the modifier toggles twice, and taskDoubleClick is heard', () => {
+      const gantt = chart({ selection: { onClick: true, multiple: true } });
+      const doubled = vi.fn();
+      gantt.on('taskDoubleClick', doubled);
+      clickWith(gantt, barMiddle(gantt, 'phase'), { ctrl: true });
+      clickWith(gantt, barMiddle(gantt, 'phase'), { ctrl: true });
+      expect(gantt.getSnapshot().selection.tasks).toEqual([]);
+      expect(doubled).toHaveBeenCalledTimes(1);
+    });
+
+    it('FR-SEL-2: a drag is no click: it leaves the selection, with the modifier too', () => {
+      const gantt = chart({ selection: { onClick: true, multiple: true } });
+      click(gantt, barMiddle(gantt, 'phase'));
+      const { x, y } = barMiddle(gantt, 'design');
+      const modifiers = { ctrl: true };
+      gantt.send({ type: 'down', pointerId: 1, x, y, time: 0, modifiers });
+      gantt.send({ type: 'move', pointerId: 1, x: x + 80, y, time: 1, modifiers });
+      gantt.send({ type: 'up', pointerId: 1, x: x + 80, y, time: 2, modifiers });
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['phase']);
+    });
+
+    it('FR-SEL-2: selecting a task with the modifier clears the selected link, not the tasks', () => {
+      const gantt = chart({
+        selection: { onClick: true, multiple: true },
+        links: [{ source: 'design', target: 'one' }],
+      });
+      click(gantt, barMiddle(gantt, 'phase'));
+      gantt.selectLink('design:FS:one');
+      expect(gantt.getSnapshot().selection.link).toBe('design:FS:one');
+      clickWith(gantt, barMiddle(gantt, 'design'), { meta: true });
+      expect(gantt.getSnapshot().selection).toEqual({
+        tasks: ['phase', 'design'],
+        link: undefined,
+      });
+    });
+
+    it('FR-SEL-2: a selectedKeys given with select() is what the next toggle starts from', () => {
+      const gantt = chart({ selection: { onClick: true, multiple: true } });
+      gantt.select(['one', 'phase']);
+      clickWith(gantt, barMiddle(gantt, 'one'), { ctrl: true });
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['phase']);
+    });
+
+    it('FR-DATA-4: a value of the wrong kind is an issue, and multiple stays off', () => {
+      const gantt = chart({ selection: { onClick: true, multiple: 1 as unknown as boolean } });
+      const found = gantt.getIssues().options.find((item) => item.path === 'selection.multiple');
+      expect(found).toMatchObject({ code: 'invalid-option', value: 1, suggested: false });
+      click(gantt, barMiddle(gantt, 'phase'));
+      clickWith(gantt, barMiddle(gantt, 'design'), { ctrl: true });
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['design']);
+    });
+  });
+
+  describe('a click that no pointer made', () => {
+    const keyClick = (gantt: GanttCore, id: string, ctrl = false): void => {
+      gantt.send({
+        type: 'click',
+        target: { kind: 'task', id, part: 'body' },
+        modifiers: { ctrl },
+        event: 'the key',
+      });
+    };
+
+    it('FR-SEL-3: it selects and is reported like a click of the pointer', () => {
+      const gantt = chart({ selection: { onClick: true, multiple: true } });
+      const clicks: unknown[] = [];
+      gantt.on('taskClick', (record, event) => clicks.push([record.id, event]));
+      keyClick(gantt, 'phase');
+      keyClick(gantt, 'design', true);
+      expect(gantt.getSnapshot().selection.tasks).toEqual(['phase', 'design']);
+      expect(clicks).toEqual([
+        ['phase', 'the key'],
+        ['design', 'the key'],
+      ]);
+    });
+
+    it('FR-SEL-3: it moves no hover, starts no gesture and never makes a double click', () => {
+      const gantt = chart();
+      const hovered = vi.fn();
+      const doubled = vi.fn();
+      gantt.on('taskHoverChange', hovered);
+      gantt.on('taskDoubleClick', doubled);
+      const before = gantt.getSnapshot().feedback;
+      keyClick(gantt, 'phase');
+      keyClick(gantt, 'phase');
+      expect(gantt.getSnapshot().feedback).toBe(before);
+      expect(hovered).not.toHaveBeenCalled();
+      expect(doubled).not.toHaveBeenCalled();
+    });
   });
 
   it('FR-DATA-4: a selection option of the wrong kind is an issue, and its default is used', () => {

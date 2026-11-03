@@ -245,6 +245,9 @@ function dispatch(state: State, event: InteractionEvent, run: Run): State {
       return state.key?.(event, run) ?? state;
     case 'timeline':
       return state.timeline?.(run) ?? state;
+    case 'click':
+      run.out.push(Object.freeze({ ...event, event: event.event }));
+      return state;
     default:
       return state;
   }
@@ -837,7 +840,8 @@ function refused(
 function click(run: Run, target: HitTarget, event: PointerInput): void {
   const { m } = run;
   const { doubleClickTime, doubleClickDistance } = m.settings;
-  run.out.push(Object.freeze({ type: 'click', target, event: event.event }));
+  const { modifiers } = event;
+  run.out.push(Object.freeze({ type: 'click', target, event: event.event, modifiers }));
   const last = m.lastClick;
   if (
     last !== undefined &&
@@ -845,7 +849,7 @@ function click(run: Run, target: HitTarget, event: PointerInput): void {
     event.time - last.time <= doubleClickTime &&
     Math.hypot(event.x - last.x, event.y - last.y) <= doubleClickDistance
   ) {
-    run.out.push(Object.freeze({ type: 'double-click', target, event: event.event }));
+    run.out.push(Object.freeze({ type: 'double-click', target, event: event.event, modifiers }));
     m.lastClick = undefined;
   } else {
     m.lastClick = { target, time: event.time, x: event.x, y: event.y };

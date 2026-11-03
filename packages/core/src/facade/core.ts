@@ -22,8 +22,8 @@ import {
   type Unsubscribe,
 } from '../events';
 import {
+  type ClickEffect,
   createInteraction,
-  type HitTarget,
   type InteractionContext,
   type InteractionEffect,
   type InteractionEvent,
@@ -1256,7 +1256,7 @@ export function createGanttCore<TData = unknown>(
           break;
         case 'click':
         case 'double-click':
-          click(effect.type, effect.target, effect.event);
+          click(effect);
           break;
         case 'extend-range':
           extendForDrag(effect.target);
@@ -1279,7 +1279,7 @@ export function createGanttCore<TData = unknown>(
     return out;
   };
 
-  const click = (type: 'click' | 'double-click', target: HitTarget, event: unknown): void => {
+  const click = ({ type, target, event, modifiers }: ClickEffect): void => {
     if (target.kind === 'link') {
       if (type !== 'click') return;
       const { graph } = store.getSnapshot().derived;
@@ -1289,10 +1289,21 @@ export function createGanttCore<TData = unknown>(
       return;
     }
     select(selection.tasks, undefined);
+    // Ctrl or Cmd with `selection.multiple`: the click is about one task, the others stay.
+    const toggling =
+      current.selection?.multiple === true &&
+      (modifiers?.ctrl === true || modifiers?.meta === true);
     if (target.kind === 'task') {
-      if (type === 'click' && current.selection?.onClick === true) select([target.id], undefined);
+      if (type === 'click' && current.selection?.onClick === true) {
+        const { id } = target;
+        const { tasks } = selection;
+        select(
+          !toggling ? [id] : tasks.includes(id) ? tasks.filter((t) => t !== id) : [...tasks, id],
+          undefined,
+        );
+      }
       queue(type === 'click' ? 'taskClick' : 'taskDoubleClick', { id: target.id, event });
-    } else if (type === 'click' && current.selection?.clearOnEmptyClick === true) {
+    } else if (type === 'click' && !toggling && current.selection?.clearOnEmptyClick === true) {
       select([], undefined);
     }
   };

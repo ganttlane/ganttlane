@@ -292,7 +292,7 @@ export interface GanttEventMap<TData = unknown> {
    * called. `null` for none.
    */
   readonly rowHoverChange: (record: TaskRecord<TData> | null) => void;
-  /** The task whose row has the keyboard focus changed (`focusTask`); `null` for none. */
+  /** The task whose row or bar has the keyboard focus changed (`focusTask`); `null` for none. */
   readonly focusChange: (record: TaskRecord<TData> | null) => void;
   /**
    * The scroll position changed: the renderer reported a new one (`scroll`), or the core moved
@@ -551,7 +551,7 @@ export interface ScrollToPosition {
 }
 
 /**
- * The `selection` option: what a click on the chart does to the selected tasks. Both are off by
+ * The `selection` option: what a click on the chart does to the selected tasks. All are off by
  * default, and then only `select` and `clearSelection` change them.
  */
 export interface SelectionOptions {
@@ -559,6 +559,11 @@ export interface SelectionOptions {
   readonly onClick?: boolean | undefined;
   /** A click on an empty part of the chart clears the selected tasks. */
   readonly clearOnEmptyClick?: boolean | undefined;
+  /**
+   * With `onClick`, Ctrl or Cmd + click adds the task to the selected ones or takes it out, and
+   * does not clear them on an empty part of the chart. A plain click still selects one task.
+   */
+  readonly multiple?: boolean | undefined;
 }
 
 /** Options of `setViewMode`. */
@@ -667,7 +672,7 @@ export interface GanttSnapshot<TData = unknown> {
    * its bar or over empty space. `undefined` for none.
    */
   readonly hoveredRow: TaskId | undefined;
-  /** The task whose row has the keyboard focus (`focusTask`); `undefined` for none. */
+  /** The task whose row or bar has the keyboard focus (`focusTask`); `undefined` for none. */
   readonly focusedTask: TaskId | undefined;
   /**
    * The `editing` option with every flag spelled out. A renderer draws the handles a task's
@@ -793,9 +798,10 @@ export interface GanttCore<TData = unknown> {
    */
   readonly setHoveredRow: (id: TaskId | undefined) => void;
   /**
-   * Says which task's row has the keyboard focus; `undefined` for none. A list beside the chart
-   * moves the browser's focus to that row. A task without a visible row is ignored, and a task
-   * whose row goes away loses the focus.
+   * Says which task's row or bar has the keyboard focus; `undefined` for none. Where the browser's
+   * focus goes is up to what draws the chart: a focused bar hands it to the bar of that task, a
+   * list beside the chart to its row. A task without a visible row is ignored, and a task whose
+   * row goes away loses the focus.
    */
   readonly focusTask: (id: TaskId | undefined) => void;
   /** The edit session. */

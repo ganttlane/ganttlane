@@ -208,7 +208,7 @@ const FIELDS: Readonly<Record<string, Readonly<Record<string, readonly unknown[]
   'scheduling.skipNonWorkingDays': { move: ON, resize: OFF, progress: ON },
   hierarchy: { moveChildren: ['all', 'following', 'none'] },
   editing: { move: ON, resize: ON, progress: ON, links: ON },
-  selection: { onClick: OFF, clearOnEmptyClick: OFF },
+  selection: { onClick: OFF, clearOnEmptyClick: OFF, multiple: OFF },
 };
 
 /** Values that are planned for a later release and not available yet, by option path. */

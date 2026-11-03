@@ -147,8 +147,24 @@ export interface TimelineInput {
   readonly type: 'timeline';
 }
 
+/**
+ * A click that no pointer made: Enter or Space on a focused bar. It is reported like the click of a
+ * pointer and changes nothing else: no hover, no gesture, and it does not count towards a double
+ * click. A renderer sends it only while no gesture is in progress.
+ */
+export interface ClickInput {
+  /** Discriminant. */
+  readonly type: 'click';
+  /** What is clicked. */
+  readonly target: HitTarget;
+  /** Modifier keys held. */
+  readonly modifiers?: InteractionModifiers | undefined;
+  /** The renderer's own event, passed through to the click effect. */
+  readonly event?: unknown;
+}
+
 /** An input event of {@link Interaction.send}. */
-export type InteractionEvent = PointerInput | CancelInput | KeyInput | TimelineInput;
+export type InteractionEvent = PointerInput | CancelInput | KeyInput | TimelineInput | ClickInput;
 
 /** Why a gesture or a link was refused. */
 export type RefusalReason =
@@ -269,6 +285,8 @@ export interface ClickEffect {
   readonly target: HitTarget;
   /** The `up` event's renderer event. */
   readonly event: unknown;
+  /** Modifier keys held at the release. */
+  readonly modifiers?: InteractionModifiers | undefined;
 }
 
 /** A gesture or a link was refused at its start or at its commit. */
