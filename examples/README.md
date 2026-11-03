@@ -109,8 +109,10 @@ range, so the examples set `scroll: { initial: 'first-task' }`.
 ## Adding an example
 
 An example is a folder, `examples/<slug>/`. The slug is its name in the URL
-(`/examples/<slug>/`): short, lower-case, with hyphens. Nothing else needs a change: the site, the
-sidebar and the tests find the folder by itself (`pnpm test` covers it, `pnpm site:dev` shows it).
+(`/examples/<slug>/`): short, lower-case, with hyphens. The site, the sidebar and the tests find the
+folder by itself (`pnpm test` covers it, `pnpm site:dev` shows it). Two links are yours to add, and a
+test checks each: a row in the tables above, and a link from a page of the guides
+(`apps/site/src/content/docs/guides/`, checked by `pnpm test:e2e:site`).
 
 | File         | What it is                                                                                                                                                                                                                                                             |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
