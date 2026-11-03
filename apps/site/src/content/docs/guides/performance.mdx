@@ -8,7 +8,7 @@ import { Aside } from '@astrojs/starlight/components';
 A chart that draws only what is on screen stays smooth whether the plan has a hundred tasks or ten
 thousand, and a library that ships in about 80 kB (minified and gzipped, everything included) does
 not weigh on a page. This guide explains how the renderer keeps its work proportional to what the
-viewer sees, what each package costs, the budgets the repository enforces on every change, and how
+viewer sees, what each package costs, the budgets the repository checks on every change, and how
 to take the same measurements yourself.
 
 ## How the chart stays fast
@@ -55,6 +55,12 @@ for a typical development machine, not guarantees for yours:
 
 A scroll frame costs a fraction of a frame because most scrolling changes nothing that is drawn.
 After a fling that moves past everything that was drawn, the window is redrawn within a frame.
+
+On every change, `pnpm test:perf` holds the same code to wider ceilings. They block `pnpm check`,
+so a change that crosses one fails on its author's machine. CI and the release workflow run them
+too but only report a miss, as an annotation on a passing run: a shared runner can give one commit
+timings about twice apart, so a ceiling there would fail on noise. Sizes do not depend on the
+machine, and they block both.
 
 ## Keeping your own code fast
 
@@ -155,7 +161,7 @@ All of these are commands in the repository (run `pnpm install` and `pnpm build`
 | `pnpm bench --only perf,size`  | A subset of the steps: `perf`, `browser`, `size` (`--project chromium` picks one engine)  |
 | `pnpm bench --runs 3`          | Each timing three times, reporting the best (other processes only ever add time)          |
 | `pnpm bench --json bench.json` | Also writes the numbers as JSON                                                           |
-| `pnpm test:perf`               | Only the performance budget tests (`*.perf.test.ts`)                                      |
+| `pnpm test:perf`               | Only the performance budget tests (`*.perf.test.ts`), one file at a time                  |
 
 `pnpm bench` prints one table with every row next to its target and exits with 1 if a target is
 missed. The numbers depend on the machine, so compare runs of one machine, never machines; the

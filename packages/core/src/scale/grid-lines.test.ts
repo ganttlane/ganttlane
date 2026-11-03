@@ -354,18 +354,16 @@ describe('scale/grid-lines', () => {
       }
     });
 
-    it('is lazy: taking 5 lines of a 1000-year hour range is quick and costs little', () => {
+    it('is lazy: taking 5 lines of a 1000-year hour range costs a few adapter calls', () => {
       const { adapter, calls } = countingAdapter();
       const ctx = context({ adapter, pxPerDay: 960 });
       const generator = gridLines(preset('hour'), range('2000-01-01', '3000-01-01'), ctx);
       const before = calls();
-      const started = Date.now();
       const first: GridLine[] = [];
       for (const line of generator) {
         first.push(line);
         if (first.length === 5) break;
       }
-      expect(Date.now() - started).toBeLessThan(50);
       expect(describeLines(first)).toEqual([
         '2000-01-01 major',
         '2000-01-01T00:15 minor',

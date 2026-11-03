@@ -8,7 +8,9 @@ import { configDefaults, defineConfig } from 'vitest/config';
 import { exampleAliases } from './examples/resolve.ts';
 
 // Performance budgets (`*.perf.test.ts`) only run in `pnpm test:perf`: under coverage
-// instrumentation, in six time zones or next to other heavy jobs their timings are noise.
+// instrumentation, in six time zones or next to other heavy jobs their timings are noise. They
+// are the only tests that assert a wall-clock time, so `pnpm check:gate`, which blocks CI and a
+// release, does not depend on how fast the machine is.
 const PERF = process.env.GANTTLANE_PERF === '1';
 const PERF_TESTS = '**/*.perf.test.{ts,tsx}';
 const files = PERF
@@ -48,7 +50,8 @@ export default defineConfig({
     // fails them spuriously. Timing budgets live in the separate perf run instead.
     testTimeout: 30_000,
     // Perf budgets are wall-clock: a busy machine can blow one once. A real regression fails
-    // every attempt, a load spike does not.
+    // every attempt, a load spike does not. A slow CI runner stays slow for the whole job and can
+    // fail every attempt too, so CI only reports a miss (the `perf` job of ci.yml).
     retry: PERF ? 2 : 0,
     // `pnpm test:coverage` (part of `pnpm check`). Thresholds per NFR-QUAL-2.
     coverage: {

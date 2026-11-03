@@ -131,9 +131,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # The full gate, so a release never ships a commit that fails CI; it also builds `dist`.
+      # What blocks the `check` job of CI, so a release never ships a commit that fails it; it also
+      # builds `dist`. Wall-clock budgets are left out: noise on a shared runner must not stop a
+      # release.
       - name: Check and build
-        run: pnpm check
+        run: pnpm check:gate
+
+      # Report only: a missed budget is an error annotation on the page of this run, the page where
+      # the `npm` environment is approved, so a real slowdown is seen before `publish` runs.
+      - name: Run the performance budgets (report only)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: pnpm test:perf
 
       # `pnpm pack` per package: runs the prepack/postpack hooks (LICENSE + NOTICE, exports
       # check) and applies `publishConfig` (exports without the `@ganttlane/source` condition).

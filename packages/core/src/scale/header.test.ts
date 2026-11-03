@@ -418,9 +418,7 @@ describe('scale/header', () => {
       const ctx = context({ adapter });
       const generator = headerCells(DAY_ROW, range('2000-01-01', '3000-01-01'), ctx);
       expect(calls()).toBe(0);
-      const started = Date.now();
       const first = take(generator, 5);
-      expect(Date.now() - started).toBeLessThan(50);
       expect(first.map(span)).toEqual([
         '2000-01-01/2000-01-02',
         '2000-01-02/2000-01-03',

@@ -160,7 +160,9 @@ Requires Node 24 (see `.tool-versions` / `.nvmrc`; Node 22 is supported too) and
 | Command            | What it does                                                                                                                                                         |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm dev`         | The playground (Vite) on package sources; its [pages](#the-playground) are `/vanilla/`, `/edit/`, `/scroll/`, `/bench/`, `/react/`, `/react-edit/` and `/react-ssr/` |
-| `pnpm check`       | Everything CI runs: format, lint, dependency rules, types, tests with coverage, time-zone and performance tests, build, size. Must be green before a change is done  |
+| `pnpm check`       | `pnpm check:gate`, then the timing budgets of `pnpm test:perf`. Must be green before a change is done                                                                |
+| `pnpm check:gate`  | What CI's `check` job and a release must pass, untimed: format, lint, dependency rules, types, tests with coverage, time zones, build, packed files, size            |
+| `pnpm test:perf`   | The timing budgets (`*.perf.test.ts`), one file at a time. CI and the release workflow only report a miss: shared runners vary too much for a budget to block        |
 | `pnpm test`        | Unit tests (Vitest): `core` in Node, `dom` and `react` in happy-dom, `react-18` against React 18.3, `examples` (every example mounts, in vanilla and in React)       |
 | `pnpm test:watch`  | The same, watching                                                                                                                                                   |
 | `pnpm test:e2e`    | End-to-end tests (Playwright: Chromium, Firefox, WebKit) against a build of the playground. Run `pnpm test:e2e:install` once for the browsers                        |
