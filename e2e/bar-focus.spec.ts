@@ -344,6 +344,7 @@ for (const renderer of RENDERERS) {
       // No ring without the keyboard: a press shows the state and nothing more.
       await track(page, 't2').click();
       await expect(bar(page, 't2')).toBeFocused();
+      await expect(bar(page, 't2')).toHaveAttribute('aria-pressed', 'true');
       const pressedByMouse = await track(page, 't2').evaluate((node) => {
         const style = getComputedStyle(node);
         return { stroke: style.stroke, ring: style.outlineStyle };
