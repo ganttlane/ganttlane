@@ -61,7 +61,10 @@ jobs:
   # about code quality. Each job builds the playground and runs the whole suite in its engine.
   e2e:
     name: e2e (${{ matrix.browser }})
-    runs-on: ubuntu-latest
+    # Pinned: Playwright's browser builds target a given Ubuntu release (WebKit needs that
+    # release's ICU), and `ubuntu-latest` moves to a new one before Playwright supports it.
+    # Raise it together with Playwright.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -85,8 +88,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Browser builds are tied to the Playwright version, so it is part of the cache key; each
-      # engine has a cache of its own, so a job restores only the browser it runs.
+      # Browser builds are tied to the Playwright version and to the runner image (`ImageOS`, for
+      # example `ubuntu24`: a build for one Ubuntu release does not start on another), so both are
+      # part of the cache key; each engine has a cache of its own, so a job restores only the
+      # browser it runs.
       - name: Read Playwright version
         id: playwright
         run: echo "version=$(pnpm exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
@@ -96,7 +101,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}-${{ matrix.browser }}
+          key: playwright-${{ env.ImageOS }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}-${{ matrix.browser }}
 
       - name: Install ${{ matrix.browser }} and its system dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -131,7 +136,8 @@ jobs:
   # the same build from main.
   site:
     name: site (build and browser check)
-    runs-on: ubuntu-latest
+    # Pinned for the same reason as `e2e`.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Check out repository
@@ -163,7 +169,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}-chromium
+          key: playwright-${{ env.ImageOS }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}-chromium
 
       - name: Install chromium and its system dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
