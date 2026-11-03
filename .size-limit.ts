@@ -5,9 +5,9 @@ import type { SizeLimitConfig } from 'size-limit';
  * numbers below are those of plan step 6.2; the budgets are the limits in the entries.
  *
  * Core budgets (plan step 3.9, ADR-019) were set at the size measured then plus about 10 %, rounded
- * up to a whole kB: the production entry with every export (61.05 kB now; `@internationalized/date`
- * and valibot included), what an app importing only `createGanttCore` ships (57.67 kB), and,
- * loosely, the development build with the full issue messages (65.35 kB). `pnpm size:report`
+ * up to a whole kB: the production entry with every export (61.07 kB now; `@internationalized/date`
+ * and valibot included), what an app importing only `createGanttCore` ships (57.69 kB), and,
+ * loosely, the development build with the full issue messages (65.37 kB). `pnpm size:report`
  * breaks a build down by core module and dependency.
  *
  * The single-utility entries (plan step 6.2) are set the same way, but rounded up to 0.1 kB: a
@@ -19,9 +19,9 @@ import type { SizeLimitConfig } from 'size-limit';
  * `@ganttlane/dom` and `@ganttlane/react` are "on top of what they are built on": the packages
  * below them are marked external via `ignore` (core for dom; core, dom with all its subpaths
  * (`/facade`, `/dom-utils`) and React for react), so the number is what the package adds to an app
- * that already ships those. dom is 21.85 kB of 22 (raised in Q14 for the disposal contract of
- * ADR-029, `DisposableNode`); its subpath `task-list` is 4.83 kB of 5 (ADR-031); react is 7.94 kB of
- * 10; the stylesheet is 7.33 kB of 8. `pnpm size:report --package dom` breaks the
+ * that already ships those. dom is 21.96 kB of 22 (raised in Q14 for the disposal contract of
+ * ADR-029, `DisposableNode`); its subpath `task-list` is 4.84 kB of 5 (ADR-031); react is 7.94 kB of
+ * 10; the stylesheet is 7.38 kB of 8. `pnpm size:report --package dom` breaks the
  * dom number down by layer, shared helper and file (plan step 4.5); `pnpm bench` prints every
  * entry next to its limit with the performance numbers (`docs/perf.md`).
  */

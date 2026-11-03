@@ -487,7 +487,8 @@ only where the row hover is on: see [the row hover](../task-list/#the-row-hover)
 which task's row or bar has the keyboard focus. A bar that has the browser's focus hands it to the
 bar of that task, a [task list](../task-list/) to its row, and otherwise a list takes it; nothing
 moves it onto a bar from elsewhere. A task without a visible row is ignored, and one whose row goes
-away loses the focus.
+away loses the focus. `focusTask(undefined)` does not take the browser's focus away, so a bar that
+has it is the focused task again at the next draw.
 
 `focusBar` moves the browser's focus to a bar from anywhere and scrolls to it, with
 [`keyboard.barFocus`](../options/#keyboard) on. It does nothing for a task without a bar in a visible

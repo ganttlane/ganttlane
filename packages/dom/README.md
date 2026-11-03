@@ -1125,8 +1125,8 @@ can lack `data-movable` and still not be read-only. The renderer's touch handlin
 (a movable bar takes the whole touch for itself, the others stay scrollable), and so can a
 stylesheet: `.gantt__bar[data-movable] { touch-action: none }`.
 
-When states combine on a bar, the sheet resolves the outline like this: the keyboard focus ring
-(`keyboard.barFocus`) beats everything, the outline of a selected bar beats the invalid and conflict outlines (an
+When states combine on a bar, the sheet resolves the stroke like this (the keyboard focus ring of
+`keyboard.barFocus` is an `outline`, drawn beside all of them): the outline of a selected bar beats the invalid and conflict outlines (an
 invalid bar that is selected keeps its dashes and its fade, a bar in conflict that is selected
 shows the selection only: its links still show the conflict), and those two beat the hover
 outline. Replacement sheets keep selection visible in the same way.
@@ -1204,19 +1204,23 @@ How the chart reacts to the pointer, the scroll and the size of its container.
 
 `keyboard: { barFocus: true }` gives the bars a roving tabindex: one tab stop for all of them (the
 focused bar, else the one that last was if it is still drawn, else the first drawn). A bar then has
-`role="button"`, its task's name as `aria-label` and `aria-pressed` for selected, and
-`.gantt__bar:focus-visible` draws the ring, from the keyboard only. Off by default, and then a bar has
-none of these and nothing listens for the keys.
+`role="button"`, its task's name as `aria-label` (its id, if it has no name) and, where
+`selection.onClick` makes a click select it, `aria-pressed`. `.gantt__bar:focus-visible` draws the ring
+as an outline on the track, from the keyboard only, so the stroke of a selected, invalid or
+conflicting bar stays visible. Off by default, and then a bar has none of these and nothing listens
+for the keys.
 
 - **Keys,** on the bar and only while no gesture runs: Up and Down go to the bar of the row above and
   below (a row without one is skipped), Home and End to the first and last, Page Up and Page Down a
   page of rows. Enter and Space are a click: `taskClick` and `selection.onClick` follow, and Ctrl or
   Cmd toggles with `selection.multiple`. Left and Right stay the scroller's.
 - **State.** The bar with the browser's focus is `focusTask`, whichever way it got it: a press focuses
-  a bar too, with no ring. `focusTask(id)` moves the browser's focus only while a bar has it;
-  `focusBar(id)` moves it from anywhere and scrolls to the bar.
-- **A bar that leaves.** The focused bar stays in the document when it scrolls out of the window. One
-  that goes away with its row hands the focus to the tab stop.
+  a bar too, with no ring. `focusTask(id)` moves the browser's focus only while a bar has it, and
+  `focusTask(undefined)` does not take it away, so that bar is the focused task again at the next
+  draw. `focusBar(id)` moves it from anywhere and scrolls to the bar.
+- **A bar that leaves.** The focused bar stays in the document when it scrolls out of the window, and
+  keeps the focus when rows are sorted. One that goes away with its row hands the focus to the tab
+  stop.
 
 ### Pointer input
 

@@ -385,7 +385,8 @@ Other things that change the look of a bar:
 
 - **States.** A selected, conflicting or invalid bar is outlined with `--gantt-bar-selected-color`,
   `--gantt-bar-conflict-color` and `--gantt-bar-invalid-color`; when states combine, selection beats
-  invalid and conflict, which beat the hover outline, and the keyboard focus ring beats all.
+  invalid and conflict, which beat the hover outline. The keyboard focus ring is an `outline`, drawn
+  beside all of them.
 - **Labels.** `--gantt-bar-label-color` is the label inside the bar and
   `--gantt-bar-label-outside-color` the one next to it. Where the label goes is `display.barLabel`
   (`'auto'`, `'inside'`, `'outside'`, `'none'`); see the [bar labels example](../../examples/bar-labels/).
