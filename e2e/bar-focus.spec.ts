@@ -32,6 +32,8 @@ async function open(
 ): Promise<void> {
   await page.goto(`${renderer.path}?${new URLSearchParams(params).toString()}`);
   await expect(page.locator('.gantt__bar').first()).toBeVisible();
+  // React's page sets its hook in an effect, after the commit that draws the bars.
+  await page.waitForFunction(() => '__gantt' in window);
   await page.evaluate(() => document.fonts.ready);
 }
 

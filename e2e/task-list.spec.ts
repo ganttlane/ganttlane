@@ -35,6 +35,8 @@ async function open(
   await page.goto(`${base}${renderer.path}?${query}`);
   await expect(page.locator('.gantt__bar').first()).toBeVisible();
   await expect(page.locator('.gantt-task-list__row').first()).toBeVisible();
+  // React's page sets its hook in an effect, after the commit that draws the bars.
+  await page.waitForFunction(() => '__gantt' in window);
   await page.evaluate(() => document.fonts.ready);
 }
 
