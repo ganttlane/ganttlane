@@ -1280,14 +1280,15 @@ export function createGanttCore<TData = unknown>(
   };
 
   const click = ({ type, target, event, modifiers }: ClickEffect): void => {
+    const { graph, model } = store.getSnapshot().derived;
     if (target.kind === 'link') {
       if (type !== 'click') return;
-      const { graph } = store.getSnapshot().derived;
       if (!graph.linkById.has(target.id)) return;
       select(selection.tasks, target.id);
       queue('linkClick', { id: target.id, event });
       return;
     }
+    if (target.kind === 'task' && !model.taskById.has(target.id)) return;
     select(selection.tasks, undefined);
     // Ctrl or Cmd with `selection.multiple`: the click is about one task, the others stay.
     const toggling =

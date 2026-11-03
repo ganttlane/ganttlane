@@ -1,7 +1,7 @@
 import { deepFreeze } from '@ganttlane/fixtures';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { PointerInput } from '../interaction';
+import type { InteractionEvent, PointerInput } from '../interaction';
 import type { Task, TaskId } from '../model';
 import { createGanttCore, type GanttCore, type GanttCoreOptions } from './index';
 
@@ -445,6 +445,40 @@ describe('createGanttCore: selection by clicks', () => {
         ['phase', 'the key'],
         ['design', 'the key'],
       ]);
+    });
+
+    it('FR-SEL-3: a task the chart does not have is not selected or reported, as select() has it', () => {
+      const gantt = chart({ selection: { onClick: true } });
+      const clicks = vi.fn();
+      gantt.on('taskClick', clicks);
+      gantt.selectLink('nothing');
+      keyClick(gantt, 'ghost');
+      expect(gantt.getSnapshot().selection.tasks).toEqual([]);
+      expect(clicks).not.toHaveBeenCalled();
+    });
+
+    it('FR-SEL-3: without a target it is ignored, and send does not throw', () => {
+      const gantt = chart({ selection: { onClick: true } });
+      for (const target of [undefined, null]) {
+        const event = { type: 'click', target } as unknown as InteractionEvent;
+        expect(gantt.send(event)).toEqual([]);
+      }
+      expect(gantt.getSnapshot().selection.tasks).toEqual([]);
+    });
+
+    it('FR-SEL-3: while a gesture runs it is ignored, as its contract says', () => {
+      const gantt = chart({ selection: { onClick: true } });
+      const clicks = vi.fn();
+      gantt.on('taskClick', clicks);
+      const { x, y } = barMiddle(gantt, 'phase');
+      gantt.send({ type: 'down', pointerId: 1, x, y, time: 0 });
+      keyClick(gantt, 'design');
+      gantt.send({ type: 'move', pointerId: 1, x: x + 80, y, time: 1 });
+      expect(gantt.getSnapshot().feedback.phase).not.toBe('idle');
+      keyClick(gantt, 'design');
+      gantt.send({ type: 'up', pointerId: 1, x: x + 80, y, time: 2 });
+      expect(gantt.getSnapshot().selection.tasks).toEqual([]);
+      expect(clicks).not.toHaveBeenCalled();
     });
 
     it('FR-SEL-3: it moves no hover, starts no gesture and never makes a double click', () => {

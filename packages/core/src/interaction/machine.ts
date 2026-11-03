@@ -23,6 +23,7 @@ import { barHandles, hitTest } from './hit-test';
 import { resolvePermissions } from './permissions';
 import type {
   CancelInput,
+  ClickInput,
   GestureKind,
   HandleOptions,
   HitTarget,
@@ -246,7 +247,10 @@ function dispatch(state: State, event: InteractionEvent, run: Run): State {
     case 'timeline':
       return state.timeline?.(run) ?? state;
     case 'click':
-      run.out.push(Object.freeze({ ...event, event: event.event }));
+      // Not in the middle of a gesture, and not of nothing: what `send` is given never throws.
+      if (state instanceof Idle && (event as Partial<ClickInput>).target) {
+        run.out.push(Object.freeze({ ...event, event: event.event }));
+      }
       return state;
     default:
       return state;

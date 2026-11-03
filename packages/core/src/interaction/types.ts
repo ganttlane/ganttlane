@@ -150,7 +150,7 @@ export interface TimelineInput {
 /**
  * A click that no pointer made: Enter or Space on a focused bar. It is reported like the click of a
  * pointer and changes nothing else: no hover, no gesture, and it does not count towards a double
- * click. A renderer sends it only while no gesture is in progress.
+ * click. It is ignored while a gesture is in progress, and when it has no target.
  */
 export interface ClickInput {
   /** Discriminant. */
