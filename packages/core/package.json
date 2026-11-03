@@ -1,6 +1,6 @@
 {
   "name": "@ganttlane/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Headless gantt-chart core: dates, work calendar, time scale, scheduling, layout and state. No DOM.",
   "license": "MIT",
   "keywords": [
