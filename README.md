@@ -14,9 +14,7 @@ renderer with a themable stylesheet, and React bindings. Plans with thousands of
 > Getting started, guides, live examples that run next to their code (vanilla and React), and the
 > generated [API reference](https://ganttlane.github.io/ganttlane/api/).
 
-> **Status:** pre-release (`0.0.0`), not published to npm yet. The API may still change before
-> `0.1.0`. Packages will be published under the `@ganttlane` npm scope; until then, clone this
-> repository and run `pnpm dev` for the playground.
+> **Status:** `0.x`: the API may still change between minor versions until `1.0`.
 
 ## Packages
 

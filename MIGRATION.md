@@ -10,10 +10,8 @@ maps what you have today to what exists now, and says where the behaviour is dif
   extra options such as dependencies with anchors, parent and child movement, ignored days, an
   infinite timeline and readonly flags.
 
-> **Status:** pre-release (`0.0.0`), not published to npm yet, and the API may still change before
-> `0.1.0`. The package names below (`@ganttlane/core`, `@ganttlane/dom`, `@ganttlane/react`) are the
-> ones that will be published. There is no automatic converter yet: see
-> [What is not available yet](#what-is-not-available-yet).
+> **Status:** `0.x`: the API may still change between minor versions until `1.0`. There is no
+> automatic converter yet: see [What is not available yet](#what-is-not-available-yet).
 
 > **Documentation:** the [documentation site](https://ganttlane.github.io/ganttlane/) has the guides,
 > live examples that run next to their code, and the generated

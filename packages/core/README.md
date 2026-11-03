@@ -22,8 +22,7 @@ For a chart in a page, install [`@ganttlane/dom`](https://github.com/ganttlane/g
 > [API reference](https://ganttlane.github.io/ganttlane/api/) of every export. This README is the
 > reference of the package.
 
-> **Status:** pre-release (`0.0.0`), not published to npm yet. The API may still change before
-> `0.1.0`.
+> **Status:** `0.x`: the API may still change between minor versions until `1.0`.
 
 Coming from frappe-gantt, or from a modified fork of it? See the [migration guide](https://github.com/ganttlane/ganttlane/blob/main/MIGRATION.md).
 
