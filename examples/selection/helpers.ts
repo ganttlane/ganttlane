@@ -43,22 +43,3 @@ export function linkFields(record: LinkRecord): Field[] {
 export function selectionText(keys: readonly TaskId[], link: string | undefined): string {
   return `selectedKeys: [${keys.join(', ')}]; selectedLink: ${link ?? 'none'}`;
 }
-
-/** Whether a click was made with Shift, Ctrl or Cmd held: it adds to the selection. */
-export function addsToSelection(event: unknown): boolean {
-  return event instanceof MouseEvent && (event.shiftKey || event.ctrlKey || event.metaKey);
-}
-
-/**
- * The tasks to select after a click on a bar. `select(ids)` replaces the selection, so the new
- * list is made here: the clicked task alone, or the clicked task toggled in the current list.
- *
- * @param current - The selected tasks.
- * @param id - The task that was clicked.
- * @param add - Whether to add to the selection (see `addsToSelection`).
- * @returns The tasks to give to `select`.
- */
-export function afterClick(current: readonly TaskId[], id: TaskId, add: boolean): TaskId[] {
-  if (!add) return [id];
-  return current.includes(id) ? current.filter((other) => other !== id) : [...current, id];
-}

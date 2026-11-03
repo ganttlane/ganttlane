@@ -12,6 +12,7 @@ import { createRoot } from 'react-dom/client';
 
 import {
   PLAN_HEIGHT,
+  planChoices,
   planColumns,
   planLayout,
   planOptions,
@@ -26,6 +27,7 @@ const { viewMode, ...options } = planOptions;
 function Plan(): ReactElement {
   const gantt = useGantt({
     ...options,
+    ...planChoices(settings),
     defaultViewMode: viewMode,
     defaultTasks: tasks,
     theme: settings.theme,

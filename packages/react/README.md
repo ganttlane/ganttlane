@@ -423,7 +423,7 @@ The methods of the chart are the ones of the vanilla [`Gantt`](https://github.co
 (`setTasks`, `setLinks`, `updateTask`, `addLink`, `removeLink`), `setOptions` (an escape hatch: a prop
 that changes later wins over it), the view and scrolling (`setViewMode`, `zoomTo`, `scrollToDate`,
 `scrollToToday`, `scrollToTask`, `scrollTo`), rows (`expand`, `collapse`, `toggle`, `expandAll`,
-`collapseAll`, `setHoveredRow`, `focusTask`), selection (`select`, `selectLink`, `clearSelection`),
+`collapseAll`, `setHoveredRow`, `focusTask`, `focusBar`), selection (`select`, `selectLink`, `clearSelection`),
 queries (`getTask`, `getLink`, `getVisibleRange`, `getRowMetrics`, `getBarRect`, `getRows`,
 `getRowWindow`, `getLayoutMetrics`, `getAppearance`, `getIssues`), `hideTooltip`, the edit session (`edit.begin`,
 `commit`, `rollback`, `getChanges`, `isOpen`, `isDirty`), history (`undo`, `redo`, `canUndo`,
@@ -757,7 +757,9 @@ It keeps in sync what is expanded and selected, the row under the pointer or wit
 focus, the vertical position, the theme, the stripes and the sizes. With `layout.height: 'auto'`,
 in one box that scrolls both, the two cannot differ; with a fixed or filling height each has its own
 scroller, and the list can be **a frame behind during a fast fling**. A list turns on the chart's
-`display.rowHover`: a chart without one lights no row. The markup is the one of the vanilla list:
+`display.rowHover`: a chart without one lights no row. With `selection={{ multiple: true }}` on the
+chart, Ctrl or Cmd + click adds a row to the selected ones, and with `keyboard={{ barFocus: true }}`
+the bars and the rows share one focused task. The markup is the one of the vanilla list:
 see [its section](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#task-list)
 in the README of `@ganttlane/dom`, which also has the keyboard.
 
@@ -838,8 +840,9 @@ attributes) in the `@ganttlane/dom` README. In short:
 The chart is the vanilla chart, so its accessibility is that of
 [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#accessibility): a named, focusable scroller region (its label is
 the `strings.chartLabel` prop), tooltips with `role="tooltip"` and `aria-describedby`, link menus with
-`role="menu"`, focus rings and `prefers-reduced-motion`. Bars, links and handles are not focusable
-yet, and dragging has no keyboard equivalent (planned, together with ARIA roles and announcements).
+`role="menu"`, focus rings and `prefers-reduced-motion`. Bars take the keyboard focus with the
+`keyboard={{ barFocus: true }}` prop; links and handles are not focusable yet, and dragging has no
+keyboard equivalent (planned, together with ARIA roles and announcements).
 
 What React adds: `id`, `aria-*` and `data-*` props go to the container `div`, and the content you
 draw through the [slots](#slots-tooltip-link-menu-and-bar-label-as-reactnode) is your React, so its
@@ -896,7 +899,7 @@ Limits you should know about today:
 - Controlled `tasks` need `onTasksChange` while editing is on (development warns), and a new array
   with equal contents ends a pending draft.
 - The limits of the renderer and the core apply too: left to right only, no toolbar, no zoom
-  gestures, no selection by clicking a bar, no keyboard editing, floating time without time zones,
+  gestures, no keyboard editing, floating time without time zones,
   and so on. See [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#limits-and-roadmap) and
   [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#limits-and-roadmap).
 

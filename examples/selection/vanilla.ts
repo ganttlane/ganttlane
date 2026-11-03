@@ -4,14 +4,7 @@ import './styles.css';
 import { createGantt, type Gantt, type TaskId } from '@ganttlane/dom';
 
 import { links, tasks } from './data';
-import {
-  addsToSelection,
-  afterClick,
-  type Field,
-  linkFields,
-  selectionText,
-  taskFields,
-} from './helpers';
+import { type Field, linkFields, selectionText, taskFields } from './helpers';
 import { options } from './options';
 
 /** A card of the side panel: a title and a list of labels and values. */
@@ -55,11 +48,6 @@ export function mount(container: HTMLElement): () => void {
     tasks,
     links,
     ...options,
-    // A click on a bar does not select it: that is up to you. Here it selects the task, and
-    // with Shift, Ctrl or Cmd held it adds the task to the selection (or takes it out).
-    onTaskClick: (record, event) => {
-      gantt.select(afterClick(selected, record.id, addsToSelection(event)));
-    },
     // `select`, `selectLink`, `clearSelection` and a click on a link all end here.
     onSelectionChange: (keys, link) => {
       selected = keys;
@@ -87,7 +75,7 @@ export function mount(container: HTMLElement): () => void {
       const empty = document.createElement('div');
       empty.className = 'selection-empty';
       empty.textContent =
-        'Nothing is selected. Click a bar (hold Shift, Ctrl or Cmd to add one) or the arrow of a link.';
+        'Nothing is selected. Click a bar (hold Ctrl or Cmd to add one) or the arrow of a link.';
       cards.push(empty);
     }
     panel.replaceChildren(...cards);

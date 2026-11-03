@@ -11,14 +11,7 @@ import {
 import { Fragment, useState } from 'react';
 
 import { links, tasks } from './data';
-import {
-  addsToSelection,
-  afterClick,
-  type Field,
-  linkFields,
-  selectionText,
-  taskFields,
-} from './helpers';
+import { type Field, linkFields, selectionText, taskFields } from './helpers';
 import { options } from './options';
 
 /** A card of the side panel: a title and a list of labels and values. */
@@ -59,13 +52,6 @@ export default function Example() {
     defaultTasks: tasks,
     defaultLinks: links,
     defaultSelectedKeys: ['backend'],
-    // A click on a bar does not select it: that is up to you. Here it selects the task, and
-    // with Shift, Ctrl or Cmd held it adds the task to the selection (or takes it out).
-    onTaskClick: (record, event) => {
-      gantt.select(
-        afterClick(gantt.core.getSnapshot().selection.tasks, record.id, addsToSelection(event)),
-      );
-    },
     // `select`, `selectLink`, `clearSelection` and a click on a link all end here.
     onSelectionChange: (keys, link) => {
       setStatus(selectionText(keys, link));
@@ -120,8 +106,7 @@ export default function Example() {
         )}
         {records.length === 0 && !link && (
           <div className="selection-empty">
-            Nothing is selected. Click a bar (hold Shift, Ctrl or Cmd to add one) or the arrow of a
-            link.
+            Nothing is selected. Click a bar (hold Ctrl or Cmd to add one) or the arrow of a link.
           </div>
         )}
       </div>

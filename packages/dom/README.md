@@ -241,7 +241,10 @@ drag, resize, progress change or link drawing) or by kind (`{ move, resize, prog
 `history` is off until you set `history: true` (or
 `{ limit }`, default 100): it records one entry per action for `undo()` and `redo()`.
 `selection` is what a click does to the selected tasks: `onClick` selects the bar that is clicked,
-`clearOnEmptyClick` clears them on a click on an empty part of the chart. Both are off by default.
+`clearOnEmptyClick` clears them on a click on an empty part of the chart, and `multiple` makes Ctrl
+or Cmd + click add the task or take it out. All are off by default.
+`keyboard.barFocus` lets bars take the keyboard focus (see [Keyboard focus](#keyboard-focus-on-the-bars)),
+and is off by default too.
 
 Defaults: `locale` is `'en'`, not the browser's, so that a server and a browser draw the same text;
 `theme` is `'auto'`; `scroll.initial` is `'today'`; `timeline.infinite` is off. Keys nobody knows are
@@ -313,7 +316,7 @@ back to the core and to `patchTasks`.
 | `rangeChange`        | `({ start, end, reason })`                        | The timeline range changed: for lazy loading by date. Also once at start (`'initial'`)                                                                                                                                                                   |
 | `rowsChange`         | `(rows)`                                          | What `getRows()` returns changed: a group opened or shut, a name, committed dates. Not during a drag preview                                                                                                                                             |
 | `rowHoverChange`     | `(record \| null)`                                | The lit row changed: the pointer's row in the chart, or `setHoveredRow`                                                                                                                                                                                  |
-| `focusChange`        | `(record \| null)`                                | The task whose row has the keyboard focus changed (`focusTask`)                                                                                                                                                                                          |
+| `focusChange`        | `(record \| null)`                                | The task whose row or bar has the keyboard focus changed (`focusTask`)                                                                                                                                                                                   |
 | `expandedChange`     | `(expandedKeys, expandedIds)`                     | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                                                                                                                                                                          |
 | `scroll`             | `({ x, y, date })`                                | The scroll position changed (and once at start); `date` is at the left edge of the viewport. Also for a scroll the core requests itself (the initial scroll, an instant `scrollTo*`): that one is reported at once, before the renderer has performed it |
 | `editRollback`       | `(sessionChanges)`                                | A session was cancelled: the inverse for controlled data to apply                                                                                                                                                                                        |
@@ -404,7 +407,7 @@ behind.
 | Options      | `setOptions(patch)`                                                                                                                                                             | the issues of the options now in use                                                                                                                                                                                |
 | View         | `setViewMode(id, { keepScroll })`, `zoomTo(pxPerDay, { anchor })`                                                                                                               | nothing                                                                                                                                                                                                             |
 | Scrolling    | `scrollToDate(date, { align, behavior })`, `scrollToToday(options)`, `scrollToTask(id, { align, alignY, behavior, expand })`                                                    | nothing                                                                                                                                                                                                             |
-| Rows         | `expand(id)`, `collapse(id)`, `toggle(id)`, `expandAll()`, `collapseAll()`, `setHoveredRow(id)`, `focusTask(id)`                                                                | nothing                                                                                                                                                                                                             |
+| Rows         | `expand(id)`, `collapse(id)`, `toggle(id)`, `expandAll()`, `collapseAll()`, `setHoveredRow(id)`, `focusTask(id)`, `focusBar(id)`                                                | nothing                                                                                                                                                                                                             |
 | Selection    | `select(ids)`, `selectLink(id)`, `clearSelection()`                                                                                                                             | nothing                                                                                                                                                                                                             |
 | Queries      | `getTask(id)`, `getLink(id)`, `getVisibleRange()`, `getRowMetrics(id)`, `getBarRect(id)`, `getRows()`, `getRowWindow()`, `getLayoutMetrics()`, `getAppearance()`, `getIssues()` | a `TaskRecord`, a `LinkRecord`, `{ start, end }`, row metrics, bar geometry (in body px, a drag in progress included), `{ data, options }`                                                                          |
 | Popovers     | `hideTooltip()`                                                                                                                                                                 | nothing                                                                                                                                                                                                             |
@@ -429,10 +432,10 @@ behind.
   10 000 tasks, and only when it is read. `getRowWindow()` says which rows the chart draws
   (`firstRow`, `lastRow`), `getLayoutMetrics()` its sizes (`headerHeight`, `rowHeight`, `barHeight`,
   `bodyHeight`, `contentWidth`, `viewportWidth`, `viewportHeight`) and `getAppearance()` its `theme`,
-  `height`, `rowStripes` and `rowHover`. `setHoveredRow(id)` lights a row from outside the chart
-  (`snapshot.hoveredRow`), and `focusTask(id)` says which task's row has the keyboard focus
-  (`snapshot.focusedTask`). The [task list](#task-list) is built on these and nothing else, and you
-  can build your own on them.
+  `height`, `rowStripes`, `rowHover` and `multiSelect`. `setHoveredRow(id)` lights a row from outside
+  the chart (`snapshot.hoveredRow`), and `focusTask(id)` says which task's row or bar has the keyboard
+  focus (`snapshot.focusedTask`). The [task list](#task-list) is built on these and nothing else, and
+  you can build your own on them.
 - **`updateTask(id, { start, end, progress })`** is a change from code. It propagates exactly like
   the drag it stands for (`start` alone moves the task, `end` alone moves its end edge, both set
   both) and runs `onBeforeTaskChange` with `reason: 'api'`. Values are exact (no snapping to the
@@ -480,8 +483,9 @@ behind.
   returns the issues of the options now in use.
 - **`select(ids)`** selects tasks (ids that are not in the data are left out) and `selectLink(id)` an
   arrow; clicking an arrow selects it too. Clicking a bar emits `taskClick` and selects no task
-  unless `selection.onClick` is on; like a click on an empty place of the chart, it **clears the
-  selected link** (the selected tasks stay, unless `selection.clearOnEmptyClick` is on).
+  unless `selection.onClick` is on (with `selection.multiple`, Ctrl or Cmd adds the task or takes it
+  out); like a click on an empty place of the chart, it **clears the selected link** (the selected
+  tasks stay, unless `selection.clearOnEmptyClick` is on).
 - **Events** are the same whether you give an `on<Event>` option or call `gantt.on`: the payloads
   of [Events](#events), which the facade does not change.
 
@@ -693,7 +697,8 @@ pointer or with the keyboard focus, the vertical position, the theme, the row st
 It draws the rows the chart draws, plus the one with the tab stop, so it stays fast with thousands
 of tasks. A click on a row selects the task and scrolls to it, moving nothing that is already in
 view; the toggle opens and shuts the group. Set `selection: { onClick: true }` on the chart for a
-click on a bar to select its row.
+click on a bar to select its row, and `multiple: true` for Ctrl or Cmd + click to add to the selected
+ones, on a bar and on a row.
 
 **Scrolling.** How the two scroll depends on the chart's `layout.height`:
 
@@ -732,8 +737,10 @@ list that can still be destroyed.
 
 **The keyboard.** It is a `role="treegrid"` of `role="row"`s with one tab stop: Up, Down, Page Up,
 Page Down, Home and End move; Right opens a group and then steps into it; Left shuts it and then
-steps out to its parent; Enter and Space activate the row. The splitter is a `role="separator"`:
-Left, Right, Home and End move it.
+steps out to its parent; Enter and Space activate the row (with `selection.multiple`, Ctrl or Cmd
+adds it or takes it out). The splitter is a `role="separator"`: Left, Right, Home and End move it.
+With `keyboard.barFocus` the bars and the rows share one focused task, and the one that holds the
+browser's focus keeps it.
 
 **The row hover.** A chart on its own lights no row: `--gantt-row-hover-color` is `transparent`, so
 an existing chart looks as it did. A task list turns on `display.rowHover` while it is attached,
@@ -1119,7 +1126,7 @@ can lack `data-movable` and still not be read-only. The renderer's touch handlin
 stylesheet: `.gantt__bar[data-movable] { touch-action: none }`.
 
 When states combine on a bar, the sheet resolves the outline like this: the keyboard focus ring
-beats everything, the outline of a selected bar beats the invalid and conflict outlines (an
+(`keyboard.barFocus`) beats everything, the outline of a selected bar beats the invalid and conflict outlines (an
 invalid bar that is selected keeps its dashes and its fade, a bar in conflict that is selected
 shows the selection only: its links still show the conflict), and those two beat the hover
 outline. Replacement sheets keep selection visible in the same way.
@@ -1192,6 +1199,24 @@ theme, and every token is documented here with its default.
 ## Behaviour
 
 How the chart reacts to the pointer, the scroll and the size of its container.
+
+### Keyboard focus on the bars
+
+`keyboard: { barFocus: true }` gives the bars a roving tabindex: one tab stop for all of them (the
+focused bar, else the one that last was if it is still drawn, else the first drawn). A bar then has
+`role="button"`, its task's name as `aria-label` and `aria-pressed` for selected, and
+`.gantt__bar:focus-visible` draws the ring, from the keyboard only. Off by default, and then a bar has
+none of these and nothing listens for the keys.
+
+- **Keys,** on the bar and only while no gesture runs: Up and Down go to the bar of the row above and
+  below (a row without one is skipped), Home and End to the first and last, Page Up and Page Down a
+  page of rows. Enter and Space are a click: `taskClick` and `selection.onClick` follow, and Ctrl or
+  Cmd toggles with `selection.multiple`. Left and Right stay the scroller's.
+- **State.** The bar with the browser's focus is `focusTask`, whichever way it got it: a press focuses
+  a bar too, with no ring. `focusTask(id)` moves the browser's focus only while a bar has it;
+  `focusBar(id)` moves it from anywhere and scrolls to the bar.
+- **A bar that leaves.** The focused bar stays in the document when it scrolls out of the window. One
+  that goes away with its row hands the focus to the tab stop.
 
 ### Pointer input
 
@@ -1401,7 +1426,7 @@ of `core.send` for a drag. An end-to-end test runs it in Chromium, Firefox and W
 - **`mountRenderer(container, core, options)`** is the renderer alone, for a core you create and
   share yourself (`createGanttCore` of `@ganttlane/core`). It takes the renderer's options (`theme`,
   `strings`, `height`, `display`, `idPrefix`, `layers`, `frames`), returns
-  `{ destroy(), setDisplay, setStrings, setHeight, setTheme, hideTooltip, display, strings, core }`
+  `{ destroy(), setDisplay, setStrings, setHeight, setTheme, hideTooltip, focusBar, display, strings, core }`
   and leaves the core alone on `destroy()`.
 - **`@ganttlane/dom/facade`** is the part of `createGantt` that needs no DOM: `createChart(options)`
   makes the same chart, with the same routing of the options to the core and the renderer, the same
@@ -1500,8 +1525,7 @@ Limits you should know about today (what is planned for 1.0 is listed at the end
 - **Left to right only.** `.gantt` sets `direction: ltr` whatever the page says; `direction: 'rtl'`
   is reported as unsupported.
 - **No toolbar:** its options are reserved.
-- **A click selects one task** (`selection.onClick`, or `select()` for several), and there is no
-  keyboard editing, context menu, pinch or `Ctrl` + wheel zoom (`zoomTo()` zooms from code), sticky
+- **There is no** Shift + click range, keyboard editing, context menu, pinch or `Ctrl` + wheel zoom (`zoomTo()` zooms from code), sticky
   bar labels, expected-progress marker or markers.
 - With `layout.height: 'auto'` no ancestor between the chart and what scrolls it may clip
   (`overflow: hidden`), and vertical autoscroll during a drag is not implemented.

@@ -11,6 +11,7 @@ import { createTaskList } from '@ganttlane/dom/task-list';
 
 import {
   PLAN_HEIGHT,
+  planChoices,
   planColumns,
   planLayout,
   planOptions,
@@ -32,6 +33,7 @@ document.querySelector('#app')?.append(plan);
 
 const gantt = createGantt(chart, {
   ...planOptions,
+  ...planChoices(settings),
   tasks: planTasks(settings.count),
   theme: settings.theme,
   layout: planLayout(settings.height),

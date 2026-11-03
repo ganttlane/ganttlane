@@ -208,12 +208,13 @@ core.send({ type: 'down', pointerId: 1, x: 640, y: 24, time: performance.now() }
 machines (move, resize, progress and link creation) and applies the previews, the commits, the links
 and the range growth itself. The events, in **content coordinates**:
 
-| Event                                | Fields                                                                                                               |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `PointerInput`: `down`, `move`, `up` | `pointerId`, `x`, `y`, `time`; optional `button`, `pointerType`, `isPrimary`, `modifiers`, `target`, `event`         |
-| `KeyInput`: `key`                    | `key` (a `KeyboardEvent.key`), optional `modifiers`; `'Escape'` cancels a gesture and any key re-reads the modifiers |
-| `CancelInput`: `cancel`              | Optional `pointerId`: the pointer was cancelled or lost, so its gesture is rolled back                               |
-| `TimelineInput`: `timeline`          | The timeline moved under a still pointer; `core.scroll` already does this for you                                    |
+| Event                                | Fields                                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `PointerInput`: `down`, `move`, `up` | `pointerId`, `x`, `y`, `time`; optional `button`, `pointerType`, `isPrimary`, `modifiers`, `target`, `event`                     |
+| `KeyInput`: `key`                    | `key` (a `KeyboardEvent.key`), optional `modifiers`; `'Escape'` cancels a gesture and any key re-reads the modifiers             |
+| `ClickInput`: `click`                | `target`, optional `modifiers`, `event`: a click no pointer made (Enter on a focused bar); no hover, no gesture, no double click |
+| `CancelInput`: `cancel`              | Optional `pointerId`: the pointer was cancelled or lost, so its gesture is rolled back                                           |
+| `TimelineInput`: `timeline`          | The timeline moved under a still pointer; `core.scroll` already does this for you                                                |
 
 - **Coordinates.** `x` is on the time scale, `x = clientX - scrollerLeft + scrollLeft`, and `y` is in
   body pixels, `y = clientY - scrollerTop + scrollTop - headerHeight`.

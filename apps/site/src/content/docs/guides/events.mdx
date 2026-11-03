@@ -460,9 +460,12 @@ pointer.
 `interaction.doubleClickTime` (500 ms by default) and `interaction.doubleClickDistance` (6 px).
 Clicks are never delayed: a double click is `taskClick`, `taskClick`, then `taskDoubleClick`.
 
-Both fire in a read-only chart (`editing: false`) too. A click on a bar does not select the task; it
-clears the selected link (`selectionChange` fires if there was one). A click on empty space does the
-same and fires nothing else.
+Both fire in a read-only chart (`editing: false`) too. A click on a bar selects the task only with
+[`selection.onClick`](../options/#selection); it clears the selected link (`selectionChange` fires if
+there was one). A click on empty space does the same and fires nothing else.
+
+With [`keyboard.barFocus`](../options/#keyboard), Enter or Space on a focused bar is a click too:
+`taskClick` fires with the `KeyboardEvent`, and two quick presses are no double click.
 
 ### `taskHoverChange`
 
@@ -529,11 +532,11 @@ ids the data does not have. `selectedLink` is the id of the selected link, or `u
 
 **Fires** only when the selection actually changed: `select`, `selectLink`, `clearSelection`, a click
 on a link (selects it), a click on a bar or on empty space (clears the selected link, keeps the
-selected tasks), and a change of the data that removes a selected task or link (the pruned selection
-is reported).
+selected tasks, unless [`selection`](../options/#selection) says otherwise), and a change of the data
+that removes a selected task or link (the pruned selection is reported).
 
-**Does not fire** when you select what is already selected. Tasks are never selected by a click on a
-bar: in the DOM chart the selection is yours to set with `select()`.
+**Does not fire** when you select what is already selected. By default a click on a bar selects no
+task: turn on `selection.onClick`, or set the selection yourself with `select()`.
 
 ### `viewModeChange`
 
@@ -638,9 +641,9 @@ onFocusChange: (record: TaskRecord | null) => void
 ```
 
 `rowHoverChange` reports the lit row: the row under the pointer in the chart, over its bar or over
-empty space, or the one `setHoveredRow` names. `focusChange` reports the task whose row has the
-keyboard focus (`focusTask`). `null` is none, also when the row goes away. See the
-[task list](../task-list/).
+empty space, or the one `setHoveredRow` names. `focusChange` reports the task whose row or bar has the
+keyboard focus (`focusTask`). `null` is none, also when the row goes away. Moving between a bar and a
+row reports the new task, with no `null` between. See the [task list](../task-list/).
 
 ## Edit session and history events
 

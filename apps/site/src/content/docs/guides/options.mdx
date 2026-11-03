@@ -17,7 +17,7 @@ The groups, in the order of the reference:
 - **View:** [View modes](#view-modes), [Timeline](#timeline), [Scroll](#scroll), [Layout](#layout),
   [Clock and direction](#clock-and-direction)
 - **Editing:** [Editing](#editing), [Interaction](#interaction), [History](#history),
-  [Selection](#selection)
+  [Selection](#selection), [Keyboard](#keyboard)
 - **Look:** [Display](#display), [Highlights](#highlights), [Tooltip](#tooltip), [Theme](#theme),
   [Toolbar](#toolbar), [Locale and strings](#locale-and-strings)
 - **Events:** [Handlers](#handlers)
@@ -92,13 +92,13 @@ except `renderer` ([mount options](#mount-options)), which is read when the char
 Nothing is recomputed that the keys you give do not affect: a new `locale` only re-labels the
 header, a new handler is swapped in without a redraw, a new `calendar` rebuilds the model.
 
-| Kind of option | Options                                                                                                                 | What `setOptions` does                                                                            |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Groups         | `calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`, `interaction`, `display`, `strings`     | Merges the fields you give into the group, one level deep. Fields you leave out keep their value. |
-| Taken whole    | `tasks`, `links`, `viewModes`, `editing`, `history`, `highlights`, `tooltip`, `linkMenu`, `highlightTooltip`, `toolbar` | Replaces the value. A field the new object leaves out is back to its default.                     |
-| Plain values   | `dataMode`, `viewMode`, `locale`, `direction`, `now`, `theme`                                                           | Replaces the value.                                                                               |
-| Handlers       | `on<Event>`, `onBeforeTaskChange`, `onBeforeLinkCreate`                                                                 | Swaps the handler; `undefined` removes it.                                                        |
-| Creation only  | `renderer`                                                                                                              | Ignored.                                                                                          |
+| Kind of option | Options                                                                                                                                      | What `setOptions` does                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Groups         | `calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`, `selection`, `interaction`, `display`, `strings`, `keyboard` | Merges the fields you give into the group, one level deep. Fields you leave out keep their value. |
+| Taken whole    | `tasks`, `links`, `viewModes`, `editing`, `history`, `highlights`, `tooltip`, `linkMenu`, `highlightTooltip`, `toolbar`                      | Replaces the value. A field the new object leaves out is back to its default.                     |
+| Plain values   | `dataMode`, `viewMode`, `locale`, `direction`, `now`, `theme`                                                                                | Replaces the value.                                                                               |
+| Handlers       | `on<Event>`, `onBeforeTaskChange`, `onBeforeLinkCreate`                                                                                      | Swaps the handler; `undefined` removes it.                                                        |
+| Creation only  | `renderer`                                                                                                                                   | Ignored.                                                                                          |
 
 ```ts
 gantt.setOptions({ theme: 'dark' }); // one key
@@ -764,17 +764,32 @@ Example: [undo and redo](../../examples/undo-redo/).
 
 ## Selection
 
-What a click does to the selected tasks. Both are off by default, and then only your own calls
+What a click does to the selected tasks. All are off by default, and then only your own calls
 change them: `gantt.select(ids)`, `gantt.selectLink(id)` and `gantt.clearSelection()`.
 
-| Option                        | Type      | Default | What it does                                                      |
-| ----------------------------- | --------- | ------- | ----------------------------------------------------------------- |
-| `selection.onClick`           | `boolean` | `false` | A click on a bar selects that task, in place of what was selected |
-| `selection.clearOnEmptyClick` | `boolean` | `false` | A click on an empty part of the chart clears the selected tasks   |
+| Option                        | Type      | Default | What it does                                                                                                  |
+| ----------------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `selection.onClick`           | `boolean` | `false` | A click on a bar selects that task, in place of what was selected                                             |
+| `selection.clearOnEmptyClick` | `boolean` | `false` | A click on an empty part of the chart clears the selected tasks                                               |
+| `selection.multiple`          | `boolean` | `false` | With `onClick`, Ctrl or Cmd + click adds the task or takes it out, and an empty part clears nothing with them |
+
+A plain click still selects one task, and a drag never changes the selection, with Ctrl or Cmd
+too. On a Mac Ctrl + click opens the context menu, so use Cmd. A [task list](../task-list/) follows
+`multiple` as well, with or without `onClick`.
 
 Listen to `onSelectionChange`, which fires before `onTaskClick`. A click on a link selects it. In
 React the selected tasks are the props `selectedKeys` and `defaultSelectedKeys`. See
 [Methods](../methods/) and the [selection example](../../examples/selection/).
+
+## Keyboard
+
+| Option              | Type      | Default | What it does                                                    |
+| ------------------- | --------- | ------- | --------------------------------------------------------------- |
+| `keyboard.barFocus` | `boolean` | `false` | Bars take the keyboard focus, with one tab stop for all of them |
+
+Off, a bar cannot be focused and nothing listens for the keys, so existing charts behave as they
+did. See [Accessibility](../accessibility/#focus-on-the-bars) for the keys, and
+[`focusBar(id)`](../methods/#hover-and-focus-of-a-row) to move the focus from code.
 
 ## Display
 

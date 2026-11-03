@@ -478,13 +478,20 @@ by itself: a click on a bar only fires `taskClick`. With
 ```ts
 setHoveredRow(id: TaskId | undefined): void
 focusTask(id: TaskId | undefined): void
+focusBar(id: TaskId): void
 ```
 
 For what stands beside the chart. `setHoveredRow` lights the row of a task (`undefined` gives the
 lit row back to the pointer); the row gets `data-hovered`, and `onRowHoverChange` fires. It shows
 only where the row hover is on: see [the row hover](../task-list/#the-row-hover). `focusTask` says
-which task's row has the keyboard focus; a [task list](../task-list/) moves the browser's focus to
-that row. A task without a visible row is ignored, and one whose row goes away loses the focus.
+which task's row or bar has the keyboard focus. A bar that has the browser's focus hands it to the
+bar of that task, a [task list](../task-list/) to its row, and otherwise a list takes it; nothing
+moves it onto a bar from elsewhere. A task without a visible row is ignored, and one whose row goes
+away loses the focus.
+
+`focusBar` moves the browser's focus to a bar from anywhere and scrolls to it, with
+[`keyboard.barFocus`](../options/#keyboard) on. It does nothing for a task without a bar in a visible
+row, or when the option is off.
 
 ```ts
 gantt.select(['design', 'build']);

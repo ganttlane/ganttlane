@@ -6,7 +6,9 @@
  * - `height`: `fixed` (default, the chart scrolls itself) or `auto` (one box scrolls both);
  * - `tasks`: how many tasks, in groups of ten (default 60);
  * - `theme`: the chart's theme (default `light`);
- * - `list=0`: the chart alone, to compare.
+ * - `list=0`: the chart alone, to compare;
+ * - `barFocus=1`: bars take the keyboard focus (`keyboard.barFocus`);
+ * - `multiple=1`: Ctrl or Cmd adds to the selection (`selection.multiple`).
  */
 import type { GanttRow, Task } from '@ganttlane/dom';
 
@@ -16,6 +18,8 @@ export interface PlanSettings {
   readonly count: number;
   readonly theme: 'light' | 'dark';
   readonly list: boolean;
+  readonly barFocus: boolean;
+  readonly multiple: boolean;
 }
 
 /** The height of the chart when it scrolls itself, and of the box when that scrolls both. */
@@ -34,6 +38,8 @@ export function planSettings(search: string): PlanSettings {
     count: Number(params.get('tasks') ?? 60),
     theme: params.get('theme') === 'dark' ? 'dark' : 'light',
     list: params.get('list') !== '0',
+    barFocus: params.get('barFocus') === '1',
+    multiple: params.get('multiple') === '1',
   };
 }
 
@@ -86,6 +92,15 @@ export const planOptions = {
   scroll: { initial: 'start', behavior: 'instant' },
   now: (): string => '2026-03-02',
 } as const;
+
+/** The options of the chart that follow the settings of the page. */
+export const planChoices = ({
+  barFocus,
+  multiple,
+}: PlanSettings): { readonly keyboard: object; readonly selection: object } => ({
+  keyboard: { barFocus },
+  selection: { ...planOptions.selection, multiple },
+});
 
 /** The sizes of the chart, for a height. */
 export const planLayout = (height: PlanSettings['height']): object => ({

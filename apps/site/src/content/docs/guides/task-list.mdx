@@ -117,7 +117,9 @@ Side by side, tops aligned. The list has its own width, and the chart takes the 
 
 A click on a row selects the task and scrolls the chart to its bar, moving nothing that is already
 in view. The chevron opens and shuts the group, and selects nothing. To do something else on a click,
-use `onRowClick` and call `event.preventDefault()`.
+use `onRowClick` and call `event.preventDefault()`. With
+[`selection.multiple`](../options/#selection) on the chart, Ctrl or Cmd + click adds a row to the
+selected ones or takes it out, and the grid says `aria-multiselectable`.
 
 Dates in the list follow a **commit**, not the drag in progress: a task's record changes when the
 change is committed.
@@ -235,10 +237,23 @@ The list is a `role="treegrid"` of `role="row"`s, with `aria-level`, `aria-expan
 | Right                                   | Opens a group, and once it is open steps into it           |
 | Left                                    | Shuts a group, and once it is shut steps out to its parent |
 | Enter, Space                            | Activates the row: `onRowClick`, then select and scroll    |
+| Ctrl or Cmd + Enter, Space              | With `selection.multiple`, adds the task or takes it out   |
 | Left, Right, Home, End on the splitter  | Resize the list                                            |
 
 Focus stays on whole rows: moving between the cells of a row is planned with the rest of the
 [accessibility work](../accessibility/).
+
+### Bars that take the focus
+
+With [`keyboard.barFocus`](../options/#keyboard) on the chart, the bars and the rows share one
+focused task, and the surface that holds the browser's focus keeps it:
+
+- A bar with the focus stays focused, and the list moves its tab stop to that task's row. A row with
+  the focus works the same way the other way round.
+- The keys walk the surface they were pressed on, and the other one follows.
+- `focusTask(id)` stays on the surface that holds the focus. With the focus on neither it goes to the
+  row, as it does without the option. `focusBar(id)` always goes to the bar.
+- Moving between a bar and a row reports the new task to `onFocusChange`, with no `null` between.
 
 ## Styling
 
