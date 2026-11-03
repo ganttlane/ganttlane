@@ -196,6 +196,53 @@ describe('viewport/scrollToTask', () => {
     expect(plan.scrollTop).toBe(0);
   });
 
+  it("FR-SCROLL-2: 'nearest' leaves what is in view, and takes the rest to the nearer edge", () => {
+    // Rows 0 … 48 and 48 … 96 in view at scrollTop 0; the bar of `a` is x 40 … 240.
+    const inView = scrollToTask('b', layout, march, {
+      viewportHeight: 96,
+      align: false,
+      alignY: 'nearest',
+    });
+    expect(inView).toEqual({ scrollLeft: 100, scrollTop: 0, change: undefined, jump: false });
+    const below = scrollToTask('stub', layout, march, { viewportHeight: 96, alignY: 'nearest' });
+    expect(below?.scrollTop).toBe(48);
+    const above = scrollToTask('a', layout, march, {
+      viewportHeight: 96,
+      alignY: 'nearest',
+      scrollTop: 30,
+    });
+    expect(above?.scrollTop).toBe(0);
+    // Bars: `a` is partly left of the view, and goes to the start edge.
+    const left = scrollToTask('a', layout, march, { viewportHeight: 96, align: 'nearest' });
+    expect(left?.scrollLeft).toBe(40);
+    const fits = { ...march, scrollLeft: 0, viewportWidth: 400 };
+    expect(
+      scrollToTask('a', layout, fits, { viewportHeight: 96, align: 'nearest' })?.scrollLeft,
+    ).toBe(0);
+  });
+
+  it("FR-SCROLL-2: 'nearest' for what is larger than the viewport: left alone when it fills it", () => {
+    const narrow = { ...march, scrollLeft: 100, viewportWidth: 100 };
+    const fills = scrollToTask('a', layout, narrow, { viewportHeight: 96, align: 'nearest' });
+    expect(fills?.scrollLeft).toBe(100);
+    const after = { ...march, scrollLeft: 0, viewportWidth: 30 };
+    const fromAfter = scrollToTask('a', layout, after, { viewportHeight: 96, align: 'nearest' });
+    expect(fromAfter?.scrollLeft).toBe(40);
+    // Taller than the viewport.
+    const row = scrollToTask('b', layout, march, { viewportHeight: 30, alignY: 'nearest' });
+    expect(row?.scrollTop).toBe(48);
+  });
+
+  it('FR-SCROLL-2: false leaves an axis at the offset it has', () => {
+    const plan = scrollToTask('b', layout, march, {
+      viewportHeight: 96,
+      align: false,
+      alignY: false,
+      scrollTop: 20,
+    });
+    expect(plan).toEqual({ scrollLeft: 100, scrollTop: 20, change: undefined, jump: false });
+  });
+
   it('throws for a layout built on another scale', () => {
     const moved = createLayout({
       rows,

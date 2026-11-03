@@ -141,6 +141,24 @@ export interface ExpandedChangePayload {
   readonly expandedKeys: StoreExpandedKeys;
 }
 
+/** What `getRows` returns changed (`rowsChange`); the facade reads the rows when it reports it. */
+export interface RowsChangePayload {
+  /** Always `true`: the event itself is the news. */
+  readonly changed: true;
+}
+
+/** The lit row changed (`rowHoverChange`). */
+export interface RowHoverPayload {
+  /** The task of the row, `undefined` for none. */
+  readonly id: TaskId | undefined;
+}
+
+/** The task whose row has the keyboard focus changed (`focusChange`). */
+export interface FocusChangePayload {
+  /** The task, `undefined` for none. */
+  readonly id: TaskId | undefined;
+}
+
 /** The timeline scrolled, by the renderer or by a scroll request of the core (`scroll`). */
 export interface ScrollPayload {
   /** Horizontal scroll offset in px. */
@@ -237,6 +255,12 @@ export interface CoreEvents extends EmitterEvents {
   readonly rangeChange: RangeChangePayload;
   /** The expanded parents changed. */
   readonly expandedChange: ExpandedChangePayload;
+  /** The rows changed. */
+  readonly rowsChange: RowsChangePayload;
+  /** The lit row changed. */
+  readonly rowHoverChange: RowHoverPayload;
+  /** The task with the keyboard focus changed. */
+  readonly focusChange: FocusChangePayload;
   /** The timeline scrolled. */
   readonly scroll: ScrollPayload;
   /** A gesture was refused. */

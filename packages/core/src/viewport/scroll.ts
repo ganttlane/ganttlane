@@ -44,7 +44,18 @@ export interface ScrollPlan {
   readonly jump: boolean;
 }
 
-/** A scroll to a task: {@link ScrollPlan} plus the vertical offset. Frozen. */
+/**
+ * Where {@link scrollToTask} takes a task on one axis: a place in the viewport
+ * ({@link ScrollAlign}); `'nearest'`, the least scroll that shows it, and none when it is in view
+ * (one larger than the viewport goes to the start edge, unless it already fills the viewport); or
+ * `false`, which leaves the axis where it is.
+ */
+export type TaskScrollAlign = ScrollAlign | 'nearest' | false;
+
+/**
+ * A scroll to a task: {@link ScrollPlan} plus the vertical offset. An axis that stays
+ * ({@link TaskScrollAlign}) has its current offset. Frozen.
+ */
 export interface TaskScrollPlan extends ScrollPlan {
   /** The target vertical scroll offset in body pixels, clamped to the rows. */
   readonly scrollTop: number;
@@ -65,11 +76,15 @@ export interface PlanScrollOptions {
 }
 
 /** Options of {@link scrollToTask}. */
-export interface TaskScrollOptions extends PlanScrollOptions {
+export interface TaskScrollOptions extends Omit<PlanScrollOptions, 'align'> {
+  /** Where the bar lands sideways; default `'start'`. */
+  readonly align?: TaskScrollAlign | undefined;
   /** Where the row lands vertically; default `align`. */
-  readonly alignY?: ScrollAlign | undefined;
+  readonly alignY?: TaskScrollAlign | undefined;
   /** Height of the body area visible below the sticky header, `0` or more. */
   readonly viewportHeight: number;
+  /** The vertical offset now, for `'nearest'` and `false`; default `0`. */
+  readonly scrollTop?: number | undefined;
 }
 
 /**
@@ -196,9 +211,28 @@ export function planScrollTo(
 }
 
 /**
+ * The place in the viewport `'nearest'` takes something of `size` at `start` to: none when it is
+ * in view or fills the viewport, the start edge when it comes from before or does not fit, else
+ * the end edge.
+ */
+function nearestEdge(
+  start: number,
+  size: number,
+  offset: number,
+  viewport: number,
+): 'start' | 'end' | undefined {
+  const end = start + size;
+  const inView = start >= offset && end <= offset + viewport;
+  const fills = start <= offset && end >= offset + viewport;
+  if (inView || fills) return undefined;
+  return start < offset || size > viewport ? 'start' : 'end';
+}
+
+/**
  * A scroll to a task on both axes (`scrollToTask`): its row at `alignY`
  * and its bar at `align`, the range grown first with `infinite` when the bar is outside it. A
- * task without a bar (placeholder, invalid) keeps the horizontal offset.
+ * task without a bar (placeholder, invalid) keeps the horizontal offset, and so does `align:
+ * false` or a bar in view with `'nearest'`.
  *
  * @param id - The task.
  * @param layout - The layout built on `state.scale` (same origin and zoom).
@@ -222,15 +256,21 @@ export function scrollToTask(
   const row = layout.getRowMetrics(id);
   if (row === undefined) return undefined;
   const align = options.align ?? 'start';
-  const scrollTop = scrollTopFor(
-    row.y,
-    row.height,
-    options.alignY ?? align,
-    options.viewportHeight,
-    layout.rows.bodyHeight,
-  );
+  const alignY = options.alignY ?? align;
+  const now = options.scrollTop ?? 0;
+  const { viewportHeight } = options;
+  const placeY =
+    alignY === 'nearest' ? nearestEdge(row.y, row.height, now, viewportHeight) : alignY;
+  const scrollTop =
+    placeY === undefined || placeY === false
+      ? now
+      : scrollTopFor(row.y, row.height, placeY, viewportHeight, layout.rows.bodyHeight);
   const bar = layout.getBarRect(id);
-  if (bar === undefined) {
+  const placeX =
+    align !== 'nearest'
+      ? align
+      : bar && nearestEdge(bar.x, bar.width, state.scrollLeft, state.viewportWidth);
+  if (bar === undefined || placeX === undefined || placeX === false) {
     const scrollLeft = clamp(
       state.scrollLeft,
       0,
@@ -239,7 +279,8 @@ export function scrollToTask(
     return Object.freeze({ scrollLeft, scrollTop, change: undefined, jump: false });
   }
   const target = { start: scale.xToDate(bar.x), end: scale.xToDate(bar.x + bar.width) };
-  return Object.freeze({ ...planScrollTo(target, state, options), scrollTop });
+  const plan = planScrollTo(target, state, { align: placeX, infinite: options.infinite });
+  return Object.freeze({ ...plan, scrollTop });
 }
 
 /**

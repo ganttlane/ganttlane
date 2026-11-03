@@ -19,7 +19,7 @@ import type {
   LinkDeleteResult,
   Unsubscribe,
 } from '../events';
-import type { HierarchyOptions } from '../hierarchy';
+import type { HierarchyOptions, Row } from '../hierarchy';
 import type {
   AutoScrollEffect,
   EditingOption,
@@ -56,6 +56,7 @@ import type {
   RangeChangeReason,
   ScrollAlign,
   ScrollOptionsInput,
+  TaskScrollAlign,
   TimelineOptions,
   TimelineState,
   ViewportChange,
@@ -164,6 +165,56 @@ export interface DateRange {
   readonly end: Date;
 }
 
+/**
+ * One row of the chart as what stands beside it needs it (`getRows`), in the order the chart draws
+ * them. Frozen, and the same object while nothing it shows changed.
+ *
+ * @typeParam TData - Type of `task.data`.
+ */
+export interface GanttRow<TData = unknown> extends Row {
+  /** `task.name`. */
+  readonly name: string;
+  /** How many siblings the task has, itself included (`aria-setsize`). */
+  readonly setSize: number;
+  /** Its place among them, from `1` (`aria-posinset`). */
+  readonly position: number;
+  /** The task's record: dates, progress, parent, the caller's task. */
+  readonly record: TaskRecord<TData>;
+}
+
+/**
+ * The rows to draw (`getRowWindow`): the ones in view and a few more, `firstRow … lastRow`,
+ * both inclusive; with none to draw, `firstRow > lastRow`. Frozen, and the same object while the
+ * two are the same, so a list can be drawn only when it has to.
+ */
+export interface RowWindow {
+  /** First row to draw. */
+  readonly firstRow: number;
+  /** Last row to draw, inclusive. */
+  readonly lastRow: number;
+}
+
+/**
+ * The chart's sizes in CSS px (`getLayoutMetrics`), for what lines up with it. Frozen, and the
+ * same object while they are the same.
+ */
+export interface LayoutMetrics {
+  /** Height of the header, all its rows. */
+  readonly headerHeight: number;
+  /** Height of every row. */
+  readonly rowHeight: number;
+  /** Height of a bar. */
+  readonly barHeight: number;
+  /** Height of all the visible rows. */
+  readonly bodyHeight: number;
+  /** Width of the scrolled content: the range on the scale. */
+  readonly contentWidth: number;
+  /** Width of the viewport. */
+  readonly viewportWidth: number;
+  /** Height of the viewport, header included. */
+  readonly viewportHeight: number;
+}
+
 /** The timeline range changed (`onRangeChange`), e.g. for lazy loading by dates. */
 export interface RangeChangeInfo extends DateRange {
   /** Why it changed. */
@@ -224,8 +275,25 @@ export interface GanttEventMap<TData = unknown> {
    * `expand` / `collapse` / `expandAll` / `collapseAll`, or `scrollToTask` opening the ancestors of
    * its task, changed the expanded parents. It is not fired for `hierarchy.expandedKeys` given to
    * `setOptions` (the application already has that value), nor when a call changes nothing.
+   * `expandedKeys` is what the chart keeps: `'all'`, or a list that may name tasks without
+   * children. `expandedIds` is the parents that are expanded now, always a list.
    */
-  readonly expandedChange: (expandedKeys: StoreExpandedKeys) => void;
+  readonly expandedChange: (
+    expandedKeys: StoreExpandedKeys,
+    expandedIds: readonly TaskId[],
+  ) => void;
+  /**
+   * What `getRows` returns changed: a group opened or shut, or something a row shows changed (a
+   * name, committed dates). Not fired for a drag preview: the rows change when the drag commits.
+   */
+  readonly rowsChange: (rows: readonly GanttRow<TData>[]) => void;
+  /**
+   * The lit row changed: the pointer is on another row of the chart, or `setHoveredRow` was
+   * called. `null` for none.
+   */
+  readonly rowHoverChange: (record: TaskRecord<TData> | null) => void;
+  /** The task whose row has the keyboard focus changed (`focusTask`); `null` for none. */
+  readonly focusChange: (record: TaskRecord<TData> | null) => void;
   /**
    * The scroll position changed: the renderer reported a new one (`scroll`), or the core moved
    * it itself. The core's own scroll requests (`scrollToDate`, `scrollToTask`, `scrollToToday`,
@@ -330,6 +398,8 @@ export type GanttCoreOptions<TData = unknown> = GanttHandlers<TData> & {
   readonly layout?: LayoutOptions | undefined;
   /** Editing from the UI: `false` turns it off; default `true`. */
   readonly editing?: EditingOption | undefined;
+  /** What a click selects; by default nothing, only `select` does. */
+  readonly selection?: SelectionOptions | undefined;
   /** Undo / redo; off by default. */
   readonly history?: HistoryOption | undefined;
   /** The timeline range and the infinite timeline; `infinite` is off by default. */
@@ -346,7 +416,7 @@ export type GanttCoreOptions<TData = unknown> = GanttHandlers<TData> & {
  *   `tasks` has none and the types do not allow `undefined` for it: untyped code gets an
  *   `invalid-option` issue, and the chart is emptied;
  * - the groups (`calendar`, `dates`, `scheduling`, `hierarchy`, `layout`, `timeline`, `scroll`,
- *   `interaction`) are merged one level deep: a field you give replaces that field, one you
+ *   `selection`, `interaction`) are merged one level deep: a field you give replaces that field, one you
  *   leave out keeps its value, and one given with `undefined` returns to its default.
  *   `undefined` for a whole group puts all of its fields back;
  * - objects nested in a group are replaced whole, not merged (a field you leave out is back to
@@ -454,11 +524,41 @@ export interface ScrollToDateOptions {
 }
 
 /** Options of `scrollToTask`. */
-export interface ScrollToTaskOptions extends ScrollToDateOptions {
-  /** Where the row lands vertically; default `align`. */
-  readonly alignY?: ScrollAlign | undefined;
+export interface ScrollToTaskOptions {
+  /**
+   * Where the bar lands sideways; default `scroll.align`. `'nearest'` is the least scroll that
+   * shows it, and none when it is in view; `false` does not scroll sideways.
+   */
+  readonly align?: TaskScrollAlign | undefined;
+  /** Where the row lands vertically, with the same values; default `align`. */
+  readonly alignY?: TaskScrollAlign | undefined;
+  /** How to scroll; default `scroll.behavior`. */
+  readonly behavior?: ScrollBehaviorOption | undefined;
   /** Expand collapsed ancestors so the row is visible first; default `true`. */
   readonly expand?: boolean | undefined;
+}
+
+/**
+ * Where `scrollTo` goes. An axis left out stays where it is. Offsets are clamped to the content.
+ */
+export interface ScrollToPosition {
+  /** The horizontal offset in content px. */
+  readonly left?: number | undefined;
+  /** The vertical offset in body px: the first row is at `0`, right below the header. */
+  readonly top?: number | undefined;
+  /** How to scroll; default `scroll.behavior`. */
+  readonly behavior?: ScrollBehaviorOption | undefined;
+}
+
+/**
+ * The `selection` option: what a click on the chart does to the selected tasks. Both are off by
+ * default, and then only `select` and `clearSelection` change them.
+ */
+export interface SelectionOptions {
+  /** A click on a bar selects that task, in place of what was selected. */
+  readonly onClick?: boolean | undefined;
+  /** A click on an empty part of the chart clears the selected tasks. */
+  readonly clearOnEmptyClick?: boolean | undefined;
 }
 
 /** Options of `setViewMode`. */
@@ -563,6 +663,13 @@ export interface GanttSnapshot<TData = unknown> {
   /** The interaction feedback: cursor, hovered target, dragged values, link preview. */
   readonly feedback: InteractionFeedback;
   /**
+   * The task of the lit row: `setHoveredRow`, else the row under the pointer in the chart, over
+   * its bar or over empty space. `undefined` for none.
+   */
+  readonly hoveredRow: TaskId | undefined;
+  /** The task whose row has the keyboard focus (`focusTask`); `undefined` for none. */
+  readonly focusedTask: TaskId | undefined;
+  /**
    * The `editing` option with every flag spelled out. A renderer draws the handles a task's
    * permissions allow: `resolvePermissions(model, snapshot.editing)`. Its own part: it keeps its
    * identity while the flags are the same, and `setOptions({ editing })` changes it and nothing
@@ -656,12 +763,20 @@ export interface GanttCore<TData = unknown> {
   /**
    * Scrolls a task's row and bar into view; before the viewport is known it is kept
    * like `scrollToDate` (a task that is not there then leaves `scroll.initial` in charge).
+   * `undefined` too when `'nearest'` or `false` leave nothing to scroll.
    */
   readonly scrollToTask: (id: TaskId, options?: ScrollToTaskOptions) => ScrollRequest | undefined;
+  /**
+   * Scrolls to a position on either axis or both; an axis left out stays where it is. Before the
+   * viewport is known it is kept like `scrollToDate`. `undefined` when neither axis is given.
+   */
+  readonly scrollTo: (position: ScrollToPosition) => ScrollRequest | undefined;
   /** Expands a parent; a task without children, or an unknown id, is left as it is. */
   readonly expand: (id: TaskId) => void;
   /** Collapses a parent; a task without children, or an unknown id, is left as it is. */
   readonly collapse: (id: TaskId) => void;
+  /** Expands a collapsed parent and collapses an expanded one; other ids are left as they are. */
+  readonly toggle: (id: TaskId) => void;
   /** Expands every parent. */
   readonly expandAll: () => void;
   /** Collapses every parent. */
@@ -672,6 +787,17 @@ export interface GanttCore<TData = unknown> {
   readonly selectLink: (id: string | undefined) => void;
   /** Clears the selected tasks and the selected link. */
   readonly clearSelection: () => void;
+  /**
+   * Lights the row of a task, from outside the chart (a list beside it); `undefined` hands the
+   * lit row back to the pointer, and so does a task without a visible row.
+   */
+  readonly setHoveredRow: (id: TaskId | undefined) => void;
+  /**
+   * Says which task's row has the keyboard focus; `undefined` for none. A list beside the chart
+   * moves the browser's focus to that row. A task without a visible row is ignored, and a task
+   * whose row goes away loses the focus.
+   */
+  readonly focusTask: (id: TaskId | undefined) => void;
   /** The edit session. */
   readonly edit: GanttEditSession;
   /** Undoes the last action; a gesture in progress is cancelled first. */
@@ -749,6 +875,16 @@ export interface GanttCore<TData = unknown> {
   readonly getRowMetrics: (id: TaskId) => RowMetrics | undefined;
   /** Where a task's bar lies as drawn (draft included), in body px. */
   readonly getBarRect: (id: TaskId) => BarGeometry | undefined;
+  /**
+   * The visible rows, in the order the chart draws them. The same array until a row changes
+   * (`rowsChange`), so comparing it is enough to know whether to draw again. Costs O(rows) after
+   * such a change, and only when it is read.
+   */
+  readonly getRows: () => readonly GanttRow<TData>[];
+  /** Which rows the chart draws now, for a list that draws the same ones. */
+  readonly getRowWindow: () => RowWindow;
+  /** The chart's sizes: header, rows, content and viewport. */
+  readonly getLayoutMetrics: () => LayoutMetrics;
   /** The current problems of the data and the options. */
   readonly getIssues: () => GanttIssues;
   /**

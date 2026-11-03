@@ -51,6 +51,7 @@ export type {
   InitialScrollInput,
   PlanScrollOptions,
   ScrollPlan,
+  TaskScrollAlign,
   TaskScrollOptions,
   TaskScrollPlan,
 } from './scroll';

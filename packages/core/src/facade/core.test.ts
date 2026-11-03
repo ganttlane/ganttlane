@@ -281,10 +281,10 @@ describe('createGanttCore: data', () => {
     gantt.collapseAll();
     gantt.expandAll();
     expect(events).toEqual([
-      ['expandedChange', []],
-      ['expandedChange', ['phase']],
-      ['expandedChange', []],
-      ['expandedChange', ['phase']],
+      ['expandedChange', [], []],
+      ['expandedChange', ['phase'], ['phase']],
+      ['expandedChange', [], []],
+      ['expandedChange', ['phase'], ['phase']],
     ]);
     gantt.setOptions({ hierarchy: { expandedKeys: [] } });
     expect(gantt.getRowMetrics('child')).toBeUndefined();
@@ -307,7 +307,7 @@ describe('createGanttCore: data', () => {
       gantt.expand(id);
       gantt.collapse(id);
     }
-    expect(events).toEqual([['expandedChange', []]]);
+    expect(events).toEqual([['expandedChange', [], []]]);
     expect(gantt.getSnapshot().state.expandedKeys).toEqual([]);
     expect(gantt.getTask('phase')?.isExpanded).toBe(false);
   });
@@ -320,7 +320,7 @@ describe('createGanttCore: data', () => {
     gantt.setOptions({ hierarchy: { expandedKeys: keys } });
     expect(phase()).toBe(true);
     gantt.collapse('phase');
-    expect(events).toEqual([['expandedChange', []]]);
+    expect(events).toEqual([['expandedChange', [], []]]);
     // The same array again is no change, although the state has moved away from it since.
     gantt.setOptions({ hierarchy: { expandedKeys: keys } });
     expect(phase()).toBe(false);
@@ -333,8 +333,8 @@ describe('createGanttCore: data', () => {
     gantt.setOptions({ hierarchy: { expandedKeys: 'all' } });
     expect(phase()).toBe(false);
     expect(events).toEqual([
-      ['expandedChange', []],
-      ['expandedChange', []],
+      ['expandedChange', [], []],
+      ['expandedChange', [], []],
     ]);
   });
 

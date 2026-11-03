@@ -107,6 +107,7 @@ import {
   type ScrollAlign,
   type ScrollPlan,
   scrollToTask as planTaskScroll,
+  type TaskScrollAlign,
   type TimelineState,
   type ViewportChange,
 } from '../viewport';
@@ -123,7 +124,7 @@ import {
   show,
   targetsOf,
 } from './options';
-import { createRecordCache, dateRange, type RecordSource, taskDates } from './records';
+import { buildRows, createRecordCache, dateRange, type RecordSource, taskDates } from './records';
 import type {
   DateRange,
   GanttCore,
@@ -132,15 +133,19 @@ import type {
   GanttEventMap,
   GanttEventName,
   GanttIssues,
+  GanttRow,
   GanttSelection,
   GanttSnapshot,
   HistoryOption,
+  LayoutMetrics,
   RendererEffect,
+  RowWindow,
   ScrollBehaviorOption,
   ScrollPosition,
   ScrollRequest,
   ScrollRequestReason,
   ScrollToDateOptions,
+  ScrollToPosition,
   ScrollToTaskOptions,
   SetViewModeOptions,
   TaskUpdate,
@@ -177,6 +182,12 @@ interface PendingRebase {
   readonly reset: boolean;
 }
 
+/** Where a scroll the application asked for goes; an axis that stays is `undefined`. */
+type IntentPlan = Omit<ScrollPlan, 'scrollLeft'> & {
+  readonly scrollLeft: number | undefined;
+  readonly scrollTop?: number | undefined;
+};
+
 /** Why the timeline was re-derived: the scale, the timeline options or the data changed. */
 type SyncReason = 'view-mode' | 'zoom' | 'options' | 'data';
 
@@ -190,10 +201,11 @@ interface RequestInput {
 }
 
 /**
- * A scroll the application asked for (`scrollToDate`, `scrollToToday`, `scrollToTask`) before the
- * chart had a width to place it on. `'today'` is read when it is performed.
+ * A scroll the application asked for (`scrollToDate`, `scrollToToday`, `scrollToTask`, `scrollTo`)
+ * before the chart had a width to place it on. `'today'` is read when it is performed.
  */
 type ScrollIntent =
+  | { readonly kind: 'position'; readonly options: ScrollToPosition }
   | {
       readonly kind: 'date';
       readonly t: DateTimeMs | 'today';
@@ -253,6 +265,7 @@ const BEHAVIORS: ReadonlySet<unknown> = /* @__PURE__ */ new Set(['smooth', 'inst
  * | `locale` | header labels only |
  * | `scroll` | scroll options / interaction context only |
  * | `editing` | the snapshot's `editing` part and the interaction context only |
+ * | `selection` | nothing: it is read when a click comes |
  * | `interaction` | the interaction machine is recreated (a gesture in progress is cancelled); the snapshot's `handles` part when a size changed |
  * | `history` | `history.configure` only |
  * | `on*` | the handler only, O(1): no model, no layout, no new snapshot |
@@ -376,6 +389,15 @@ export function createGanttCore<TData = unknown>(
   let pruned: readonly unknown[] = [];
   let autoScroll = 0;
   let hovered: TaskId | undefined;
+  /** The row `setHoveredRow` lights, over the pointer's. */
+  let pointedRow: TaskId | undefined;
+  let hoveredRow: TaskId | undefined;
+  let focusedTask: TaskId | undefined;
+  /** What `getRows` returned last, and what `rowsChange` last reported (while it has listeners). */
+  let rowList: readonly GanttRow<TData>[] = Object.freeze([]);
+  let shownRows: readonly GanttRow<TData>[] | undefined;
+  let rowWindow: RowWindow | undefined;
+  let metrics: LayoutMetrics | undefined;
   let scrollRequest: ScrollRequest | undefined;
   let requestCount = 0;
   /**
@@ -539,6 +561,23 @@ export function createGanttCore<TData = unknown>(
     expandedKeys: state.expandedKeys,
     conflicts: state.derived.conflicts,
   });
+  /** Memoized on the derived data and the row sizes, not on the state: a draft is new every frame. */
+  const rowListOf = memoize(
+    (derived: StoreState<TData>['derived'], _sizes: RowLayout): readonly GanttRow<TData>[] => {
+      const source = recordSource(store.getSnapshot());
+      rowList = buildRows(
+        derived.rows,
+        derived.hierarchy,
+        (id) => records.get(source, id),
+        rowList,
+      );
+      return rowList;
+    },
+  );
+  const rowsNow = (): readonly GanttRow<TData>[] => {
+    const state = store.getSnapshot();
+    return rowListOf(state.derived, rowsOf(state));
+  };
   /**
    * Whether no gesture and no `updateTask` may start: a commit or a link
    * creation awaits a before-hook, or controlled data holds a committed change the owner has not
@@ -603,7 +642,9 @@ export function createGanttCore<TData = unknown>(
         const second = name === 'taskProgressChange' ? p.progress : p.event;
         return found === undefined ? undefined : [found, second];
       }
-      case 'taskHoverChange': {
+      case 'taskHoverChange':
+      case 'rowHoverChange':
+      case 'focusChange': {
         const id = p.id as TaskId | undefined;
         return [id === undefined ? null : (record(id) ?? null), p.event];
       }
@@ -619,8 +660,14 @@ export function createGanttCore<TData = unknown>(
         return [p.selectedKeys, p.selectedLink];
       case 'viewModeChange':
         return [p.viewMode];
-      case 'expandedChange':
-        return [p.expandedKeys];
+      case 'expandedChange': {
+        const keys = p.expandedKeys as StoreExpandedKeys;
+        const { parentIds, nodeById } = state.derived.hierarchy;
+        const open = (id: TaskId): boolean => nodeById.get(id)?.hasChildren === true;
+        return [keys, keys === 'all' ? parentIds : Object.freeze(keys.filter(open))];
+      }
+      case 'rowsChange':
+        return [rowsNow()];
       case 'rangeChange': {
         const range = dateRange(p.start as DateTimeMs, p.end as DateTimeMs);
         return [Object.freeze({ ...range, reason: p.reason })];
@@ -746,7 +793,35 @@ export function createGanttCore<TData = unknown>(
     const selectionChanged = syncSelection(state);
     syncIssues(state);
     syncScroll();
+    syncRows(state);
     return timelineChanged || viewModeChanged || selectionChanged;
+  };
+
+  /** Brings the lit row and the focused row in line with the rows; reports what changed. */
+  const syncRows = (state: StoreState<TData>): void => {
+    const rows = rowsOf(state);
+    const shown = (id: TaskId | undefined): TaskId | undefined =>
+      id !== undefined && rows.rowOf(id) !== undefined ? id : undefined;
+    const { hover } = machine.feedback;
+    const under =
+      hover.kind === 'task' ? hover.id : hover.kind === 'empty' ? hover.rowId : undefined;
+    const lit = shown(pointedRow) ?? shown(under);
+    if (lit !== hoveredRow) {
+      hoveredRow = lit;
+      queue('rowHoverChange', { id: lit });
+    }
+    const focused = shown(focusedTask);
+    if (focused !== focusedTask) {
+      focusedTask = focused;
+      queue('focusChange', { id: focused });
+    }
+    if (!emitter.hasListeners('rowsChange')) {
+      shownRows = undefined;
+      return;
+    }
+    const list = rowsNow();
+    if (shownRows !== undefined && shownRows !== list) queue('rowsChange', { changed: true });
+    shownRows = list;
   };
 
   const publish = (errors: unknown[]): void => {
@@ -782,6 +857,8 @@ export function createGanttCore<TData = unknown>(
       window: windowOf(scrollLeft, scrollTop, viewportWidth, viewportHeight, rows, scale),
       selection,
       feedback: feedbackOf(machine.feedback),
+      hoveredRow,
+      focusedTask,
       editing: editingOf(current.editing),
       handles: handlesOf(current.interaction?.handles),
       now: nowMinute,
@@ -1118,10 +1195,7 @@ export function createGanttCore<TData = unknown>(
    * smooth scroll would start from an unrelated place, and the extensions and trims on its way
    * could cut the target away.
    */
-  const scrollBy = (
-    plan: ScrollPlan & { readonly scrollTop?: number },
-    behavior: ScrollBehaviorOption,
-  ): ScrollRequest => {
+  const scrollBy = (plan: IntentPlan, behavior: ScrollBehaviorOption): ScrollRequest => {
     const { change, jump } = plan;
     let from: number | undefined;
     if (change !== undefined) {
@@ -1216,7 +1290,10 @@ export function createGanttCore<TData = unknown>(
     }
     select(selection.tasks, undefined);
     if (target.kind === 'task') {
+      if (type === 'click' && current.selection?.onClick === true) select([target.id], undefined);
       queue(type === 'click' ? 'taskClick' : 'taskDoubleClick', { id: target.id, event });
+    } else if (type === 'click' && current.selection?.clearOnEmptyClick === true) {
+      select([], undefined);
     }
   };
 
@@ -1484,12 +1561,14 @@ export function createGanttCore<TData = unknown>(
       if (destroyed) return undefined;
       const parsed = parseDateInput(date);
       if (!parsed.ok) return undefined;
-      return scrollTo({ kind: 'date', t: parsed.value.value, options: scrollOptions });
+      return perform({ kind: 'date', t: parsed.value.value, options: scrollOptions });
     },
     scrollToToday: (scrollOptions?: ScrollToDateOptions): ScrollRequest | undefined =>
-      destroyed ? undefined : scrollTo({ kind: 'date', t: 'today', options: scrollOptions }),
+      destroyed ? undefined : perform({ kind: 'date', t: 'today', options: scrollOptions }),
     scrollToTask: (id: TaskId, scrollOptions?: ScrollToTaskOptions): ScrollRequest | undefined =>
-      destroyed ? undefined : scrollTo({ kind: 'task', id, options: scrollOptions }),
+      destroyed ? undefined : perform({ kind: 'task', id, options: scrollOptions }),
+    scrollTo: (position: ScrollToPosition): ScrollRequest | undefined =>
+      destroyed ? undefined : perform({ kind: 'position', options: position }),
     expand: (id: TaskId): void => {
       changeExpanded({ type: 'setExpanded', id, expanded: true });
     },
@@ -1501,6 +1580,10 @@ export function createGanttCore<TData = unknown>(
     },
     collapseAll: (): void => {
       changeExpanded({ type: 'collapseAll' });
+    },
+    toggle: (id: TaskId): void => {
+      const keys = store.getSnapshot().expandedKeys;
+      changeExpanded({ type: 'setExpanded', id, expanded: !(keys === 'all' || keys.includes(id)) });
     },
     select: (ids: readonly TaskId[]): void => {
       if (destroyed) return;
@@ -1520,6 +1603,21 @@ export function createGanttCore<TData = unknown>(
     },
     clearSelection: (): void => {
       if (!destroyed) batch(() => select([], undefined));
+    },
+    setHoveredRow: (id: TaskId | undefined): void => {
+      if (destroyed) return;
+      batch(() => {
+        pointedRow = id;
+      });
+    },
+    focusTask: (id: TaskId | undefined): void => {
+      if (destroyed) return;
+      batch(() => {
+        if (id === focusedTask) return;
+        if (id !== undefined && rowsOf(store.getSnapshot()).rowOf(id) === undefined) return;
+        focusedTask = id;
+        queue('focusChange', { id });
+      });
     },
     edit: Object.freeze({
       begin: () => batch(() => session.begin()),
@@ -1547,6 +1645,7 @@ export function createGanttCore<TData = unknown>(
     },
     on: <K extends GanttEventName>(name: K, handler: GanttEventMap<TData>[K]): Unsubscribe => {
       if (destroyed || typeof handler !== 'function') return () => undefined;
+      if (name === 'rowsChange') shownRows ??= rowsNow();
       const off = emitter.on(name, listenerOf(name, handler as AnyHandler));
       return off;
     },
@@ -1620,6 +1719,26 @@ export function createGanttCore<TData = unknown>(
     },
     getRowMetrics: (id: TaskId) => rowsOf(store.getSnapshot()).rowOf(id),
     getBarRect: (id: TaskId) => layoutOf(store.getSnapshot()).getBarRect(id),
+    getRows: rowsNow,
+    getRowWindow: (): RowWindow => {
+      const { firstRow, lastRow } = core.getSnapshot().window;
+      rowWindow = reuse(rowWindow, { firstRow, lastRow });
+      return rowWindow;
+    },
+    getLayoutMetrics: (): LayoutMetrics => {
+      const shown = core.getSnapshot();
+      const { headerHeight, rowHeight, bodyHeight } = shown.layout.rows;
+      metrics = reuse(metrics, {
+        headerHeight,
+        rowHeight,
+        barHeight: shown.layoutOptions.barHeight,
+        bodyHeight,
+        contentWidth: shown.contentWidth,
+        viewportWidth: shown.timeline.viewportWidth,
+        viewportHeight: shown.viewportHeight,
+      });
+      return metrics;
+    },
     getIssues: (): GanttIssues => {
       const state = store.getSnapshot();
       const { derived } = state;
@@ -1653,12 +1772,12 @@ export function createGanttCore<TData = unknown>(
     const plan = intent === undefined ? undefined : planIntent(intent);
     intent = undefined;
     if (plan?.change !== undefined) adopt(plan.change);
-    if (plan !== undefined) timeline = withScrollLeft(timelineNow(), plan.scrollLeft);
-    const placed = plan !== undefined || placeInitial();
+    if (plan?.scrollLeft !== undefined) timeline = withScrollLeft(timelineNow(), plan.scrollLeft);
+    const placed = plan?.scrollLeft !== undefined || placeInitial();
     settle(policy(store.getSnapshot()));
     const shown = timelineNow();
     queueRange(shown.range, 'initial');
-    if (!placed && shown.scrollLeft === 0) return undefined;
+    if (!placed && shown.scrollLeft === 0 && plan?.scrollTop === undefined) return undefined;
     return request({
       reason: 'initial',
       left: shown.scrollLeft,
@@ -1668,45 +1787,67 @@ export function createGanttCore<TData = unknown>(
   }
 
   /**
-   * A scroll the application asks for (`scrollToDate`, `scrollToToday`, `scrollToTask`): a
-   * request now, or, while the chart has no width to place it on, the one scroll the mount
-   * performs. The latest call before the mount wins.
+   * A scroll the application asks for (`scrollToDate`, `scrollToToday`, `scrollToTask`,
+   * `scrollTo`): a request now, or, while the chart has no width to place it on, the one scroll
+   * the mount performs. The latest call before the mount wins. No request when nothing is to move.
    */
-  function scrollTo(want: ScrollIntent): ScrollRequest | undefined {
+  function perform(want: ScrollIntent): ScrollRequest | undefined {
     if (!mounted) {
       intent = want;
       return undefined;
     }
     return batch(() => {
       const plan = planIntent(want);
+      if (plan?.scrollLeft === undefined && plan?.scrollTop === undefined) return undefined;
       const chosen = isRecord(want.options) ? want.options : {};
-      return plan && scrollBy(plan, behaviorOf(chosen.behavior, scrollSettings().behavior));
+      return scrollBy(plan, behaviorOf(chosen.behavior, scrollSettings().behavior));
     });
   }
 
   /** Where a {@link ScrollIntent} goes on the timeline now; `undefined` for a task that is not there. */
-  function planIntent(
-    want: ScrollIntent,
-  ): (ScrollPlan & { readonly scrollTop?: number }) | undefined {
+  function planIntent(want: ScrollIntent): IntentPlan | undefined {
     const settings = scrollSettings();
+    const given = isRecord(want.options) ? want.options : {};
+    const shown = timelineNow();
+    if (want.kind === 'position') {
+      const rows = rowsOf(store.getSnapshot());
+      const width = shown.scale.durationToPx(shown.range.end - shown.range.start);
+      const fit = (value: unknown, max: number): number | undefined =>
+        isFiniteNumber(value) ? Math.min(Math.max(value, 0), Math.max(max, 0)) : undefined;
+      return {
+        scrollLeft: fit(given.left, width - shown.viewportWidth),
+        scrollTop: fit(given.top, rows.bodyHeight + rows.headerHeight - viewportHeight),
+        change: undefined,
+        jump: false,
+      };
+    }
     if (want.kind === 'date') {
-      const given = isRecord(want.options) ? want.options : {};
       return planScrollTo(want.t === 'today' ? readNow() : want.t, timelineNow(), {
         align: alignOf(given.align, settings.align),
         infinite: policy(store.getSnapshot()) ?? false,
       });
     }
-    const given = isRecord(want.options) ? want.options : {};
     if (given.expand !== false) expandAncestors(want.id);
     const state = store.getSnapshot();
     const layout = layoutOf(state);
-    const align = alignOf(given.align, settings.align);
-    return planTaskScroll(want.id, layout, timelineNow(), {
+    const align = taskAlignOf(given.align, settings.align);
+    const alignY = taskAlignOf(given.alignY, align);
+    const plan = planTaskScroll(want.id, layout, shown, {
       align,
-      alignY: alignOf(given.alignY, align),
+      alignY,
       viewportHeight: Math.max(viewportHeight - layout.rows.headerHeight, 0),
+      scrollTop,
       infinite: policy(state) ?? false,
     });
+    if (plan === undefined) return undefined;
+    // An axis that `'nearest'` or `false` leaves alone is no part of the request: it may be moving.
+    const stays = (value: TaskScrollAlign, target: number, now: number): boolean =>
+      value === false || (value === 'nearest' && target === now);
+    return {
+      ...plan,
+      scrollLeft: stays(align, plan.scrollLeft, shown.scrollLeft) ? undefined : plan.scrollLeft,
+      scrollTop: stays(alignY, plan.scrollTop, scrollTop) ? undefined : plan.scrollTop,
+    };
   }
 
   function expandAncestors(id: TaskId): void {
@@ -1864,6 +2005,10 @@ function lookupOf<TData>(model: NormalizedModel<TData>, draft: Draft | undefined
 function alignOf(value: unknown, fallback: ScrollAlign): ScrollAlign {
   if (ALIGN_KEYWORDS.has(value)) return value as ScrollAlign;
   return typeof value === 'number' && value >= 0 && value <= 1 ? value : fallback;
+}
+
+function taskAlignOf(value: unknown, fallback: TaskScrollAlign): TaskScrollAlign {
+  return value === false || value === 'nearest' ? value : alignOf(value, fallback as ScrollAlign);
 }
 
 function behaviorOf(value: unknown, fallback: ScrollBehaviorOption): ScrollBehaviorOption {

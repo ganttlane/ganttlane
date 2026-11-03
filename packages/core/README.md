@@ -495,6 +495,8 @@ createGanttCore({
 | `hierarchy.expandedKeys`        | `'all'` \| `TaskId[]`                                               | `'all'`                                         | The expanded parents                                                                                                                          |
 | `hierarchy.childAnchor`         | link type or list                                                   | `'SS'`                                          | Default `task.parentAnchor`                                                                                                                   |
 | `hierarchy.moveChildren`        | `'all'` \| `'following'` \| `'none'`                                | `'all'`                                         | Which children move with a moved parent                                                                                                       |
+| `selection.onClick`             | `boolean`: a click on a bar selects that task                       | `false`                                         |                                                                                                                                               |
+| `selection.clearOnEmptyClick`   | `boolean`: a click on an empty part clears the selected tasks       | `false`                                         |                                                                                                                                               |
 | `editing`                       | `boolean` \| `{ move, resize, progress, links }`                    | `true`                                          | What the UI may do (`false`: nothing; `updateTask`, `addLink` and `removeLink` from code still commit); `task.editable` overrides it per task |
 | `history`                       | `boolean` \| `{ enabled, limit }`                                   | off, limit 100                                  | Undo and redo: `history: true` turns them on                                                                                                  |
 
@@ -560,7 +562,10 @@ reports its size with `setViewport`.
 | `selectionChange`    | `(selectedKeys, selectedLink)`                    | The selected tasks or link changed                                                                                                                                                                                                      |
 | `viewModeChange`     | `(viewMode)`                                      | The view mode in use changed                                                                                                                                                                                                            |
 | `rangeChange`        | `({ start, end, reason })`                        | The timeline range changed (`Date`s): for lazy loading by date. `reason` is `'initial'`, `'data'`, `'options'`, `'view-mode'`, `'zoom'`, `'resize'`, `'drag'` or a viewport reason (extension, trim, scroll-to)                         |
-| `expandedChange`     | `(expandedKeys)`                                  | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                                                                                                                                                         |
+| `rowsChange`         | `(rows)`                                          | What `getRows()` returns changed; not during a drag preview                                                                                                                                                                             |
+| `rowHoverChange`     | `(record \| null)`                                | The lit row changed: the pointer's row, or `setHoveredRow`                                                                                                                                                                              |
+| `focusChange`        | `(record \| null)`                                | The task whose row has the keyboard focus changed (`focusTask`)                                                                                                                                                                         |
+| `expandedChange`     | `(expandedKeys, expandedIds)`                     | `expand`, `collapse`, `expandAll` or `collapseAll` changed the expanded parents                                                                                                                                                         |
 | `scroll`             | `({ x, y, date })`                                | The scroll position changed: the renderer reported one, or a request of the core's own moved it (the initial scroll, an instant `scrollTo*`), at once, before the renderer has performed it. `date` is at the left edge of the viewport |
 | `editRollback`       | `(sessionChanges)`                                | A session was cancelled: the inverse for controlled data to apply                                                                                                                                                                       |
 | `dirtyChange`        | `({ isDirty })`                                   | `edit.isDirty` flipped                                                                                                                                                                                                                  |
@@ -586,20 +591,20 @@ All members of the object `createGanttCore` returns are plain functions: they ne
 promise resolve `{ status: 'cancelled', reason: 'disposed' }`) and the queries keep answering from
 the state the chart had.
 
-| Group         | Members                                                                                                                      |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Data          | `setTasks(tasks)`, `setLinks(links)`, `updateTask(id, { start?, end?, progress? })`, `addLink(link)`, `removeLink(id)`       |
-| Options       | `setOptions(patch)` returns the issues of the options now in use                                                             |
-| View          | `setViewMode(id, { keepScroll })`, `zoomTo(pxPerDay, { anchor })`                                                            |
-| Scrolling     | `scrollToDate(date, { align, behavior })`, `scrollToToday(options)`, `scrollToTask(id, { align, alignY, behavior, expand })` |
-| Rows          | `expand(id)`, `collapse(id)`, `expandAll()`, `collapseAll()`                                                                 |
-| Selection     | `select(ids)`, `selectLink(id)`, `clearSelection()`                                                                          |
-| Edit session  | `edit.begin()`, `edit.commit()`, `edit.rollback()`, `edit.getChanges()`, `edit.isOpen`, `edit.isDirty`                       |
-| History       | `undo()`, `redo()`, `canUndo`, `canRedo` (need `history: true`)                                                              |
-| Queries       | `getTask(id)`, `getLink(id)`, `getVisibleRange()`, `getRowMetrics(id)`, `getBarRect(id)`, `getIssues()`                      |
-| Events        | `on(name, handler)`, `subscribe(listener)`                                                                                   |
-| For renderers | `setViewport(size)`, `scroll(position)`, `send(event)`, `refreshNow()`, `getSnapshot()`                                      |
-| Life cycle    | `destroy()`                                                                                                                  |
+| Group         | Members                                                                                                                                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Data          | `setTasks(tasks)`, `setLinks(links)`, `updateTask(id, { start?, end?, progress? })`, `addLink(link)`, `removeLink(id)`                                                                                                     |
+| Options       | `setOptions(patch)` returns the issues of the options now in use                                                                                                                                                           |
+| View          | `setViewMode(id, { keepScroll })`, `zoomTo(pxPerDay, { anchor })`                                                                                                                                                          |
+| Scrolling     | `scrollToDate(date, { align, behavior })`, `scrollToToday(options)`, `scrollToTask(id, { align, alignY, behavior, expand })` (`align` and `alignY` also take `'nearest'` and `false`), `scrollTo({ left, top, behavior })` |
+| Rows          | `expand(id)`, `collapse(id)`, `toggle(id)`, `expandAll()`, `collapseAll()`, `setHoveredRow(id)`, `focusTask(id)`                                                                                                           |
+| Selection     | `select(ids)`, `selectLink(id)`, `clearSelection()`                                                                                                                                                                        |
+| Edit session  | `edit.begin()`, `edit.commit()`, `edit.rollback()`, `edit.getChanges()`, `edit.isOpen`, `edit.isDirty`                                                                                                                     |
+| History       | `undo()`, `redo()`, `canUndo`, `canRedo` (need `history: true`)                                                                                                                                                            |
+| Queries       | `getTask(id)`, `getLink(id)`, `getVisibleRange()`, `getRowMetrics(id)`, `getBarRect(id)`, `getRows()`, `getRowWindow()`, `getLayoutMetrics()`, `getIssues()`                                                               |
+| Events        | `on(name, handler)`, `subscribe(listener)`                                                                                                                                                                                 |
+| For renderers | `setViewport(size)`, `scroll(position)`, `send(event)`, `refreshNow()`, `getSnapshot()`                                                                                                                                    |
+| Life cycle    | `destroy()`                                                                                                                                                                                                                |
 
 - **`updateTask(id, { start, end, progress })`** is a programmatic change with `reason: 'api'`.
   `start` alone moves the task (its length is kept), `end` alone moves the end edge, both set both
@@ -836,7 +841,7 @@ sources and is on the documentation site.
 
 Planned for 1.0: zoom gestures and `zoomToFit`, selection and keyboard navigation, undo and redo
 hotkeys, `push-forward` propagation, week-start and weekend defaults from the locale, RTL, exported
-validation schemas, a task list and compound React components. Later: zoned dates, working hours,
+validation schemas and compound React components. Later: zoned dates, working hours,
 baselines, critical path, rollup of parent dates.
 
 ## License

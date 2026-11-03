@@ -3,14 +3,15 @@
  * `TaskRecord`s, memoized per task while the parts of the state they show are unchanged.
  */
 
-import type { Hierarchy, HierarchyIssue, HierarchyNode } from '../hierarchy';
+import type { Hierarchy, HierarchyIssue, HierarchyNode, Row } from '../hierarchy';
 import type { RowLayout } from '../layout';
 import type { NormalizedModel, ResolvedModelOptions, TaskId, TaskModel, TaskSpan } from '../model';
 import type { Conflict } from '../schedule';
 import type { Issue } from '../shared';
 import type { StoreExpandedKeys } from '../store';
 import { asDateTimeMs, type DateTimeMs, DAY, toDate } from '../time';
-import type { DateRange, TaskDates, TaskRecord } from './types';
+import { reuse } from './options';
+import type { DateRange, GanttRow, TaskDates, TaskRecord } from './types';
 
 /** What the records of one state are built from. */
 export interface RecordSource<TData> {
@@ -107,6 +108,44 @@ export function createRecordCache<TData>(): RecordCache<TData> {
     return record;
   };
   return Object.freeze({ get });
+}
+
+/**
+ * The rows `getRows` returns: one per visible row, keeping the objects of `previous` that show
+ * the same, and `previous` itself when all do. A parent's children are all visible when any is,
+ * so counting them on the way gives each its place in O(rows).
+ *
+ * @internal
+ */
+export function buildRows<TData>(
+  rows: readonly Row[],
+  hierarchy: Hierarchy,
+  recordOf: (id: TaskId) => TaskRecord<TData> | undefined,
+  previous: readonly GanttRow<TData>[],
+): readonly GanttRow<TData>[] {
+  /** How many children of each parent came so far; roots are under `undefined`. */
+  const seen = new Map<TaskId | undefined, number>();
+  const next: GanttRow<TData>[] = [];
+  let same = rows.length === previous.length;
+  for (const row of rows) {
+    const record = recordOf(row.id);
+    if (record === undefined) continue;
+    const { parentId } = record;
+    const position = (seen.get(parentId) ?? 0) + 1;
+    seen.set(parentId, position);
+    const siblings =
+      parentId === undefined ? hierarchy.rootIds : hierarchy.nodeById.get(parentId)?.childIds;
+    const item = reuse(previous[next.length], {
+      ...row,
+      name: record.name,
+      setSize: siblings?.length ?? 1,
+      position,
+      record,
+    });
+    same &&= item === previous[next.length];
+    next.push(item);
+  }
+  return same ? previous : Object.freeze(next);
 }
 
 function sameSource<TData>(a: RecordSource<TData>, b: RecordSource<TData>): boolean {

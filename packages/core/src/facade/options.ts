@@ -22,6 +22,9 @@ const EVENTS: Readonly<Record<GanttEventName, true>> = {
   viewModeChange: true,
   rangeChange: true,
   expandedChange: true,
+  rowsChange: true,
+  rowHoverChange: true,
+  focusChange: true,
   scroll: true,
   editRollback: true,
   dirtyChange: true,
@@ -130,6 +133,7 @@ export type OptionKey = Exclude<keyof GanttCoreOptions, `on${string}`>;
  * | `locale` | — | — | header labels | — | — |
  * | `scroll` | — | — | requests | context (`autoScroll`) | — |
  * | `editing` | — | — | — | context | `editing` |
+ * | `selection` | — | — | — | — (read when a click comes) | — |
  * | `interaction` | — | — | — | machine recreated | `handles` (when a size changed) |
  * | `history` | — | — | — | — (history settings) | — |
  * | `on*` | — | — | — | — (handlers, O(1)) | — |
@@ -154,6 +158,7 @@ export const OPTION_INVALIDATION: Readonly<Record<OptionKey, readonly OptionTarg
     locale: ['header'],
     scroll: ['scroll'],
     editing: ['editing'],
+    selection: [],
     interaction: ['interaction', 'handles'],
     history: ['history'],
   });
@@ -167,6 +172,7 @@ const GROUPS: ReadonlySet<string> = /* @__PURE__ */ new Set([
   'layout',
   'timeline',
   'scroll',
+  'selection',
   'interaction',
 ]);
 
@@ -202,6 +208,7 @@ const FIELDS: Readonly<Record<string, Readonly<Record<string, readonly unknown[]
   'scheduling.skipNonWorkingDays': { move: ON, resize: OFF, progress: ON },
   hierarchy: { moveChildren: ['all', 'following', 'none'] },
   editing: { move: ON, resize: ON, progress: ON, links: ON },
+  selection: { onClick: OFF, clearOnEmptyClick: OFF },
 };
 
 /** Values that are planned for a later release and not available yet, by option path. */
