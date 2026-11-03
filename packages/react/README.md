@@ -45,7 +45,11 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 ## Install
 
 ```sh
+# pick one
 pnpm add @ganttlane/react react react-dom
+npm install @ganttlane/react react react-dom
+yarn add @ganttlane/react react react-dom
+bun add @ganttlane/react react react-dom
 ```
 
 - React 18.3 or 19 (`react` and `react-dom` are peer dependencies, `^18.3.0 || ^19.0.0`).

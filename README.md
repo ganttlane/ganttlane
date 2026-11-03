@@ -20,16 +20,23 @@ renderer with a themable stylesheet, and React bindings. Plans with thousands of
 
 ## Packages
 
-| Package                              | Description                                                                        | Install                                     |
-| ------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------- |
-| [`@ganttlane/core`](packages/core)   | Headless core: dates, work calendar, time scale, scheduling, layout, state. No DOM | `pnpm add @ganttlane/core`                  |
-| [`@ganttlane/dom`](packages/dom)     | Vanilla DOM renderer, `createGantt`, and the default CSS theme                     | `pnpm add @ganttlane/dom`                   |
-| [`@ganttlane/react`](packages/react) | React components and hooks over the vanilla renderer (React 18.3 and 19)           | `pnpm add @ganttlane/react react react-dom` |
+| Package                              | Description                                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| [`@ganttlane/core`](packages/core)   | Headless core: dates, work calendar, time scale, scheduling, layout, state. No DOM |
+| [`@ganttlane/dom`](packages/dom)     | Vanilla DOM renderer, `createGantt`, and the default CSS theme                     |
+| [`@ganttlane/react`](packages/react) | React components and hooks over the vanilla renderer (React 18.3 and 19)           |
+
+|      | Vanilla                      | React                                          | Core only                     |
+| ---- | ---------------------------- | ---------------------------------------------- | ----------------------------- |
+| pnpm | `pnpm add @ganttlane/dom`    | `pnpm add @ganttlane/react react react-dom`    | `pnpm add @ganttlane/core`    |
+| npm  | `npm install @ganttlane/dom` | `npm install @ganttlane/react react react-dom` | `npm install @ganttlane/core` |
+| Yarn | `yarn add @ganttlane/dom`    | `yarn add @ganttlane/react react react-dom`    | `yarn add @ganttlane/core`    |
+| Bun  | `bun add @ganttlane/dom`     | `bun add @ganttlane/react react react-dom`     | `bun add @ganttlane/core`     |
 
 Install the one you import from: `@ganttlane/dom` brings `@ganttlane/core` with it, and
 `@ganttlane/react` brings both (and re-exports the types and `patchTasks` you need, which matters
 under strict pnpm). React and React DOM are peer dependencies: an app that already has them needs
-only `pnpm add @ganttlane/react`. Use `@ganttlane/core` on its own to write a renderer, to schedule on
+only `@ganttlane/react`. Use `@ganttlane/core` on its own to write a renderer, to schedule on
 a server, or to test rules without a browser. All three are released together, on the same
 version.
 

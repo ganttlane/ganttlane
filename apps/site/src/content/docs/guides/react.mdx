@@ -5,6 +5,8 @@ description: The Gantt component, the useGantt and useGanttState hooks, controll
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
+import Install from '../../../components/Install.astro';
+
 `@ganttlane/react` is a thin layer over the vanilla renderer of `@ganttlane/dom`. The chart in the
 page is the one [`createGantt`](../../api/ganttlane/dom/functions/creategantt/) draws, with the same
 DOM, classes, stylesheet, pointer input and scrolling. The package adds the React side: props for
@@ -18,9 +20,7 @@ slots, the handle, and the places where React's rules meet the chart's: StrictMo
 
 ## Install
 
-```sh
-pnpm add @ganttlane/react react react-dom
-```
+<Install code="pnpm add @ganttlane/react react react-dom" />
 
 - **React 18.3 or 19.** `react` and `react-dom` are peer dependencies (`^18.3.0 || ^19.0.0`);
   `react-dom` is used for portals and `flushSync`. Nothing here needs an API that exists only in 19.

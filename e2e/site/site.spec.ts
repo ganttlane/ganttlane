@@ -104,6 +104,33 @@ test('NFR-DX-1: the install and quick start pages show their code as code blocks
   await expect(page.locator('pre', { hasText: '<Gantt' }).first()).toBeVisible();
 });
 
+test('NFR-DX-1: the install commands have a tab per package manager, and the choice is kept', async ({
+  page,
+}) => {
+  await page.goto('getting-started/installation/');
+  for (const [manager, command] of [
+    ['pnpm', 'pnpm add @ganttlane/dom'],
+    ['npm', 'npm install @ganttlane/dom'],
+    ['Yarn', 'yarn add @ganttlane/dom'],
+    ['Bun', 'bun add @ganttlane/dom'],
+  ] as const) {
+    await page.getByRole('tab', { name: manager, exact: true }).first().click();
+    await expect(page.locator('pre', { hasText: command }).first()).toBeVisible();
+  }
+
+  // Bun, the last one chosen, on the other pages; and inside the other package's tab.
+  await page.getByRole('tab', { name: 'React', exact: true }).first().click();
+  await expect(
+    page.locator('pre', { hasText: 'bun add @ganttlane/react react react-dom' }).first(),
+  ).toBeVisible();
+  await page.goto('guides/react/');
+  await expect(
+    page.locator('pre', { hasText: 'bun add @ganttlane/react react react-dom' }).first(),
+  ).toBeVisible();
+  await page.goto('examples/basic/');
+  await expect(page.locator('pre', { hasText: 'bun add @ganttlane/dom' }).first()).toBeVisible();
+});
+
 test('NFR-DX-1: the gallery and the sidebar list every example folder', async ({ page }) => {
   await page.goto('examples/');
 
@@ -160,6 +187,9 @@ for (const example of examples) {
     for (const file of files) {
       await expect(page.getByRole('tab', { name: file, exact: true })).toBeAttached();
     }
+    // The install commands of the README, in their tabs and nowhere else.
+    await expect(page.locator('pre', { hasText: 'pnpm add @ganttlane/' })).toHaveCount(1);
+    await expect(page.locator('pre', { hasText: 'yarn add @ganttlane/' })).toHaveCount(1);
     expect(errors).toEqual([]);
   });
 }
@@ -506,7 +536,8 @@ test('NFR-DX-1: the API pages cite no private reference', async ({ request }) =>
 
   const dirty: string[] = [];
   for (const url of pages) {
-    const html = await (await request.get(url)).text();
+    // The sitemap has the addresses of the published site: the path is the page of this build.
+    const html = await (await request.get(new URL(url).pathname)).text();
     const found = PRIVATE_REFERENCE.exec(html.replace(/<[^>]*>/g, ' '));
     if (found) dirty.push(`${url}: ${found[0]}`);
   }

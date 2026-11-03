@@ -83,7 +83,7 @@ pnpm add @ganttlane/react react react-dom  # React; brings both (and re-exports 
 ```
 
 React and React DOM are peer dependencies of `@ganttlane/react`: an app that already has them needs
-only `pnpm add @ganttlane/react`.
+only `@ganttlane/react`. `npm install`, `yarn add` and `bun add` take the same arguments.
 
 - The packages are ESM only. TypeScript must resolve package `exports` (`moduleResolution` of
   `bundler`, `node16` or `nodenext`).

@@ -52,6 +52,34 @@ export function readmeHtml(html: string, slug: string, base: string): string {
 }
 
 /**
+ * Takes the install commands out of the introduction of a README, for the page to show them with
+ * a tab per package manager (`Install.astro`). They are the fenced `sh` block of `pnpm add` lines
+ * of the Markdown, and the code block of the HTML that copies them. The first code block of a
+ * rendered README also holds the assets of every code block: those stay.
+ *
+ * @param intro - The HTML of the introduction ({@link splitIntro}).
+ * @param markdown - The Markdown of the README.
+ * @returns The commands, and the HTML before and after them. Without commands, `before` is all of
+ * the HTML.
+ */
+export function splitInstall(
+  intro: string,
+  markdown: string,
+): { before: string; code: string | undefined; after: string } {
+  const code = /^```sh\n(pnpm add [^`]*?)\n```$/m.exec(markdown)?.[1];
+  const block =
+    /<div class="expressive-code">((?:<link\b[^>]*>|<script\b[^>]*><\/script>)*)(?:(?!<\/figure>)[\s\S])*?data-code="pnpm add [\s\S]*?<\/figure><\/div>/.exec(
+      intro,
+    );
+  if (code === undefined || block === null) return { before: intro, code: undefined, after: '' };
+  return {
+    before: intro.slice(0, block.index) + (block[1] ?? ''),
+    code,
+    after: intro.slice(block.index + block[0].length),
+  };
+}
+
+/**
  * Splits the HTML of a README before its first `<h2>`: the introduction, which the live demo
  * follows, and the rest.
  *

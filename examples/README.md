@@ -95,8 +95,10 @@ each one shows).
 
 Two things are the same in every example: the stylesheet (`@ganttlane/dom/styles.css`, or
 `@ganttlane/react/styles.css` for React) is a separate import, and the container of a chart needs a
-height. The React examples install the package with React: `pnpm add @ganttlane/react react react-dom`
-(an app that already has `react` and `react-dom` needs only `pnpm add @ganttlane/react`).
+height. The React examples install the package with React: `@ganttlane/react react react-dom` (an
+app that already has `react` and `react-dom` needs only `@ganttlane/react`). The READMEs write the
+install commands for pnpm; `npm install`, `yarn add` and `bun add` take the same arguments, and the
+site has a tab for each.
 
 The plan data in the examples uses fixed dates in 2026. A chart opens at today by default
 (`scroll.initial: 'today'`), which for a plan in the past or future is the nearest end of its
@@ -108,13 +110,13 @@ An example is a folder, `examples/<slug>/`. The slug is its name in the URL
 (`/examples/<slug>/`): short, lower-case, with hyphens. Nothing else needs a change: the site, the
 sidebar and the tests find the folder by itself (`pnpm test` covers it, `pnpm site:dev` shows it).
 
-| File         | What it is                                                                                                                                                                                                                       |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `README.md`  | The front matter (below), the title, what the example shows, **the options it uses** (a small table) and notes. The text of the example's page on the site                                                                       |
-| `data.ts`    | `export const tasks: Task[]` and `export const links: Link[]` (types from `@ganttlane/core`): plain, readable data, fixed dates in 2026, no randomness. A large dataset may use a small deterministic generator in the same file |
-| `options.ts` | `export const options = { … } satisfies Partial<GanttOptions>` (`GanttOptions` needs `tasks`): only the options this example is about, each commented; handlers that do not need the example's own state may live here too       |
-| `vanilla.ts` | `export function mount(container: HTMLElement): () => void`: the code of a user of `@ganttlane/dom`; returns the clean-up                                                                                                        |
-| `react.tsx`  | `export default function Example()`: the same with `<Gantt>` (or the hooks), importing `data` and `options`                                                                                                                      |
+| File         | What it is                                                                                                                                                                                                                                                             |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `README.md`  | The front matter (below), the title, what the example shows, its install commands (a `sh` block of `pnpm add` lines, before the first `##`: the site gives it its tabs), **the options it uses** (a small table) and notes. The text of the example's page on the site |
+| `data.ts`    | `export const tasks: Task[]` and `export const links: Link[]` (types from `@ganttlane/core`): plain, readable data, fixed dates in 2026, no randomness. A large dataset may use a small deterministic generator in the same file                                       |
+| `options.ts` | `export const options = { … } satisfies Partial<GanttOptions>` (`GanttOptions` needs `tasks`): only the options this example is about, each commented; handlers that do not need the example's own state may live here too                                             |
+| `vanilla.ts` | `export function mount(container: HTMLElement): () => void`: the code of a user of `@ganttlane/dom`; returns the clean-up                                                                                                                                              |
+| `react.tsx`  | `export default function Example()`: the same with `<Gantt>` (or the hooks), importing `data` and `options`                                                                                                                                                            |
 
 An example may have more files: shared helpers (`helpers.ts`), a stylesheet (`styles.css`, which
 `vanilla.ts` and `react.tsx` both import as `import './styles.css'`: the site puts it on the page

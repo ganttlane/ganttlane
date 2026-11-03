@@ -55,7 +55,11 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 ## Install
 
 ```sh
+# pick one
 pnpm add @ganttlane/core
+npm install @ganttlane/core
+yarn add @ganttlane/core
+bun add @ganttlane/core
 ```
 
 - ESM only, with TypeScript declarations. Node 20 or newer; `require()` works only where Node

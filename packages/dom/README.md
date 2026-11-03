@@ -51,7 +51,11 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 ## Install
 
 ```sh
+# pick one
 pnpm add @ganttlane/dom
+npm install @ganttlane/dom
+yarn add @ganttlane/dom
+bun add @ganttlane/dom
 ```
 
 - `@ganttlane/dom` depends on [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md), so this one install is enough to

@@ -1,0 +1,33 @@
+---
+/**
+ * Install commands with one tab per package manager. The tab a visitor chooses is kept across the
+ * site (`syncKey`).
+ *
+ * `<Install code="pnpm add @ganttlane/dom" />`. `code` is written for pnpm, one command per line,
+ * and a line may end in a `# comment`: the other tabs differ only in the words a line starts with.
+ */
+import { Code, TabItem, Tabs } from '@astrojs/starlight/components';
+
+interface Props {
+  code: string;
+}
+
+const { code } = Astro.props;
+
+const MANAGERS = [
+  { label: 'pnpm', add: 'pnpm add' },
+  { label: 'npm', add: 'npm install' },
+  { label: 'Yarn', add: 'yarn add' },
+  { label: 'Bun', add: 'bun add' },
+];
+---
+
+<Tabs syncKey="package-manager">
+  {
+    MANAGERS.map(({ label, add }) => (
+      <TabItem label={label}>
+        <Code code={code.replaceAll(/^pnpm add\b/gm, add)} lang="sh" />
+      </TabItem>
+    ))
+  }
+</Tabs>
