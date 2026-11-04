@@ -5,6 +5,7 @@ description: Install the package you import from, and import the stylesheet once
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
+import Cdn from '../../../components/Cdn.astro';
 import Install from '../../../components/Install.astro';
 
 ## Packages
@@ -77,6 +78,89 @@ It is a copy of the stylesheet of `@ganttlane/dom`, so an app that installed onl
 
 The CSS is in `@layer gantt`, so any style of your own wins without `!important`. Have it in effect
 before you mount: the chart measures its container when it is created.
+
+## Without a bundler
+
+A page with no build step can load the library from a CDN. Two routes; both give the same chart.
+
+### A `<script>` tag
+
+`@ganttlane/dom` ships files for exactly this. The script sets one global, `Ganttlane`, with
+everything `@ganttlane/dom` exports, plus `createTaskList` and `fromFrappeGanttOptions`. It has
+no dependencies: the core, the date library and `valibot` are inside.
+
+<Cdn
+  code={`<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ganttlane/dom@{{range}}/dist/styles.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/@ganttlane/dom@{{range}}/dist/ganttlane.global.prod.js"></script>
+
+<div id="chart" style="height: 420px"></div>
+<script>
+  const gantt = Ganttlane.createGantt(document.getElementById('chart'), {
+    tasks: [
+      { id: 'design', name: 'Design', start: '2026-03-02', end: '2026-03-06', progress: 60 },
+      { id: 'build', name: 'Build', start: '2026-03-09', end: '2026-03-20' },
+    ],
+    links: [{ source: 'design', target: 'build' }],
+  });
+</script>`}
+/>
+
+The files, all in `dist/` of the package:
+
+| File                       | What it is                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ganttlane.global.prod.js` | Minified, short issue messages. What `https://cdn.jsdelivr.net/npm/@ganttlane/dom` and unpkg serve when you give no file.                                                            |
+| `ganttlane.global.js`      | Readable, with the full issue messages and the hints for old option names (`bar_height` → `layout.barHeight`). Use it while you write the page, or while you move from frappe-gantt. |
+| `styles.min.css`           | `styles.css`, minified.                                                                                                                                                              |
+| `THIRD-PARTY-LICENSES.txt` | The licences of the code inside the scripts (`@internationalized/date`, Apache-2.0; `valibot`, MIT).                                                                                 |
+
+The production file is about 270 kB, 90 kB gzipped, because it holds the whole library with its
+calendar; frappe-gantt's single file is 25.6 kB. If you have a bundler, use the npm packages: they
+are tree-shaken and cost less. There is no script file for `@ganttlane/react`: React apps have a
+bundler, and the ES module route below covers the rest.
+
+### A module from an ESM CDN
+
+`<script type="module">` loads the npm package itself, with its dependencies, from a CDN that
+turns npm packages into modules. No file of ours is involved.
+
+<Cdn
+  code={`<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ganttlane/dom@{{range}}/dist/styles.min.css" />
+<div id="chart" style="height: 420px"></div>
+<script type="module">
+  import { createGantt } from 'https://cdn.jsdelivr.net/npm/@ganttlane/dom@{{range}}/+esm';
+  // or: from 'https://esm.sh/@ganttlane/dom@{{range}}'
+
+createGantt(document.getElementById('chart'), { tasks: [] });
+
+</script>`}
+/>
+
+### Pin a version
+
+The URLs above name a range of versions (a minor version while the packages are `0.x`, a major one from `1.0`): you get fixes without editing the page, and a
+breaking change (a new minor version while the packages are `0.x`, a new major one after) never
+reaches it. For a page that must not change at all, use the exact version, and add
+[Subresource Integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity)
+so that the browser refuses a file that differs from the one you tested. SRI works only with an exact
+version, because a range serves different bytes over time:
+
+<Cdn
+  lang="sh"
+  code={`curl -s https://cdn.jsdelivr.net/npm/@ganttlane/dom@{{exact}}/dist/ganttlane.global.prod.js \\
+  | openssl dgst -sha384 -binary | openssl base64 -A`}
+/>
+
+<Cdn
+  code={`<script
+  src="https://cdn.jsdelivr.net/npm/@ganttlane/dom@{{exact}}/dist/ganttlane.global.prod.js"
+  integrity="sha384-<the output above>"
+  crossorigin="anonymous"
+></script>`}
+/>
+
+Do the same for the stylesheet. Compute the hash from the file the CDN serves, as above, not from a
+local build.
 
 ## Strict pnpm and Yarn Plug'n'Play
 

@@ -235,6 +235,9 @@ importers:
       jiti:
         specifier: ^2.7.0
         version: 2.7.0
+      lightningcss:
+        specifier: 1.33.0
+        version: 1.33.0
       prettier:
         specifier: ^3.9.10
         version: 3.9.10

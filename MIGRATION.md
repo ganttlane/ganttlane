@@ -93,6 +93,16 @@ only `@ganttlane/react`. `npm install`, `yarn add` and `bun add` take the same a
 - **Import the stylesheet once**, before the chart is created:
   `import '@ganttlane/dom/styles.css'` (or `@ganttlane/react/styles.css` in a React-only app). The
   JavaScript never imports it for you.
+- **No bundler?** `@ganttlane/dom` has a script for a `<script src>` tag, as frappe-gantt had:
+  `https://cdn.jsdelivr.net/npm/@ganttlane/dom@VERSION/dist/ganttlane.global.prod.js` (`VERSION`:
+  the version you tested, e.g. `0.4`) sets the global `Ganttlane` (`Ganttlane.createGantt`,
+  `Ganttlane.fromFrappeGanttOptions`, `Ganttlane.createTaskList`), and `dist/styles.min.css` next to
+  it is the stylesheet for a `<link>`. `dist/ganttlane.global.js` is the readable build with the
+  hints for old option names, handy while you convert. It is about 270 kB (90 kB gzipped) against
+  25.6 kB for `frappe-gantt.umd.js`, because the calendar and the schedule are inside; with a
+  bundler the npm packages cost less. See
+  [Without a bundler](packages/dom/README.md#without-a-bundler) for the exact version, SRI and the
+  ES module route (`+esm`, esm.sh).
 - **The container is an `HTMLElement`**, **it needs a height** (the chart fills it and scrolls
   inside it) and it should be empty. Or give the chart its own height with `layout.height`, a
   number of px or `'auto'` (see [Height](packages/dom/README.md#height)). A selector string, `null`

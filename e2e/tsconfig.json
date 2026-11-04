@@ -5,7 +5,8 @@
     "lib": ["ES2023", "DOM"],
     "types": ["node"],
     "declaration": false,
-    "isolatedDeclarations": false
+    "isolatedDeclarations": false,
+    "allowImportingTsExtensions": true
   },
   "include": ["**/*.ts"]
 }

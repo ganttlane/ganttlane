@@ -19,6 +19,7 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 ## Contents
 
 - [Install](#install)
+- [Without a bundler](#without-a-bundler)
 - [Quick start](#quick-start)
 - [Concepts](#concepts)
 - [Options](#options)
@@ -79,6 +80,44 @@ bun add @ganttlane/dom
   unstyled layout to measure. A position the chart could not take for that reason is taken again
   when the scroller is resized, but a date aligned to the middle of the viewport (`align`) was
   centred on the unstyled width.
+
+## Without a bundler
+
+A page with no build step can load the package from a CDN. `VERSION` below is the version you
+tested: a range such as `0.4` (a minor version, while the packages are `0.x`) or `1` (a major one,
+from 1.0) takes fixes and never a breaking change.
+
+```html
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/@ganttlane/dom@VERSION/dist/styles.min.css"
+/>
+<script src="https://cdn.jsdelivr.net/npm/@ganttlane/dom@VERSION/dist/ganttlane.global.prod.js"></script>
+<div id="chart" style="height: 420px"></div>
+<script>
+  Ganttlane.createGantt(document.getElementById('chart'), { tasks: [] });
+</script>
+```
+
+- **`dist/ganttlane.global.prod.js`** is minified (short issue messages) and sets one global,
+  `Ganttlane`, with everything this package exports plus `createTaskList` and
+  `fromFrappeGanttOptions`. It needs nothing else: the core, `@internationalized/date` and
+  `valibot` are inside. `https://cdn.jsdelivr.net/npm/@ganttlane/dom` and unpkg serve it when you
+  give no file.
+- **`dist/ganttlane.global.js`** is the readable build, with the full issue messages and the hints
+  for old option names. Use it while you write the page or move from frappe-gantt.
+- **`dist/styles.min.css`** is `styles.css` minified (3.6 kB gzipped).
+- **`dist/THIRD-PARTY-LICENSES.txt`** holds the licences of the code inside the scripts.
+- The files are not in `exports`: a bundler never picks them up, and `import '@ganttlane/dom'` is
+  unchanged. If you have a bundler, use the package: the script is about 270 kB (90 kB gzipped)
+  because it holds the whole library with its calendar, where frappe-gantt's file is 25.6 kB.
+- To load the package as a module instead, `import { createGantt } from
+'https://cdn.jsdelivr.net/npm/@ganttlane/dom@VERSION/+esm'` (or `https://esm.sh/@ganttlane/dom@VERSION`)
+  in a `<script type="module">`.
+- For a page that must not change, name the exact version and add `integrity="sha384-…"` and
+  `crossorigin="anonymous"` to the tags; SRI cannot be used with a range. Compute the hash from the
+  file the CDN serves:
+  `curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
 
 ## Quick start
 

@@ -1,0 +1,25 @@
+---
+/**
+ * A code block with the version of the package filled in, so that the CDN URLs on a page do not go
+ * stale at a release: `{{range}}` is the part of the version that a range on the CDN follows
+ * (`0.4` while the packages are `0.x`, where a minor version may break; the major version, `1`,
+ * from 1.0), and `{{exact}}` is the whole version, for the snippets that need one (SRI).
+ *
+ * `<Cdn lang="html" code={`<script src="https://cdn.jsdelivr.net/npm/@ganttlane/dom@{{range}}/…">`} />`
+ */
+import { Code } from '@astrojs/starlight/components';
+
+import pkg from '../../../../packages/dom/package.json';
+
+interface Props {
+  code: string;
+  lang?: string;
+}
+
+const { code, lang = 'html' } = Astro.props;
+
+const [major = '0', minor = '0'] = pkg.version.split('.');
+const range = major === '0' ? `${major}.${minor}` : major;
+---
+
+<Code code={code.replaceAll('{{range}}', range).replaceAll('{{exact}}', pkg.version)} lang={lang} />

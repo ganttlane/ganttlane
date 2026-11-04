@@ -106,6 +106,18 @@ export default defineConfig({
         },
       },
       {
+        // The build configuration of the files for a `<script>` tag (`tsdown.global.config.ts`):
+        // it builds them and reads the output, so Node and no DOM.
+        extends: true,
+        test: {
+          name: 'tooling',
+          ...files,
+          root: '.',
+          include: ['tsdown.global.test.ts'],
+          environment: 'node',
+        },
+      },
+      {
         // Shared test data (`@ganttlane/fixtures`): plain data, so Node like core.
         extends: true,
         test: {

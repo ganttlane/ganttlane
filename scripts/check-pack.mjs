@@ -41,12 +41,39 @@ function packedFiles(dir) {
   return pack.files.map((file) => file.path);
 }
 
+/**
+ * Files a package must ship although no `exports` entry names them: the builds for a `<script>`
+ * and `<link>` tag of `@ganttlane/dom` (`packages/dom/global.config.ts`) and the licences of the
+ * code they inline. The `jsdelivr` and `unpkg` fields must point at the production script.
+ */
+const SHIPPED_OUTSIDE_EXPORTS = {
+  '@ganttlane/dom': [
+    'dist/ganttlane.global.js',
+    'dist/ganttlane.global.prod.js',
+    'dist/styles.min.css',
+    'dist/THIRD-PARTY-LICENSES.txt',
+  ],
+};
+const CDN_FIELDS = { '@ganttlane/dom': './dist/ganttlane.global.prod.js' };
+
 /** The problems of one package: references to files that are not shipped. */
 function check(dir) {
   const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
   const files = packedFiles(dir);
   const shipped = new Set(files);
   const problems = [];
+  for (const path of SHIPPED_OUTSIDE_EXPORTS[manifest.name] ?? []) {
+    if (!shipped.has(path)) problems.push(`${manifest.name}: ${path} is not in the tarball`);
+    if (JSON.stringify(manifest.exports).includes(path.slice('dist/'.length))) {
+      problems.push(`${manifest.name}: ${path} must stay out of "exports"`);
+    }
+  }
+  const cdnTarget = CDN_FIELDS[manifest.name];
+  for (const field of cdnTarget === undefined ? [] : ['jsdelivr', 'unpkg']) {
+    if (manifest[field] !== cdnTarget) {
+      problems.push(`${manifest.name}: "${field}" must be ${cdnTarget}, it is ${manifest[field]}`);
+    }
+  }
   let references = 0;
   for (const path of files.filter((file) => TEXT_FILE.test(file))) {
     const text = readFileSync(join(dir, path), 'utf8');

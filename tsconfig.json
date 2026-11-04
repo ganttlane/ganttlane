@@ -12,6 +12,7 @@
   },
   "include": [
     "*.config.ts",
+    "*.test.ts",
     ".dependency-cruiser.ts",
     ".size-limit.ts",
     "packages/*/*.config.ts",

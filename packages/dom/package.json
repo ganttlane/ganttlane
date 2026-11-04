@@ -21,6 +21,8 @@
     "directory": "packages/dom"
   },
   "type": "module",
+  "jsdelivr": "./dist/ganttlane.global.prod.js",
+  "unpkg": "./dist/ganttlane.global.prod.js",
   "sideEffects": [
     "**/*.css"
   ],

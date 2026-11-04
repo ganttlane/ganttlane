@@ -153,6 +153,24 @@ const config: SizeLimitConfig = [
     gzip: true,
   },
   {
+    // The stylesheet minified for the `<link>` of a page without a bundler (`tsdown.global.config.ts`).
+    name: '@ganttlane/dom/dist/styles.min.css',
+    path: 'packages/dom/dist/styles.min.css',
+    rolldown: false,
+    limit: '4 kB',
+    gzip: true,
+  },
+  {
+    // The file for a `<script src>` (`tsdown.global.config.ts`): core, dom, `task-list`, `migrate`, the
+    // date library and valibot in one IIFE, measured as shipped. It is not part of any
+    // budget above: nobody who has a bundler loads it.
+    name: '@ganttlane/dom/dist/ganttlane.global.prod.js (everything, for a <script> tag)',
+    path: 'packages/dom/dist/ganttlane.global.prod.js',
+    rolldown: false,
+    limit: '98 kB',
+    gzip: true,
+  },
+  {
     // The same file, copied into the React package at build time (`copy` in its tsdown config),
     // for apps that installed only `@ganttlane/react`. Same CSS budget: it is one stylesheet.
     name: '@ganttlane/react/styles.css (a copy of the one above)',
