@@ -12,8 +12,8 @@ the keys unless you ask.
   so an input, a `contenteditable` or a control of a slot keeps its own undo. They do nothing during a
   drag or while a change waits to be applied, and a key that has nothing to do (no `history`, nothing to
   undo) stays with the browser. A Latin letter is read from the typed character; on a layout that types
-  a letter of another script (Cyrillic, Greek) the physical Z and Y keys are used. The `keyboard` prop of `<Gantt>` and
-  `useGantt` takes it too.
+  a letter of another script (Cyrillic, Greek) the physical Z and Y keys are used. The `keyboard` prop
+  of `<Gantt>` and `useGantt` takes it too.
 - With `keyboard.announce`, or `keyboard.edit` with `barFocus`, the live region says the result: two new
   `strings`, `undone` and `redone`, functions of the first changed task's description and the locale.
   A custom `strings` object that lists every key (a full translation) should add them; one that is

@@ -939,9 +939,8 @@ The [API reference](https://ganttlane.github.io/ganttlane/api/) is generated fro
 sources and is on the documentation site.
 
 Planned for 1.0: zoom gestures and `zoomToFit`, selection and keyboard navigation, `push-forward`
-propagation, week-start and weekend defaults from the locale, RTL.
-Later: zoned dates, working hours,
-baselines, critical path, rollup of parent dates.
+propagation, week-start and weekend defaults from the locale, RTL. Later: zoned dates, working
+hours, baselines, critical path, rollup of parent dates.
 
 ## License
 
