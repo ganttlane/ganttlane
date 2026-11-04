@@ -1,0 +1,58 @@
+/*
+ * The pieces of the composition, each a component of the example's own:
+ *
+ *   .compound-toolbar   the toolbar above the chart (it reads the chart through the context)
+ *   .compound-split     the list and the chart side by side
+ *   .compound-chart     the chart's column: `position: relative`, so that the panel is placed in it
+ *   .compound-panel     the panel that follows the selected bar
+ *
+ * The panel is placed with `left` and `top` from `useGanttBar(...).box`, which are px from the
+ * top left corner of the element the chart is drawn into, the header included.
+ */
+
+.compound-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-block-end: 8px;
+}
+
+.compound-split {
+  display: flex;
+  height: 360px;
+}
+
+.compound-chart {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.compound-chart > .compound-chart__gantt {
+  height: 100%;
+}
+
+.compound-panel {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  width: 200px;
+  padding: 8px 10px;
+  font:
+    12px/1.4 system-ui,
+    sans-serif;
+  color: var(--gantt-popover-foreground-color);
+  pointer-events: none;
+  background: var(--gantt-popover-background-color);
+  border: 1px solid var(--gantt-popover-border-color);
+  border-radius: 6px;
+}
+
+.compound-panel[data-dragging] {
+  border-style: dashed;
+}
+
+.compound-panel strong {
+  display: block;
+}

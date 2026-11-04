@@ -517,6 +517,7 @@ See the [hooks example](../../examples/react-hooks/) for both hooks together.
 | To read the chart in render, or call its methods in handlers | `useGantt`, the instance, with `useGanttState`   |
 | To place the container or the slots yourself                 | `useGantt`: `setContainer` and `slots`           |
 | To read the chart in a child component                       | `useGanttState(gantt.core, ...)` or the handle   |
+| A chart with a toolbar, a list or a panel around it          | [`GanttRoot`](../react-compound/) and its hooks  |
 
 ## Slots
 
@@ -850,6 +851,7 @@ are yours.
 
 ## Related
 
+- [Composing a chart](../react-compound/): `GanttRoot`, `GanttChart` and `useGanttBar`.
 - Examples: [React slots](../../examples/react-slots/), [hooks](../../examples/react-hooks/),
   [ref handle](../../examples/react-ref-handle/),
   [controlled state](../../examples/react-controlled-state/),

@@ -13,8 +13,7 @@ and the bar label, a `ref` handle, StrictMode and server rendering.
 > [API reference](https://ganttlane.github.io/ganttlane/api/) of every export. This README is the
 > reference of the package.
 
-> **Status:** `0.x`: the API may still change between minor versions until `1.0`. Compound
-> components come later (see [Limits and roadmap](#limits-and-roadmap)).
+> **Status:** `0.x`: the API may still change between minor versions until `1.0`.
 
 Coming from frappe-gantt, or from a modified fork of it? See the [migration guide](https://github.com/ganttlane/ganttlane/blob/main/MIGRATION.md).
 
@@ -31,6 +30,7 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 - [Methods](#methods)
 - [`patchTasks` on a server: `@ganttlane/react/core`](#patchtasks-on-a-server-ganttlanereactcore)
 - [Hooks](#hooks)
+- [Compound components: `GanttRoot`, `GanttChart` and `useGanttBar`](#compound-components-ganttroot-ganttchart-and-useganttbar)
 - [`TaskList`](#tasklist)
 - [Slots: tooltip, link menu and bar label as `ReactNode`](#slots-tooltip-link-menu-and-bar-label-as-reactnode)
 - [The `ref` handle](#the-ref-handle)
@@ -127,6 +127,8 @@ The data model, the scheduling rules and the edit flow are the core's; the short
   `viewMode`, `expandedKeys`, `selectedKeys`, each with a `default…` twin and a change handler.
 - **Handlers are never stale**, so they may close over state and be new on every render.
 - **Tooltip, link menu and bar label are `ReactNode`s**, drawn through portals in your tree.
+- **`GanttRoot` and `GanttChart`** share one chart with the components around it, and
+  **`useGanttBar`** follows one task and its bar.
 - **A `ref` handle** gives the methods of the chart; **`useGantt`** is the component without the `div`
   and **`useGanttState`** reads the chart's state in your render.
 - **StrictMode, server rendering and hidden `<Activity>` trees are supported.**
@@ -709,13 +711,91 @@ export function Plan() {
 - **One object.** With `useGantt` the handle is the instance the hook returns, and `ref` is for when
   you render `<Gantt>` and want its methods.
 
+## Compound components: `GanttRoot`, `GanttChart` and `useGanttBar`
+
+`<Gantt>` is a chart in one element. For a page with a toolbar, a list or a panel around the chart,
+`GanttRoot` makes the chart and shares it with everything below it, and `GanttChart` is the element
+it is drawn into:
+
+```tsx
+import '@ganttlane/react/styles.css';
+import { GanttChart, GanttRoot, TaskList } from '@ganttlane/react';
+
+export function Plan() {
+  return (
+    <GanttRoot defaultTasks={tasks} defaultLinks={links} defaultViewMode="week" history>
+      <Toolbar />
+      <div style={{ display: 'flex', height: 480 }}>
+        <TaskList />
+        <GanttChart style={{ flex: 1, minWidth: 0 }} />
+      </div>
+      <TaskPanel />
+    </GanttRoot>
+  );
+}
+```
+
+- **`<GanttRoot {...options}>`** takes the props of `<Gantt>` (the options, the controlled groups,
+  the handlers and the slots) and `children`, and behaves as `<Gantt>` does: only what changed
+  reaches the chart, handlers are never stale, StrictMode and a server render are fine. It draws no
+  element of its own, and the portals of the slots are inside it, so a slot's content sees its
+  context.
+- **`<GanttChart>`** is the `div` the chart is drawn into: `id`, `className`, `style`, `aria-*` and
+  `data-*` go to it as they do for `<Gantt>`. It needs a height. One per root; a second is reported
+  in development.
+- **`useGanttContext()`** is the chart of the root: the instance `useGantt` returns, the same object
+  for the life of the root. **`useGanttState(selector, isEqual?)`** is `useGanttState(gantt, selector,
+isEqual?)` with that chart. **`<TaskList>`** takes it when it is given no `gantt`. Outside a root they
+  throw, unless you pass the chart (`useGanttBar(id, gantt)`, `useGanttState(gantt, selector)`).
+- A context cannot know the type of `task.data`: `GanttRoot` infers it from its props, and below it
+  you name it, `useGanttContext<MyData>()`, `useGanttBar<MyData>(id)`, `useGanttState<MyData, T>(...)`.
+- A `<Gantt>` below a root is a chart of its own, which these hooks do not see.
+
+### `useGanttBar(id, gantt?)`
+
+For a panel, a popover or an editor that belongs to one task and goes with its bar. It returns
+`undefined` without an `id` and for an id the chart does not have, else:
+
+| Field        | Meaning                                                                                                                                                                                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `task`       | The `TaskRecord`, with the committed values                                                                                                                                                                                                                           |
+| `draft`      | `{ start, end, endExclusive, progress }`: what the chart shows while the bar is dragged, or a change of controlled data the owner has not applied yet; else `undefined`                                                                                               |
+| `isDragging` | The bar is being dragged, resized or its progress moved                                                                                                                                                                                                               |
+| `isSelected` | The task is selected                                                                                                                                                                                                                                                  |
+| `isFocused`  | The keyboard focus is on its bar or row                                                                                                                                                                                                                               |
+| `box`        | `{ left, top, width, height }` in px from the top left corner of the `GanttChart` element, the header included and the scroll taken off; `undefined` for a task with no bar on the screen (a placeholder, a collapsed row, a chart not measured yet, a server render) |
+
+```tsx
+function TaskPanel() {
+  const id = useGanttState((snapshot) => snapshot.selection.tasks[0]);
+  const bar = useGanttBar(id);
+  if (bar?.box === undefined) return null;
+  const { task, draft, box } = bar;
+  // In an element with `position: relative` that holds the `GanttChart`.
+  return (
+    <aside style={{ position: 'absolute', left: box.left, top: box.top + box.height }}>
+      {task.name}: {Math.round(draft?.progress ?? task.progress)}%
+    </aside>
+  );
+}
+```
+
+`box` changes while the chart scrolls and the bar is dragged, so the component that calls the hook
+renders then: keep it in a component of its own. It renders again only when a field changes, not
+for other tasks, hovering or a new view of the chart. `box` is outside the element when the bar is
+scrolled out of view: compare it with `snapshot.timeline.viewportWidth` and `snapshot.viewportHeight`.
+
+An app that imports only `<Gantt>` does not ship any of this. See the
+[example](https://github.com/ganttlane/ganttlane/tree/main/examples/react-compound).
+
 ## `TaskList`
 
 `<TaskList gantt={instance} />` is the list of tasks that a classic gantt tool has on its left: a row
 for every row of the chart at the same height and place, indented by depth, with a toggle on the
 groups, the columns you choose and a splitter on its end edge. It takes the instance of
 [`useGantt`](#hooks), which exists while your component renders, so the list also renders on a
-server. A `ref` of `<Gantt>` would be `null` until the commit.
+server. A `ref` of `<Gantt>` would be `null` until the commit. Below a [`GanttRoot`](#compound-components-ganttroot-ganttchart-and-useganttbar)
+the `gantt` prop can be left out: the list takes the root's chart.
 
 ```tsx
 import '@ganttlane/react/styles.css';
@@ -891,9 +971,10 @@ browser hydrates (`/react-ssr/`). What differs on 18.3:
 
 Limits you should know about today:
 
-- **Compound components, headless hooks as a public API and React Aria integration are not here
-  yet** (planned for 1.0). What exists is `<Gantt>`, `<TaskList>`, `useGantt`, `useGanttState`, the
-  `ref` handle and the three slots.
+- **There is no toolbar component and no React Aria integration yet.** What exists is `<Gantt>`,
+  `<GanttRoot>` with `<GanttChart>`, `<TaskList>`, the hooks, the `ref` handle and the three slots.
+  The layers of the chart (header, grid, bars, links) are not components: the vanilla renderer draws
+  them as one skeleton.
 - A hidden `<Activity>` takes the chart away and brings a new one back: uncontrolled data, view mode,
   expanded parents, selection and zoom are carried over, but an open edit session ends as a Cancel
   and the undo history is cleared (see
@@ -905,7 +986,7 @@ Limits you should know about today:
 - Controlled `tasks` need `onTasksChange` while editing is on (development warns), and a new array
   with equal contents ends a pending draft.
 - The limits of the renderer and the core apply too: left to right only, no toolbar, no zoom
-  gestures, no keyboard editing, floating time without time zones,
+  gestures, floating time without time zones,
   and so on. See [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#limits-and-roadmap) and
   [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#limits-and-roadmap).
 

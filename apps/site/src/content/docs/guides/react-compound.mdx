@@ -1,0 +1,143 @@
+---
+title: Composing a chart in React
+description: GanttRoot and GanttChart share one chart with the components around it, and useGanttBar follows one task, its draft values and its place on the screen.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`<Gantt>` is a chart in one element. When the page around it grows (a toolbar, a task list, a panel
+for the selected task), the pieces need the chart too, and handing it to each as a prop gets
+tedious. `GanttRoot` makes the chart and shares it with everything below it through a context;
+`GanttChart` is the element it is drawn into, wherever you put it.
+
+See it working in the [GanttRoot example](../../examples/react-compound/).
+
+## A root, a chart and the pieces around it
+
+```tsx
+import '@ganttlane/react/styles.css';
+import { GanttChart, GanttRoot, TaskList } from '@ganttlane/react';
+
+export function Plan() {
+  return (
+    <GanttRoot defaultTasks={tasks} defaultLinks={links} defaultViewMode="week" history>
+      <Toolbar />
+      <div style={{ display: 'flex', height: 480 }}>
+        <TaskList />
+        <GanttChart style={{ flex: 1, minWidth: 0 }} />
+      </div>
+      <TaskPanel />
+    </GanttRoot>
+  );
+}
+```
+
+- **`GanttRoot`** takes the options `<Gantt>` takes (`defaultTasks`, `tasks`, `viewMode`, the
+  handlers, the slots, …), and they reach the chart the way they do for `<Gantt>`: only what
+  changed, controlled or uncontrolled, handlers never stale, StrictMode and a server render
+  included. It draws **no element of its own**: it renders its children and the portals of the
+  slots, so what a slot draws (`renderTooltip`, `renderBarLabel`, …) sees the same context.
+- **`GanttChart`** is the `div` the chart is drawn into, with the `id`, `className`, `style`,
+  `aria-*` and `data-*` props `<Gantt>` gives its own. It needs a height, like `<Gantt>`. A root
+  has one chart, so one `GanttChart`; a second one is reported in development.
+- **`TaskList`** takes the chart of the root when it is given no `gantt` prop.
+
+There are no `Header`, `Grid` or `Bars` components: the header, the grid, the bars and the links
+are layers of the one skeleton the vanilla renderer draws, and are styled with CSS and the
+`renderer` options, not placed one by one.
+
+## The chart, below the root
+
+The components below the root read the chart with hooks that need no argument:
+
+| Hook                      | Gives                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `useGanttContext()`       | The chart: the methods of `useGantt`'s instance (`select`, `undo`, `scrollToTask`, `edit.begin`, …) |
+| `useGanttState(selector)` | A slice of the chart's state, rendering again only when it changes                                  |
+| `useGanttBar(id)`         | One task: its record, draft values, selection, focus, and where its bar is drawn                    |
+
+```tsx
+import { useGanttContext, useGanttState } from '@ganttlane/react';
+
+function UndoButton() {
+  const gantt = useGanttContext();
+  const canUndo = useGanttState(() => gantt.canUndo);
+  return (
+    <button type="button" disabled={!canUndo} onClick={() => gantt.undo()}>
+      Undo
+    </button>
+  );
+}
+```
+
+`useGanttState(selector)` is `useGanttState(gantt, selector)` with the chart taken from the root;
+both forms work. Outside a `GanttRoot` these hooks throw a message that says so, unless you pass the
+chart yourself (`useGanttBar(id, gantt)`, `useGanttState(gantt, selector)`, `TaskList gantt`).
+
+<Aside type="note">
+  A context cannot know the type of `task.data`. `GanttRoot` infers it from its props; below it,
+  name it: `useGanttContext<MyData>()`, `useGanttBar<MyData>(id)`, `useGanttState<MyData, T>(…)`.
+</Aside>
+
+## Following one task: `useGanttBar`
+
+`useGanttBar(id)` is for a panel, a popover or an editor that belongs to one task and goes with its
+bar. It returns `undefined` for no id (a closed panel) and for an id the chart does not have, and
+else:
+
+| Field        | Meaning                                                                                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `task`       | The `TaskRecord`, with the committed values                                                                                                                 |
+| `draft`      | `{ start, end, endExclusive, progress }` as the chart shows them while the bar is dragged, or a change of controlled data not yet applied; else `undefined` |
+| `isDragging` | The bar is being dragged, resized or its progress moved                                                                                                     |
+| `isSelected` | The task is selected                                                                                                                                        |
+| `isFocused`  | The keyboard focus is on its bar or row                                                                                                                     |
+| `box`        | `{ left, top, width, height }` in px from the top left corner of the `GanttChart` element, the header included and the scroll taken off                     |
+
+```tsx
+import { useGanttBar, useGanttState } from '@ganttlane/react';
+
+function TaskPanel() {
+  const id = useGanttState((snapshot) => snapshot.selection.tasks[0]);
+  const bar = useGanttBar(id);
+  if (bar?.box === undefined) return null;
+  const { task, draft, box } = bar;
+  return (
+    // Placed in an element with `position: relative` that holds the `GanttChart`.
+    <aside style={{ position: 'absolute', left: box.left, top: box.top + box.height }}>
+      {task.name}: {Math.round(draft?.progress ?? task.progress)}%
+    </aside>
+  );
+}
+```
+
+- **It follows frame by frame.** `box` changes while the chart scrolls and while the bar is dragged,
+  so the component that calls `useGanttBar` renders then. Keep it in a component of its own, and
+  read the selection alone with `useGanttState`. A component renders again only when one of the
+  fields changes: other tasks changing, hovering and the like cost it nothing.
+- **`box` is `undefined`** for a task with no bar on the screen: a placeholder, a row under a
+  collapsed parent, a task without dates, and a chart that has not been measured yet (on a server
+  and before the first layout). It is outside the element when the bar is scrolled out of view:
+  compare it with `snapshot.timeline.viewportWidth` and `snapshot.viewportHeight` to hide the panel,
+  as the example does.
+- **`draft` is in dates,** with the meaning the fields of a `TaskRecord` have (`end` is the last day
+  for day-precision tasks, `endExclusive` the end of the half-open interval).
+
+## When to use which
+
+| You want                                            | Use                                                                  |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| A chart, and nothing else                           | `<Gantt>`                                                            |
+| To call methods from a parent                       | `<Gantt ref>`, see [the handle](../react/#the-ref-handle)            |
+| A chart with a toolbar, a list or a panel around it | `GanttRoot`, `GanttChart` and the hooks above                        |
+| To place the container or the slots yourself        | `useGantt`: `setContainer` and `slots`, see [Hooks](../react/#hooks) |
+
+`<Gantt>` is unchanged by all of this, and an application that imports only `<Gantt>` does not ship
+the code of `GanttRoot`, `GanttChart` or `useGanttBar`. `<Gantt>` does not provide the context: a
+`<Gantt>` below a `GanttRoot` is a chart of its own, which the hooks do not see.
+
+## Related
+
+- Example: [GanttRoot and useGanttBar](../../examples/react-compound/).
+- [React](../react/) for the props, the controlled state and the slots, and the
+  [task list](../task-list/) for the list beside the chart.

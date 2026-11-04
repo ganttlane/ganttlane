@@ -1424,4 +1424,4 @@ complete lists are in "Limits and roadmap" in the READMEs of
 - **Time zones and offsets.** Time is floating wall-clock time (zoned dates are planned for later). Working hours and
   shifts, per-task calendars, baselines, a critical path and rollup of parent dates are planned for
   later.
-- **React:** compound components, headless hooks as a public API and a `TaskList` component (planned for 1.0).
+- **React:** a toolbar component and the integration of the React Aria utilities (not here yet).

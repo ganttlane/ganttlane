@@ -83,12 +83,13 @@ each one shows).
 
 ### React
 
-| Example                                              | Package            | Shows                                                                                                                         |
-| ---------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| [The ref handle](react-ref-handle/README.md)         | `@ganttlane/react` | `<Gantt ref>` and the `GanttHandle`: `scrollToTask`, `setViewMode`, `select`, `updateTask`, `undo`, `edit.begin` from buttons |
-| [useGantt and useGanttState](react-hooks/README.md)  | `@ganttlane/react` | `useGantt` with `setContainer` and `slots`, and `useGanttState` driving a toolbar outside the chart                           |
-| [Controlled state](react-controlled-state/README.md) | `@ganttlane/react` | `tasks`, `links`, `viewMode`, `selectedKeys` and `expandedKeys` in one reducer, with `patchTasks` and an inspector            |
-| [Slots as React](react-slots/README.md)              | `@ganttlane/react` | `renderTooltip`, `renderLinkMenu` and `renderBarLabel` reading your context, `slotKey`, errors in `onError`                   |
+| Example                                               | Package            | Shows                                                                                                                                 |
+| ----------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [The ref handle](react-ref-handle/README.md)          | `@ganttlane/react` | `<Gantt ref>` and the `GanttHandle`: `scrollToTask`, `setViewMode`, `select`, `updateTask`, `undo`, `edit.begin` from buttons         |
+| [useGantt and useGanttState](react-hooks/README.md)   | `@ganttlane/react` | `useGantt` with `setContainer` and `slots`, and `useGanttState` driving a toolbar outside the chart                                   |
+| [GanttRoot and useGanttBar](react-compound/README.md) | `@ganttlane/react` | `GanttRoot` and `GanttChart` sharing one chart with a toolbar, a `TaskList` and a panel that follows the selected bar (`useGanttBar`) |
+| [Controlled state](react-controlled-state/README.md)  | `@ganttlane/react` | `tasks`, `links`, `viewMode`, `selectedKeys` and `expandedKeys` in one reducer, with `patchTasks` and an inspector                    |
+| [Slots as React](react-slots/README.md)               | `@ganttlane/react` | `renderTooltip`, `renderLinkMenu` and `renderBarLabel` reading your context, `slotKey`, errors in `onError`                           |
 
 ### Plans
 

@@ -63,6 +63,7 @@ const guidesSidebar = {
       'methods',
       'theming',
       'react',
+      'react-compound',
       'task-list',
       'custom-renderers',
       'performance',
