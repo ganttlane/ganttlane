@@ -1611,8 +1611,8 @@ Limits you should know about today (what is planned for 1.0 is listed at the end
 - **Left to right only.** `.gantt` sets `direction: ltr` whatever the page says; `direction: 'rtl'`
   is reported as unsupported.
 - **No toolbar:** its options are reserved.
-- **There is no** Shift + click range, keyboard editing, context menu, pinch or `Ctrl` + wheel zoom (`zoomTo()` zooms from code), sticky
-  bar labels, expected-progress marker or markers.
+- **There is no** Shift + click range, context menu, pinch or `Ctrl` + wheel zoom (`zoomTo()` zooms
+  from code), sticky bar labels, expected-progress marker or markers.
 - With `layout.height: 'auto'` no ancestor between the chart and what scrolls it may clip
   (`overflow: hidden`), and vertical autoscroll during a drag is not implemented.
 - The infinite timeline trims its content down to about 4 000 000 px and never grows past twice
@@ -1621,10 +1621,9 @@ Limits you should know about today (what is planned for 1.0 is listed at the end
   divides a day, a task spans at most 10 years (see
   [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#limits-and-roadmap)).
 
-Planned for 1.0: zoom gestures and a toolbar, selection and keyboard navigation with ARIA roles
-and keyboard editing, markers, sticky labels and the
-expected-progress marker, right-to-left charts, week-start and weekend defaults from the locale,
-the `push-forward` propagation policy and a context menu.
+Planned for 1.0: zoom gestures and a toolbar, markers, sticky labels and the expected-progress
+marker, right-to-left charts, week-start and weekend defaults from the locale, the `push-forward`
+propagation policy and a context menu.
 
 The generated [API reference](https://ganttlane.github.io/ganttlane/api/) is not on that list: it
 exists, on the [documentation site](https://ganttlane.github.io/ganttlane/), next to the guides and

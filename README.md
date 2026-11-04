@@ -115,8 +115,8 @@ the [documentation site](https://ganttlane.github.io/ganttlane/).
   data is never mutated, bad data and options are issues (never a throw), every instance cleans up after
   itself, and React server rendering and StrictMode are supported.
 
-What is not there yet (keyboard editing, zoom gestures, a toolbar, right-to-left) is listed in each
-package's "Limits and roadmap".
+What is not there yet (zoom gestures, a toolbar, right-to-left) is listed in each package's "Limits
+and roadmap".
 
 ## Documentation
 
