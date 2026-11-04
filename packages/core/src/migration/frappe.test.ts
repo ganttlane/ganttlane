@@ -29,14 +29,15 @@ describe('FR-DATA-10: fromFrappeGanttOptions', () => {
 
     expect(options).toEqual({
       locale: 'uk',
-      layout: { barHeight: 24, barRadius: 6, height: 'auto' },
+      // 24 and the gap of 18 that frappe-gantt has by default.
+      layout: { barHeight: 24, rowHeight: 42, barRadius: 6, height: 'auto' },
       display: { linkCurveRadius: 8, gridLines: 'horizontal' },
       tooltip: { trigger: 'hover' },
       timeline: { infinite: false },
       scroll: { initial: 'start' },
       scheduling: { propagation: 'preserve-lag', snap: '7d' },
     });
-    expect(notes).toEqual([]);
+    expect(notes.map(({ key }) => key)).toEqual(['bar_height']);
     expect(unmapped).toEqual([]);
   });
 
@@ -63,7 +64,14 @@ describe('FR-DATA-10: fromFrappeGanttOptions', () => {
     expect(byDefault.options).toEqual({ layout: { rowHeight: 48 } });
     expect(given.options).toEqual({ layout: { barHeight: 24, rowHeight: 40 } });
     expect(given.notes.map(({ key }) => key)).toEqual(['padding']);
-    expect(given.notes[0]?.message).toContain('barHeight + padding');
+    expect(given.notes[0]?.message).toContain('bar_height + padding');
+  });
+
+  it('FR-DATA-10: a bar height alone keeps the gap of 18 that frappe-gantt has, so the bar is not taller than its row', () => {
+    const { options, notes } = fromFrappeGanttOptions({ bar_height: 50 });
+
+    expect(options).toEqual({ layout: { barHeight: 50, rowHeight: 68 } });
+    expect(notes.map(({ key }) => key)).toEqual(['bar_height']);
   });
 
   it('FR-DATA-10: the two header heights make the header rows, a missing one is the default', () => {
@@ -100,18 +108,42 @@ describe('FR-DATA-10: fromFrappeGanttOptions', () => {
     expect(notes.map(({ key }) => key)).toEqual(['move_dependencies']);
   });
 
-  it('FR-DATA-10: column_width is pixels per column and becomes pixels per day of the current view mode', () => {
-    const week = fromFrappeGanttOptions({ view_mode: 'Week', column_width: 140 });
-    const day = fromFrappeGanttOptions({ column_width: 45 });
-    const quarter = fromFrappeGanttOptions({ view_mode: 'Quarter Day', column_width: 45 });
+  it('FR-DATA-10: column_width is pixels per column in every view mode, and becomes pixels per day of each', () => {
+    const { options, notes } = fromFrappeGanttOptions({ view_mode: 'Week', column_width: 140 });
 
-    expect(week.options).toEqual({ viewMode: 'week', viewModes: { week: { pxPerDay: 20 } } });
-    expect(day.options).toEqual({ viewModes: { day: { pxPerDay: 45 } } });
-    expect(quarter.options).toEqual({
-      viewMode: 'quarter-day',
-      viewModes: { 'quarter-day': { pxPerDay: 180 } },
+    expect(options).toEqual({
+      viewMode: 'week',
+      viewModes: {
+        hour: { pxPerDay: 3360 },
+        'quarter-day': { pxPerDay: 560 },
+        'half-day': { pxPerDay: 280 },
+        day: { pxPerDay: 140 },
+        week: { pxPerDay: 20 },
+        month: { pxPerDay: 4.5996 },
+        year: { pxPerDay: 0.3833 },
+      },
     });
-    expect(week.notes.map(({ key }) => key)).toEqual(['column_width']);
+    expect(notes.map(({ key }) => key)).toEqual(['column_width']);
+  });
+
+  it('FR-DATA-10: column_width wins over the width of a view mode, as in frappe-gantt', () => {
+    const { options, unmapped } = fromFrappeGanttOptions({
+      column_width: 60,
+      view_modes: [
+        { name: 'Week', step: '7d', column_width: 100 },
+        { name: 'Fortnight', step: '14d', column_width: 999 },
+      ],
+    });
+
+    expect(options.viewModes?.week).toEqual({ label: 'Week', pxPerDay: 8.5714 });
+    expect(unmapped[0]?.suggested).toMatchObject({ id: 'fortnight', pxPerDay: 4.2857 });
+  });
+
+  it('FR-DATA-10: a year column does not lose its width to rounding', () => {
+    const { options } = fromFrappeGanttOptions({ view_mode: 'Year', column_width: 120 });
+
+    // 120 px a year of 365.25 days; two decimals would have made it 0.33, which is 120.5 px.
+    expect(options.viewModes?.year?.pxPerDay).toBe(0.3285);
   });
 
   it('FR-DATA-10: a view mode of a preset name overrides the preset', () => {
@@ -124,10 +156,51 @@ describe('FR-DATA-10: fromFrappeGanttOptions', () => {
     });
 
     expect(options.viewModes).toEqual({
-      week: { label: 'Week', pxPerDay: 14.29, padding: '1mo', snap: '1d' },
-      month: { label: 'Month', pxPerDay: 3.94 },
+      week: { label: 'Week', pxPerDay: 14.2857, padding: '1mo', snap: '1d' },
+      month: { label: 'Month', pxPerDay: 3.9425 },
     });
     expect(unmapped).toEqual([]);
+  });
+
+  it('FR-DATA-10: the padding of a view mode may be a pair of durations', () => {
+    const { options, unmapped } = fromFrappeGanttOptions({
+      view_modes: [{ name: 'Day', padding: ['7d', '14d'] }],
+    });
+
+    expect(options.viewModes).toEqual({ day: { label: 'Day', padding: ['7d', '14d'] } });
+    expect(unmapped).toEqual([]);
+  });
+
+  it('FR-DATA-10: what a view mode entry holds that is not converted is reported, not dropped', () => {
+    const entries = [
+      null,
+      5,
+      { step: '1d' },
+      'Foo',
+      { name: 'Day', date_format: 'YYYY', upper_text_frequency: 2, padding: 'abc', snap_at: '1s' },
+      { name: 'Week', step: '14d', column_width: 140 },
+      { name: 'Day', column_width: 50 },
+    ];
+
+    const { options, unmapped } = fromFrappeGanttOptions({ view_modes: entries });
+
+    expect(unmapped.map(({ key, reason }) => [key, reason])).toEqual([
+      ['view_modes[0]', 'manual'],
+      ['view_modes[1]', 'manual'],
+      ['view_modes[2]', 'manual'],
+      ['view_modes[3]', 'manual'],
+      ['view_modes[4].padding', 'manual'],
+      ['view_modes[4].snap_at', 'manual'],
+      ['view_modes[4].date_format', 'removed'],
+      ['view_modes[4].upper_text_frequency', 'removed'],
+      ['view_modes[5].step', 'manual'],
+      ['view_modes[6]', 'manual'],
+    ]);
+    // No key holds `undefined`: the result is what its type says.
+    expect(options.viewModes).toEqual({
+      day: { label: 'Day', pxPerDay: 50 },
+      week: { label: 'Week', pxPerDay: 10 },
+    });
   });
 
   it('FR-DATA-10: a view mode of your own is a suggestion to complete, because it needs headers', () => {
@@ -290,6 +363,25 @@ describe('FR-DATA-10: fromFrappeGanttOptions', () => {
       ]),
     );
     expect(result.unmapped.every(({ reason }) => reason === 'manual')).toBe(true);
+  });
+
+  it('FR-DATA-10: a number that ganttlane cannot use is reported, not copied', () => {
+    const result = fromFrappeGanttOptions({
+      padding: -40,
+      bar_corner_radius: -1,
+      arrow_curve: Number.NaN,
+      upper_header_height: -5,
+      column_width: 0,
+    });
+
+    expect(result.options).toEqual({});
+    expect(result.unmapped.map(({ key }) => key).sort()).toEqual([
+      'arrow_curve',
+      'bar_corner_radius',
+      'column_width',
+      'padding',
+      'upper_header_height',
+    ]);
   });
 
   it('FR-DATA-10: the defaults null (snap_at, column_width) and undefined are not given options', () => {

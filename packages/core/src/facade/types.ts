@@ -349,7 +349,8 @@ export type GanttHandlers<TData = unknown> = GanttEventHandlers<TData> & CoreHoo
 /**
  * The options of {@link createGanttCore}: the core part of `GanttOptions`
  * plus the handlers. Display, tooltip and toolbar options belong to the renderers: keys this type
- * does not know are ignored, so a renderer can pass its whole options object.
+ * does not know are ignored (a renderer takes its own out before it calls the core, as
+ * `@ganttlane/dom` does; the development build warns about any that is left).
  *
  * Every option is validated at the boundary: an unusable value is reported as an issue
  * (`onIssues`, `getIssues()`, the result of `setOptions`) and its default is used; nothing

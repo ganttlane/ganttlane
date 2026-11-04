@@ -25,7 +25,7 @@ export function unknownOption(key: string, value: unknown): Issue<'unknown-optio
       ? `is an option of frappe-gantt; here it is ${renamed}. fromFrappeGanttOptions of "@ganttlane/core/migrate" converts a whole object`
       : removed !== undefined
         ? `is an option of frappe-gantt that ganttlane does not have: ${removed}`
-        : 'is not an option, it is ignored';
+        : 'is not an option of the core, it is ignored (display, tooltip and the other options of the renderer are for createGantt)';
   return Object.freeze({
     code: 'unknown-option',
     severity: 'warning',

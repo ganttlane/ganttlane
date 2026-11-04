@@ -43,7 +43,8 @@ core.destroy();
 need no `this`, so `const { getTask } = core` works. The options are the core's half of the
 [Options guide](../options/): the data, the rules, the view, `layout`, `timeline`, `scroll`,
 `editing`, `history`, `interaction`, and the `on<Event>` handlers. Keys the core does not know are
-ignored, so a renderer can pass its own options object whole.
+ignored, and the development build warns about each top-level one as `unknown-option`, so a renderer
+takes its own options out before it calls the core, as `createGantt` does.
 
 Most members are the methods of the vanilla chart, with the same behaviour: data (`setTasks`,
 `updateTask`, `addLink`, ...), `setOptions`, the view and scrolling (`setViewMode`, `zoomTo`,

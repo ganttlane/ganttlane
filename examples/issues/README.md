@@ -82,7 +82,9 @@ pnpm add @ganttlane/react react react-dom   # React
   `unsupported-option`, and the default is used.
 - **`message` is for people.** The development build (export condition `development`, which Vite
   sets in development) spells it out; the production build keeps the short form `'<path>: <code>'`.
-  Never parse it: `code`, `path`, `value` and `suggested` are the same in both builds.
+  Never parse it: `code`, `path`, `value` and `suggested` are the same in both builds (the one
+  issue that only the development build gives is the `unknown-option` warning for a key the core does
+  not know).
 - **React.** `onIssues` is a prop, and the list is state. `scheduling` and `display` are passed to
   `<Gantt>` after the spread of `options`, from state, and left out once the input is fixed: in
   React the props are the truth, so an option changed with `setOptions` on the ref would be

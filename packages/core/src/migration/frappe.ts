@@ -3,7 +3,7 @@
  * of ganttlane, with a report of what could not be turned.
  */
 
-import { isFiniteNumber as isNumber, isRecord } from '../shared';
+import { isFiniteNumber as isNumber, isRecord, isSize } from '../shared';
 import { removedFrappeReason, renamedFrappeName } from './frappe-names';
 
 /**
@@ -15,7 +15,7 @@ export interface FrappeGanttOptions {
   readonly view_mode?: string | undefined;
   /** View modes: names of presets, or objects that define or override a mode. */
   readonly view_modes?: readonly unknown[] | undefined;
-  /** Width of a column in px, for the current view mode. */
+  /** Width of a column in px, in every view mode. */
   readonly column_width?: number | null | undefined;
   /** Snap step of a drag, e.g. `'1d'`, `'7d'`, `'1h'`. */
   readonly snap_at?: string | null | undefined;
@@ -75,7 +75,12 @@ export interface MigratedOptions {
   readonly viewModes?: Readonly<
     Record<
       string,
-      { readonly label?: string; readonly pxPerDay?: number; readonly padding?: string }
+      {
+        readonly label?: string;
+        readonly pxPerDay?: number;
+        readonly padding?: string | readonly [string, string];
+        readonly snap?: string;
+      }
     >
   >;
   readonly locale?: string;
@@ -104,7 +109,8 @@ export interface MigratedOptions {
 /**
  * Why an option was not converted:
  * - `'manual'`: it has a place in ganttlane, but its value or contract differs; rewrite it;
- * - `'unsupported'`: it is on, and ganttlane cannot do it yet (it is `false` in the result);
+ * - `'unsupported'`: it is on, and ganttlane cannot do it yet (it is not in the result, and the
+ *   feature stays off);
  * - `'removed'`: ganttlane has no such option;
  * - `'unknown'`: it is not an option of frappe-gantt (a misspelling, say).
  */
@@ -138,7 +144,11 @@ export interface FrappeGanttConversion {
   readonly options: MigratedOptions;
   /** Remarks about converted options whose behaviour differs. */
   readonly notes: readonly FrappeConversionNote[];
-  /** Every key that is not in `options`, in the order given. */
+  /**
+   * Every key that is not in `options`. The keys are in the order given, except those that are
+   * read together with others (`padding`, `bar_height`, the header heights, `column_width` and
+   * the read-only flags), which come last.
+   */
   readonly unmapped: readonly FrappeUnmappedOption[];
 }
 
@@ -158,10 +168,10 @@ const POPUP_ON: Check = /* @__PURE__ */ oneOf('click', 'hover');
 const DIRECT: Readonly<Record<string, readonly [path: string, accepts: Check]>> =
   /* @__PURE__ */ Object.freeze({
     language: ['locale', isString],
-    bar_height: ['layout.barHeight', isNumber],
-    bar_corner_radius: ['layout.barRadius', isNumber],
-    container_height: ['layout.height', (value) => isNumber(value) || value === 'auto'],
-    arrow_curve: ['display.linkCurveRadius', isNumber],
+    bar_height: ['layout.barHeight', isSize],
+    bar_corner_radius: ['layout.barRadius', isSize],
+    container_height: ['layout.height', (value) => isSize(value) || value === 'auto'],
+    arrow_curve: ['display.linkCurveRadius', isSize],
     lines: ['display.gridLines', GRID_LINES],
     popup_on: ['tooltip.trigger', POPUP_ON],
     infinite_padding: ['timeline.infinite', isBoolean],
@@ -246,13 +256,25 @@ function durationOf(value: unknown): string | undefined {
   return found === null || unit === undefined ? undefined : `${found[1] ?? ''}${unit[0]}`;
 }
 
-/** Pixels per day of a column `width` px wide that spans `step`; `undefined` if `step` is unusable. */
+/**
+ * Pixels per day of a column `width` px wide that spans `step`, to four decimals; `undefined` if
+ * the width or the step is unusable.
+ */
 function pxPerDayOf(width: number, step: unknown): number | undefined {
   const found = typeof step === 'string' ? DURATION.exec(step) : null;
   const unit = UNITS[found?.[2] ?? ''];
   const count = Number(found?.[1]);
-  if (unit === undefined || !(count > 0)) return undefined;
-  return Math.round((width / (count * unit[1])) * 100) / 100;
+  if (unit === undefined || !(count > 0) || !(width > 0)) return undefined;
+  return Math.round((width / (count * unit[1])) * 10_000) / 10_000;
+}
+
+/** A padding of frappe-gantt (a duration, or a pair of them) in ganttlane's syntax. */
+function paddingOf(value: unknown): string | readonly [string, string] | undefined {
+  if (!Array.isArray(value)) return durationOf(value);
+  const [before, after] = value.map(durationOf);
+  return value.length === 2 && before !== undefined && after !== undefined
+    ? [before, after]
+    : undefined;
 }
 
 function put(target: Record<string, unknown>, path: string, value: unknown): void {
@@ -316,11 +338,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
   const note = (key: string, message: string): void => {
     notes.push({ key, message });
   };
-  const result = (): FrappeGanttConversion => ({
-    options: options,
-    notes,
-    unmapped,
-  });
+  const result = (): FrappeGanttConversion => ({ options, notes, unmapped });
   if (!isRecord(old)) {
     skip('', 'unknown', 'is not an options object', old);
     return result();
@@ -341,7 +359,98 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
   };
   const steps: Record<string, unknown> = { ...PRESET_STEPS };
   const named = new Set<string>();
+  const defined = new Set<string>();
   const viewModes: Record<string, Record<string, unknown>> = {};
+  // The width of a column that frappe-gantt applies to every view mode, over their own.
+  let width: number | undefined;
+  if (old.column_width !== undefined && old.column_width !== null) {
+    if (isNumber(old.column_width) && old.column_width > 0) width = old.column_width;
+    else skip('column_width', 'manual', 'is not a positive number', old.column_width);
+  }
+
+  /** One entry of `view_modes`: a name, or an object that defines or overrides a mode. */
+  const viewModeOf = (entry: unknown, index: number): void => {
+    const at = `view_modes[${index}]`;
+    const name = isRecord(entry) ? entry.name : entry;
+    if (typeof name !== 'string') {
+      skip(at, 'manual', 'is not a view mode: a name, or an object with a name', entry);
+      return;
+    }
+    const id = idOf(name);
+    named.add(id);
+    const preset = Object.hasOwn(PRESET_STEPS, id);
+    if (!isRecord(entry)) {
+      // A name alone is a preset, and ganttlane has all of them.
+      if (!preset) skip(at, 'manual', 'names no preset: define a view mode of your own', entry);
+      return;
+    }
+    if (defined.has(id))
+      skip(at, 'manual', 'defines the view mode a second time: the later wins', entry);
+    defined.add(id);
+    const mode: Record<string, unknown> = { label: name };
+    const step = typeof entry.step === 'string' ? entry.step : undefined;
+    if (step !== undefined) steps[id] = step;
+    if (entry.padding !== undefined) {
+      mode.padding = paddingOf(entry.padding);
+      if (mode.padding === undefined) {
+        skip(
+          `${at}.padding`,
+          'manual',
+          'is not a duration like "7d", or a pair of them',
+          entry.padding,
+        );
+      }
+    }
+    if (entry.snap_at != null) mode.snap = duration(`${at}.snap_at`, entry.snap_at);
+    const columnWidth = width ?? entry.column_width;
+    if (columnWidth != null) {
+      mode.pxPerDay = isNumber(columnWidth) ? pxPerDayOf(columnWidth, steps[id]) : undefined;
+      if (mode.pxPerDay === undefined && width === undefined) {
+        skip(
+          `${at}.column_width`,
+          'manual',
+          'needs a positive width and a step like "1d"',
+          columnWidth,
+        );
+      }
+    }
+    for (const field of ['upper_text', 'lower_text', 'thick_line']) {
+      if (entry[field] === undefined) continue;
+      skip(
+        `${at}.${field}`,
+        'manual',
+        'see `viewModes.<id>.headers` and `majorLine`',
+        entry[field],
+      );
+    }
+    for (const field of ['date_format', 'upper_text_frequency']) {
+      if (entry[field] === undefined) continue;
+      skip(`${at}.${field}`, 'removed', removedFrappeReason(field) ?? 'is not used', entry[field]);
+    }
+    // A field that could not be converted is reported above and is not a key with `undefined`.
+    const given = Object.fromEntries(
+      Object.entries(mode).filter(([, value]) => value !== undefined),
+    );
+    if (preset) {
+      viewModes[id] = given;
+      if (step !== undefined && step !== PRESET_STEPS[id]) {
+        skip(
+          `${at}.step`,
+          'manual',
+          `changes the column of a preset (${PRESET_STEPS[id] ?? ''}): make a view mode of your own`,
+          step,
+        );
+      }
+      return;
+    }
+    const column = DURATION.exec(step ?? '');
+    const unit = COLUMNS[column?.[2] ?? ''];
+    skip(at, 'manual', 'a view mode of your own needs `headers`: complete the suggestion', entry, {
+      id,
+      ...given,
+      ...(unit === undefined ? {} : { unit, step: Number(column?.[1]) }),
+    });
+  };
 
   for (const [key, value] of Object.entries(old)) {
     // `snap_at: null` is its default: no snap step of its own.
@@ -369,58 +478,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
     } else if (key === 'view_modes') {
       if (!Array.isArray(value)) skip(key, 'manual', 'is not a list of view modes', value);
       else {
-        value.forEach((entry: unknown, index) => {
-          const name = isRecord(entry) ? entry.name : entry;
-          if (typeof name !== 'string') return;
-          const id = idOf(name);
-          named.add(id);
-          // A name alone is a preset, and ganttlane has all of them.
-          if (!isRecord(entry)) return;
-          const at = `view_modes[${index}]`;
-          const mode: Record<string, unknown> = { label: name };
-          if (typeof entry.step === 'string') steps[id] = entry.step;
-          if (entry.padding !== undefined) mode.padding = duration(`${at}.padding`, entry.padding);
-          if (entry.snap_at != null) mode.snap = duration(`${at}.snap_at`, entry.snap_at);
-          if (entry.column_width != null) {
-            mode.pxPerDay = isNumber(entry.column_width)
-              ? pxPerDayOf(entry.column_width, steps[id])
-              : undefined;
-            if (mode.pxPerDay === undefined) {
-              skip(
-                `${at}.column_width`,
-                'manual',
-                'needs a numeric width and a step like "1d"',
-                entry.column_width,
-              );
-            }
-          }
-          for (const field of ['upper_text', 'lower_text', 'thick_line']) {
-            if (entry[field] === undefined) continue;
-            skip(
-              `${at}.${field}`,
-              'manual',
-              'see `viewModes.<id>.headers` and `majorLine`',
-              entry[field],
-            );
-          }
-          const step = DURATION.exec(typeof entry.step === 'string' ? entry.step : '');
-          if (Object.hasOwn(PRESET_STEPS, id)) viewModes[id] = mode;
-          else {
-            skip(
-              at,
-              'manual',
-              'a view mode of your own needs `headers`: complete the suggestion',
-              entry,
-              {
-                id,
-                ...mode,
-                ...(step?.[2] === undefined || COLUMNS[step[2]] === undefined
-                  ? {}
-                  : { unit: COLUMNS[step[2]], step: Number(step[1]) }),
-              },
-            );
-          }
-        });
+        value.forEach(viewModeOf);
         if (!Object.keys(PRESET_STEPS).every((id) => named.has(id))) {
           note(key, 'the list was what the selector offered; ganttlane keeps all seven presets');
         }
@@ -451,36 +509,39 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
   }
 
   // Options that need others: the row height, the header, the width of a column, editing.
-  const padding = old.padding;
-  if (padding !== undefined) {
+  if (old.padding !== undefined || old.bar_height !== undefined) {
+    // The row of frappe-gantt is the bar and the gap under it; the gap is 18 unless given.
     const barHeight = old.bar_height ?? 30;
-    if (!isNumber(padding) || !isNumber(barHeight)) {
-      skip('padding', 'manual', 'needs numeric padding and bar_height', padding);
-    } else {
-      put(options, 'layout.rowHeight', barHeight + padding);
+    const gap = old.padding ?? 18;
+    if (isSize(barHeight) && isSize(gap)) {
+      put(options, 'layout.rowHeight', barHeight + gap);
       note(
-        'padding',
-        'was the gap between bars; the row is now barHeight + padding (layout.rowHeight)',
+        old.padding === undefined ? 'bar_height' : 'padding',
+        `the row was bar_height + padding (30 + 18 by default) and is now layout.rowHeight: ${barHeight + gap}`,
       );
+    } else if (old.padding !== undefined) {
+      const why = isSize(gap) ? 'needs a usable bar_height' : 'is not a size in px';
+      skip('padding', 'manual', why, old.padding);
     }
   }
   if (old.upper_header_height !== undefined || old.lower_header_height !== undefined) {
     const upper = old.upper_header_height ?? 45;
     const lower = old.lower_header_height ?? 30;
-    if (isNumber(upper) && isNumber(lower)) put(options, 'layout.headerRowHeight', [upper, lower]);
+    if (isSize(upper) && isSize(lower)) put(options, 'layout.headerRowHeight', [upper, lower]);
     else
-      skip('upper_header_height', 'manual', 'the header heights must be numbers', [upper, lower]);
+      skip('upper_header_height', 'manual', 'the header heights must be sizes in px', [
+        upper,
+        lower,
+      ]);
   }
-  const width = old.column_width;
-  if (width !== undefined && width !== null) {
-    const id = typeof old.view_mode === 'string' ? idOf(old.view_mode) : 'day';
-    const pxPerDay = isNumber(width) ? pxPerDayOf(width, steps[id]) : undefined;
-    if (pxPerDay === undefined || !Object.hasOwn(PRESET_STEPS, id)) {
-      skip('column_width', 'manual', 'set `viewModes.<id>.pxPerDay`, pixels per day', width);
-    } else {
-      viewModes[id] = { ...viewModes[id], pxPerDay };
-      note('column_width', `is pixels per column; viewModes.${id}.pxPerDay is pixels per day`);
+  if (width !== undefined) {
+    for (const id of Object.keys(PRESET_STEPS)) {
+      viewModes[id] = { ...viewModes[id], pxPerDay: pxPerDayOf(width, steps[id]) };
     }
+    note(
+      'column_width',
+      'is pixels per column and applies to every view mode; pxPerDay is pixels per day',
+    );
   }
   if (Object.keys(viewModes).length > 0) options.viewModes = viewModes;
   const [readonly, readonlyDates, readonlyProgress, fixedDuration] = [

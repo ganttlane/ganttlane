@@ -402,8 +402,10 @@ the lists) is replaced whole too. A key set to `undefined` that has no default i
 (`tasks` is required) and the chart shows no tasks, so pass `tasks: []` to empty it on purpose.
 `setOptions` recomputes only what a key invalidates, and swapping an `on<Event>` handler is O(1).
 
-Keys the core does not know are ignored, so a renderer can pass its own options object whole. Every
-value is validated; an unusable one is an [issue](#issues) and its default is used.
+Keys the core does not know are ignored, and the development build warns about each top-level one
+(`unknown-option`), so a renderer takes its own options out before it calls the core, as
+`createGantt` does. Every value is validated; an unusable one is an [issue](#issues) and its
+default is used.
 
 ### Data
 
@@ -857,7 +859,8 @@ createGantt(container, { tasks, links, ...options });
   off. [The migration guide](https://github.com/ganttlane/ganttlane/blob/main/MIGRATION.md) lists
   them.
 - The result has options of `createGantt` (`display`, `tooltip`, `layout.height`) next to those of
-  the core; `createGanttCore` ignores the renderer's.
+  the core; `createGanttCore` ignores the renderer's, and its development build warns about them.
+  In React pass `viewMode` as `defaultViewMode`: the `viewMode` prop is controlled.
 - It converts options. Tasks and event handlers are for you to move, and the options of a modified
   fork are not known to it.
 

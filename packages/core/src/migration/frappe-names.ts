@@ -53,7 +53,8 @@ const RENAMED: Readonly<Record<string, string>> = /* @__PURE__ */ Object.freeze(
 /** Options and events of frappe-gantt that ganttlane does not have, by name: why. */
 const REMOVED: Readonly<Record<string, string>> = /* @__PURE__ */ Object.freeze({
   date_format: 'dates follow `locale`, and the header labels are `viewModes[].headers`',
-  hover_on_date: 'a highlighted day shows its `label` (see `highlights`)',
+  hover_on_date:
+    'it only switched on date-click events, which do not exist; a highlighted day shows its `label`',
   on_date_click: 'there is no date-click event',
 });
 

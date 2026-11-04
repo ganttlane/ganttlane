@@ -24,7 +24,8 @@ export interface Issue<Code extends string = string> {
    * Human-readable English explanation. The development build (export condition
    * `development`) spells it out with the offending value and a hint; the production build keeps
    * only the short form `'<path>: <code>'` (`'<code>'` without a path). Never parse it: `code`,
-   * `path`, `value` and `suggested` carry the same facts in both builds.
+   * `path`, `value` and `suggested` carry the same facts in both builds (the one issue that only the
+   * development build gives is the `'unknown-option'` warning).
    */
   readonly message: string;
   /** Location of the value inside its owner, e.g. `'start'` or `'calendar.holidays[2]'`. */

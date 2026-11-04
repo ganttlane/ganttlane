@@ -311,8 +311,10 @@ console.table(unmapped); // on_click: manual, "is not converted, its contract di
 const gantt = createGantt(container, { tasks, links, ...options });
 ```
 
-- `options` goes to `createGantt` (or `<Gantt>`) as it is. It holds only keys that were given and
-  whose value was usable; a value of the wrong type is reported, not copied.
+- `options` goes to `createGantt` as it is (`<Gantt {...options}>` in React, except `viewMode`: it is a
+  controlled prop there, so pass it as `defaultViewMode`). It holds only keys that were given and
+  whose value was usable; a value of the wrong type or a number ganttlane cannot use is reported,
+  not copied.
 - `unmapped` lists **every other key**, so nothing is lost without you seeing it. The `reason` says
   what to do: `'manual'` (it has a place now, with another contract: `popup`, `holidays`, `ignore`,
   `is_weekend`, the `on_*` events and the functions of a view mode; read the table below),
@@ -321,7 +323,9 @@ const gantt = createGantt(container, { tasks, links, ...options });
   (not an option of frappe-gantt, a misspelling for one). A view mode of your own comes back with a
   `suggested` start to complete with `headers`.
 - `notes` are about what was converted but is not the same: `padding` is the gap between bars there
-  and `barHeight + padding` here; `column_width` is pixels per column there and `pxPerDay` here.
+  and `barHeight + padding` is the row here (a `bar_height` alone gets the gap of 18 that
+  frappe-gantt had); `column_width` is pixels per column there, in every view mode, and `pxPerDay`
+  here, set for each preset.
 - **Defaults are not converted**, only what you gave: the tooltip still opens on hover, the timeline
   does not grow and weekends are days off. See
   [Behaviour that will surprise you](#behaviour-that-will-surprise-you).

@@ -1,5 +1,7 @@
 ---
 '@ganttlane/core': minor
+'@ganttlane/dom': minor
+'@ganttlane/react': minor
 ---
 
 Moving from frappe-gantt, and checking your data. Nothing changes in the production build of

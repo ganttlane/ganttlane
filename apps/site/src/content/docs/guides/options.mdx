@@ -165,6 +165,7 @@ created. The code tells which part found the problem:
 | Code                                                                        | Found in                                                                                                                                                                                                                                                                             |
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `invalid-option`                                                            | The type or value of a key, the enum and flag fields of `dates`, `scheduling`, `hierarchy`, `editing`, `history` and `interaction`, and the renderer's options (`theme`, `strings`, `display`, `highlights`, `tooltip`, `linkMenu`, `highlightTooltip`, `layout.height`, `onIssues`) |
+| `unknown-option`                                                            | A top-level key the core does not know (a warning, **development build only**; see above)                                                                                                                                                                                            |
 | `unsupported-option`                                                        | A value that is accepted but not available yet: see [Not available yet](#not-available-yet)                                                                                                                                                                                          |
 | `invalid-weekend`, `invalid-holiday`, `invalid-working-day`, `invalid-rule` | `calendar` (errors); `time-ignored` and `no-working-days` are warnings                                                                                                                                                                                                               |
 | `invalid-view-mode`                                                         | `viewModes` and every field of a view mode                                                                                                                                                                                                                                           |
@@ -176,7 +177,8 @@ Two options are checked with the data, so their issues are in `getIssues().data`
 `scheduling.granularity` (`invalid-duration` or `invalid-granularity`) and `hierarchy.childAnchor`
 (`invalid-parent-anchor`, a warning).
 
-`code`, `path`, `value` and `suggested` are the same in every build. The `message` is short in
+`code`, `path`, `value` and `suggested` are the same in every build (`unknown-option` is the one
+issue that only the development build gives). The `message` is short in
 the renderer's own issues (`'<path>: <code>'`) and in the production build of the core; the
 development build of the core spells it out. Never parse it.
 

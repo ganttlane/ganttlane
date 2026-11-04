@@ -98,7 +98,8 @@ describe('FR-DATA-12: unknown options in the development build', () => {
       'date_format: is an option of frappe-gantt that ganttlane does not have',
     );
     expect(messages[1]).toContain('there is no date-click event');
-    expect(messages[2]).toBe('tasks_: is not an option, it is ignored');
+    expect(messages[2]).toContain('tasks_: is not an option of the core, it is ignored');
+    expect(messages[2]).toContain('createGantt');
     gantt.destroy();
   });
 
