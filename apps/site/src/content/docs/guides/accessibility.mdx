@@ -94,7 +94,7 @@ There is no edit mode to enter, and so nothing to cancel with `Escape`.
 With [`keyboard.undo`](../options/#keyboard) and [`history`](../options/) on, Ctrl or Cmd + Z undoes the
 last action, and Ctrl or Cmd + Shift + Z or Ctrl + Y redoes it (Cmd + Y is the browser's history, so it
 is left alone). The keys work while the focus is on a bar or on the chart's scrollable region and
-nowhere else: an `input`, a `contenteditable` or a control of a [slot](../slots/) keeps its own undo,
+nowhere else: an `input`, a `contenteditable` or a control of a slot or a bar label keeps its own undo,
 and so does the rest of the page. They do nothing during a drag or while a change waits to be applied
 (controlled data). A key that has nothing to do, with no `history` or with nothing to undo or redo, is
 not taken from the browser (no `preventDefault`). Letters are read from the typed character, so a layout

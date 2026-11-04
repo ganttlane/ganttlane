@@ -120,12 +120,16 @@ describe('keyboard.undo: Ctrl / Cmd + Z (FR-TX-5)', () => {
   });
 
   it('FR-TX-5: keys typed into something of a slot, or heard outside the chart, are not taken', async () => {
-    const { gantt, chart, scroller } = create();
+    const { gantt, chart, scroller, bar } = create();
     move(gantt);
     await vi.advanceTimersByTimeAsync(0);
     const input = document.createElement('input');
     scroller.append(input);
     expect(press(input, 'z', { ctrlKey: true }).defaultPrevented).toBe(false);
+    // Something drawn in the label of a bar is that thing's, not the bar's.
+    const inLabel = document.createElement('input');
+    bar('a').append(inLabel);
+    expect(press(inLabel, 'z', { ctrlKey: true }).defaultPrevented).toBe(false);
     const editable = document.createElement('div');
     editable.contentEditable = 'true';
     chart.append(editable);

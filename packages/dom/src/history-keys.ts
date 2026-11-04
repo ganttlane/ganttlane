@@ -51,7 +51,7 @@ export function mountHistoryKeys(options: HistoryKeysOptions): () => void {
           !enabled() ||
           event.altKey ||
           !(event.ctrlKey || event.metaKey) ||
-          (target !== scroller && !(target as Element).closest('.gantt__bar'))
+          (target !== scroller && !(target as Partial<Element> | null)?.matches?.('.gantt__bar'))
         ) {
           return;
         }
