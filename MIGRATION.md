@@ -306,7 +306,7 @@ const { options, notes, unmapped } = fromFrappeGanttOptions({
 });
 
 console.log(options); // { viewMode: 'week', layout: { barHeight: 24, rowHeight: 40 }, editing: false }
-console.table(unmapped); // on_click: manual, "is not converted, its contract differs: see onTaskClick"
+console.table(unmapped); // on_click: manual, "has another contract: see onTaskClick"
 
 const gantt = createGantt(container, { tasks, links, ...options });
 ```

@@ -838,8 +838,8 @@ const { options, notes, unmapped } = fromFrappeGanttOptions({
   on_click: (task) => open(task.id),
 });
 // options:  { viewMode: 'week', layout: { barHeight: 24, rowHeight: 40 }, editing: false }
-// notes:    [{ key: 'padding', message: 'was the gap between bars; the row is now barHeight + padding …' }]
-// unmapped: [{ key: 'on_click', reason: 'manual', message: 'is not converted, … see onTaskClick', value }]
+// notes:    [{ key: 'padding', message: 'the row was bar_height + padding; layout.rowHeight is 40' }]
+// unmapped: [{ key: 'on_click', reason: 'manual', message: 'has another contract: see onTaskClick', value }]
 
 createGantt(container, { tasks, links, ...options });
 ```

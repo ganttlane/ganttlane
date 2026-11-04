@@ -179,7 +179,6 @@ describe('FR-DATA-10: fromFrappeGanttOptions', () => {
       'Foo',
       { name: 'Day', date_format: 'YYYY', upper_text_frequency: 2, padding: 'abc', snap_at: '1s' },
       { name: 'Week', step: '14d', column_width: 140 },
-      { name: 'Day', column_width: 50 },
     ];
 
     const { options, unmapped } = fromFrappeGanttOptions({ view_modes: entries });
@@ -194,11 +193,10 @@ describe('FR-DATA-10: fromFrappeGanttOptions', () => {
       ['view_modes[4].date_format', 'removed'],
       ['view_modes[4].upper_text_frequency', 'removed'],
       ['view_modes[5].step', 'manual'],
-      ['view_modes[6]', 'manual'],
     ]);
     // No key holds `undefined`: the result is what its type says.
     expect(options.viewModes).toEqual({
-      day: { label: 'Day', pxPerDay: 50 },
+      day: { label: 'Day' },
       week: { label: 'Week', pxPerDay: 10 },
     });
   });

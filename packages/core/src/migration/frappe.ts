@@ -359,7 +359,6 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
   };
   const steps: Record<string, unknown> = { ...PRESET_STEPS };
   const named = new Set<string>();
-  const defined = new Set<string>();
   const viewModes: Record<string, Record<string, unknown>> = {};
   // The width of a column that frappe-gantt applies to every view mode, over their own.
   let width: number | undefined;
@@ -373,7 +372,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
     const at = `view_modes[${index}]`;
     const name = isRecord(entry) ? entry.name : entry;
     if (typeof name !== 'string') {
-      skip(at, 'manual', 'is not a view mode: a name, or an object with a name', entry);
+      skip(at, 'manual', 'is not a view mode', entry);
       return;
     }
     const id = idOf(name);
@@ -381,24 +380,16 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
     const preset = Object.hasOwn(PRESET_STEPS, id);
     if (!isRecord(entry)) {
       // A name alone is a preset, and ganttlane has all of them.
-      if (!preset) skip(at, 'manual', 'names no preset: define a view mode of your own', entry);
+      if (!preset) skip(at, 'manual', 'is no preset: give an object', entry);
       return;
     }
-    if (defined.has(id))
-      skip(at, 'manual', 'defines the view mode a second time: the later wins', entry);
-    defined.add(id);
     const mode: Record<string, unknown> = { label: name };
     const step = typeof entry.step === 'string' ? entry.step : undefined;
     if (step !== undefined) steps[id] = step;
     if (entry.padding !== undefined) {
       mode.padding = paddingOf(entry.padding);
       if (mode.padding === undefined) {
-        skip(
-          `${at}.padding`,
-          'manual',
-          'is not a duration like "7d", or a pair of them',
-          entry.padding,
-        );
+        skip(`${at}.padding`, 'manual', 'is not a duration or a pair', entry.padding);
       }
     }
     if (entry.snap_at != null) mode.snap = duration(`${at}.snap_at`, entry.snap_at);
@@ -406,12 +397,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
     if (columnWidth != null) {
       mode.pxPerDay = isNumber(columnWidth) ? pxPerDayOf(columnWidth, steps[id]) : undefined;
       if (mode.pxPerDay === undefined && width === undefined) {
-        skip(
-          `${at}.column_width`,
-          'manual',
-          'needs a positive width and a step like "1d"',
-          columnWidth,
-        );
+        skip(`${at}.column_width`, 'manual', 'needs a positive width and a step', columnWidth);
       }
     }
     for (const field of ['upper_text', 'lower_text', 'thick_line']) {
@@ -437,7 +423,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
         skip(
           `${at}.step`,
           'manual',
-          `changes the column of a preset (${PRESET_STEPS[id] ?? ''}): make a view mode of your own`,
+          'changes the column of a preset: make a view mode of your own',
           step,
         );
       }
@@ -465,12 +451,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
     } else if (reserved !== undefined) {
       if (value === false) put(options, reserved, false);
       else if (value === true) {
-        skip(
-          key,
-          'unsupported',
-          `${renamedFrappeName(key) ?? key} is reserved: ganttlane does not draw it yet`,
-          value,
-        );
+        skip(key, 'unsupported', `${renamedFrappeName(key) ?? key} is not available yet`, value);
       } else skip(key, 'manual', 'is not a boolean', value);
     } else if (key === 'view_mode') {
       if (typeof value === 'string') options.viewMode = idOf(value);
@@ -480,7 +461,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
       else {
         value.forEach(viewModeOf);
         if (!Object.keys(PRESET_STEPS).every((id) => named.has(id))) {
-          note(key, 'the list was what the selector offered; ganttlane keeps all seven presets');
+          note(key, 'ganttlane keeps all seven presets');
         }
       }
     } else if (key === 'snap_at') {
@@ -491,19 +472,11 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
       else {
         put(options, 'scheduling.propagation', value ? 'preserve-lag' : 'none');
         if (!value) {
-          note(
-            key,
-            'only links stop moving: children still follow their parent (hierarchy.moveChildren)',
-          );
+          note(key, 'children still follow their parent (hierarchy.moveChildren)');
         }
       }
     } else if (MANUAL.has(key)) {
-      skip(
-        key,
-        'manual',
-        `is not converted, its contract differs: see ${renamedFrappeName(key) ?? key}`,
-        value,
-      );
+      skip(key, 'manual', `has another contract: see ${renamedFrappeName(key) ?? key}`, value);
     } else if (reason !== undefined) skip(key, 'removed', reason, value);
     else skip(key, 'unknown', 'is not an option of frappe-gantt', value);
   }
@@ -517,7 +490,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
       put(options, 'layout.rowHeight', barHeight + gap);
       note(
         old.padding === undefined ? 'bar_height' : 'padding',
-        `the row was bar_height + padding (30 + 18 by default) and is now layout.rowHeight: ${barHeight + gap}`,
+        `the row was bar_height + padding; layout.rowHeight is ${barHeight + gap}`,
       );
     } else if (old.padding !== undefined) {
       const why = isSize(gap) ? 'needs a usable bar_height' : 'is not a size in px';
@@ -538,10 +511,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
     for (const id of Object.keys(PRESET_STEPS)) {
       viewModes[id] = { ...viewModes[id], pxPerDay: pxPerDayOf(width, steps[id]) };
     }
-    note(
-      'column_width',
-      'is pixels per column and applies to every view mode; pxPerDay is pixels per day',
-    );
+    note('column_width', 'is pixels per column in every view mode; pxPerDay is pixels per day');
   }
   if (Object.keys(viewModes).length > 0) options.viewModes = viewModes;
   const [readonly, readonlyDates, readonlyProgress, fixedDuration] = [
@@ -559,10 +529,7 @@ export function fromFrappeGanttOptions(old: FrappeGanttOptions): FrappeGanttConv
     if (readonlyProgress === true) put(options, 'editing.progress', false);
     if (fixedDuration === true) {
       put(options, 'editing.resize', false);
-      note(
-        'fixed_duration',
-        'hides the resize handles of every task; for one task use task.fixedDuration',
-      );
+      note('fixed_duration', 'hides the resize handles of every task');
     }
   }
   return result();
