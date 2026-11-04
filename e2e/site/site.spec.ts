@@ -31,6 +31,7 @@ const GUIDE_PAGES = [
   'guides/theming/',
   'guides/task-list/',
   'guides/react/',
+  'guides/react-compound/',
   'guides/custom-renderers/',
   'guides/performance/',
   'guides/accessibility/',
