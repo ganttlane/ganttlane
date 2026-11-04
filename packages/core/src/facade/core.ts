@@ -1535,7 +1535,7 @@ export function createGanttCore<TData = unknown>(
         }
         if (outcome.changeSet === undefined) return Promise.resolve(UNCHANGED);
         const operation = controller.commit(outcome.changeSet);
-        track(operation, true);
+        track(operation, false);
         return operation;
       });
     },

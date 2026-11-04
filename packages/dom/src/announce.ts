@@ -17,8 +17,10 @@ export interface AnnouncerOptions {
   readonly root: HTMLElement;
   /** Owns the region (the instance's `AbortController`). */
   readonly signal: AbortSignal;
-  /** Whether the chart announces now (`keyboard.announce` or `keyboard.edit`). */
+  /** Whether there is a region now: something that can speak (`keyboard.announce`, `keyboard.edit`). */
   readonly enabled: () => boolean;
+  /** Whether the selection is said now (`keyboard.announce`). */
+  readonly selection: () => boolean;
   /** The chart's strings now. */
   readonly strings: () => GanttStrings;
   /** Whether a press on a bar selects it, and the bar says so itself (`aria-pressed`). */
@@ -52,7 +54,7 @@ export interface Announcer {
  * @returns What the renderer calls.
  */
 export function mountAnnouncer(options: AnnouncerOptions): Announcer {
-  const { core, root, signal, enabled, strings, pressed } = options;
+  const { core, root, signal, enabled, selection, strings, pressed } = options;
   let region: HTMLElement | undefined;
   let last = '';
   let selected: readonly TaskId[] | undefined;
@@ -83,10 +85,20 @@ export function mountAnnouncer(options: AnnouncerOptions): Announcer {
         root.append(region);
         selected = tasks;
       }
-      if (tasks === selected) return;
+      const before = selected;
       selected = tasks;
+      if (before === undefined || tasks === before || !selection()) return;
+      // A press on the bar that says it is pressed is told by the bar. Any other change is news,
+      // also one that unpresses that bar.
+      const changed = new Set(
+        [
+          ...before.filter((id) => !tasks.includes(id)),
+          ...tasks.filter((id) => !before.includes(id)),
+        ].map(String),
+      );
       const active = (root.getRootNode() as Partial<DocumentOrShadowRoot>).activeElement;
-      if (pressed() && (active?.closest('.gantt__bar[aria-pressed]') ?? null) !== null) return;
+      const bar = pressed() ? (active?.closest('.gantt__bar[aria-pressed]') ?? null) : null;
+      if (changed.size === 1 && changed.has(bar?.getAttribute('data-task-id') ?? '')) return;
       const name = tasks[0] === undefined ? '' : (core.getTask(tasks[0])?.name ?? '');
       say(strings().selection(tasks.length, name === '' ? String(tasks[0]) : name, locale()));
     },

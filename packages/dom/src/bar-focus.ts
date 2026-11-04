@@ -139,6 +139,14 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
     void core.nudge(id, gesture, direction).then((result) => {
       if (result.status === 'committed') core.scrollToTask(id, NEAREST);
       announcer.report(id, result);
+      // The call returns the error of a throwing before-hook, and a key press has nobody to return
+      // it to: it goes where a drag's would, to the page's unhandled errors.
+      if (result.status === 'cancelled' && result.reason === 'error') {
+        const { error } = result;
+        void Promise.reject(
+          error instanceof Error ? error : new AggregateError([error], 'a before-hook threw'),
+        );
+      }
     });
   };
 
@@ -193,7 +201,8 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
     // draw the focus goes to the chart, or a bar would claim it again. Not when the bar's own
     // `focusout` did it (`held` is off by then).
     const off = core.on('focusChange', (record) => {
-      if (record === null && held && !drawing) letGo = true;
+      // A task that has the focus again before the draw is the focus's to keep.
+      letGo = record === null && held && !drawing;
     });
     signal.addEventListener('abort', off);
     on('keydown', (event, bar, id) => {

@@ -1,8 +1,10 @@
+import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Gantt } from './Gantt';
 import type { ManualFrames } from './testing';
 import { cleanUpDocument, createManualFrames, renderInto, stubScrollerSize } from './testing';
+import type { GanttHandle } from './types';
 
 // 2026-03-02 is a Monday; the day mode draws 40 px per day.
 const TASKS = [
@@ -86,6 +88,29 @@ describe('<Gantt keyboard>: editing and announcements (FR-A11Y-1, FR-A11Y-2, FR-
     expect(view.container.querySelector('.gantt__live')?.textContent).toMatch(
       /^Alpha, Mar 3, 2026/,
     );
+    await view.unmount();
+  });
+
+  it('FR-EDIT-9: the handle moves a task one step, with the reason of the gesture', async () => {
+    const changes: string[] = [];
+    const ref = createRef<GanttHandle>();
+    const view = await renderInto(
+      <Gantt
+        ref={ref}
+        defaultTasks={TASKS}
+        now={NOW}
+        renderer={{ frames }}
+        onTasksChange={(changeSet) => changes.push(changeSet.reason)}
+      />,
+    );
+    const result = await ref.current?.nudge('a', 'resize-end', 1);
+    expect(result).toMatchObject({ status: 'committed' });
+    expect(ref.current?.getTask('a')?.end).toEqual(new Date(2026, 2, 7));
+    expect(await ref.current?.nudge('ghost', 'move', 1)).toEqual({
+      status: 'refused',
+      reason: 'unknown-task',
+    });
+    expect(changes).toEqual(['resize-end']);
     await view.unmount();
   });
 });

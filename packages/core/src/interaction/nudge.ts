@@ -5,7 +5,7 @@
 import type { TaskId } from '../model';
 import { effectiveSnapRule } from '../scale';
 import type { ChangeSet } from '../schedule';
-import { asDateTimeMs, type DateTimeMs } from '../time';
+import type { DateTimeMs } from '../time';
 import { type DatedTask, editChangeSet, snapEdit } from './edit';
 import { refusalOf } from './machine';
 import type { InteractionContext, RefusalReason } from './types';
@@ -38,21 +38,25 @@ export function nudge(
   direction: -1 | 1,
   context: InteractionContext,
 ): NudgeOutcome {
+  // Not one of the three, or not one step: nothing to do (a `progress` or a link would be a gesture).
+  // The types say it cannot happen; a caller without them can.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const known = gesture === 'move' || gesture === 'resize-start' || gesture === 'resize-end';
+  if (!known || direction ** 2 !== 1) return { changeSet: undefined };
   const refused = refusalOf(context, gesture, id);
   if (refused !== undefined) return { refused };
   const task = context.model.taskById.get(id) as DatedTask;
   const origin = gesture === 'resize-end' ? task.span.endExclusive : task.span.start;
   const { snap, adapter } = context;
   const step = effectiveSnapRule(snap[gesture === 'move' ? 'move' : 'resize'], {
+    ...snap,
     precision: task.precision,
-    granularity: snap.granularity,
-    keepDayPrecision: snap.keepDayPrecision,
   });
   const length =
     step.kind === 'fixed'
       ? step.ms
-      : Math.abs(adapter.add(origin, direction * step.count, step.unit) - origin);
-  const raw: DateTimeMs = asDateTimeMs(origin + direction * (length / 2 + 1));
+      : direction * (adapter.add(origin, direction * step.count, step.unit) - origin);
+  const raw = (origin + direction * (length / 2 + 1)) as DateTimeMs;
   const value = snapEdit(gesture, task, origin, raw, context, false);
   return { changeSet: value === origin ? undefined : editChangeSet(gesture, task, value, context) };
 }

@@ -431,6 +431,17 @@ describe('keyboard.barFocus: focus from elsewhere and focus that is lost', () =>
     expect(focused(fixture)).toBeUndefined();
   });
 
+  it('FR-A11Y-2: focusTask(undefined) and then focusTask(id) in one tick leave the focus on that bar', () => {
+    const fixture = create({ tasks: MANY, keyboard: { barFocus: true } });
+    fixture.bar('t1')?.focus();
+    fixture.frames.step();
+    fixture.gantt.focusTask(undefined);
+    fixture.gantt.focusTask('t3');
+    fixture.frames.step();
+    expect(active()).toBe('t3');
+    expect(focused(fixture)).toBe('t3');
+  });
+
   it('FR-A11Y-2: a window that loses the focus keeps the bar the focused task', () => {
     const fixture = create({ keyboard: { barFocus: true } });
     const heard: unknown[] = [];

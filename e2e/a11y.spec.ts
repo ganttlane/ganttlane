@@ -223,6 +223,29 @@ for (const renderer of RENDERERS) {
     });
   });
 
+  test.describe(`the live region (${renderer.name})`, () => {
+    test(`FR-A11Y-2: the region makes the page no taller than the chart that fills it (${renderer.name})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 900, height: 600 });
+      await open(page, renderer, { list: '0', barFocus: '1', edit: '1', announce: '1' });
+      await expect(live(page)).toHaveAttribute('role', 'status');
+      const heights = await page.evaluate(() => {
+        // The chart alone in the page, as tall as the window.
+        const chart = document.querySelector('.gantt');
+        if (chart === null) throw new Error('no chart');
+        document.body.replaceChildren(chart);
+        const style = document.createElement('style');
+        style.textContent =
+          'html,body{margin:0;padding:0;height:100%} .gantt{height:100vh !important;--gantt-height:100vh}';
+        document.head.append(style);
+        const root = document.documentElement;
+        return { scroll: root.scrollHeight, client: root.clientHeight };
+      });
+      expect(heights.scroll).toBe(heights.client);
+    });
+  });
+
   test.describe(`a context menu on a press (${renderer.name})`, () => {
     test(`FR-EDIT-1: the press that opens a menu is no gesture, and moving afterwards drags nothing (${renderer.name})`, async ({
       page,
@@ -266,6 +289,7 @@ for (const renderer of RENDERERS) {
       expect(await datesOf(page, 't1')).toBe('2026-03-05/2026-03-08');
     });
 
+    // A guard for the buttons that are no press: the machine already ignores them.
     test(`FR-EDIT-1: a right click on a bar leaves the chart idle (${renderer.name})`, async ({
       page,
     }) => {

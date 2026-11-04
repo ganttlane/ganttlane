@@ -227,7 +227,7 @@ describe('keyboard.announce: the live region (FR-A11Y-2)', () => {
     expect(fixture.live()).toBe('Selection cleared');
   });
 
-  it('FR-A11Y-2: a bar that says it is pressed is not announced as well', () => {
+  it('FR-A11Y-2: a press on the bar that says it is pressed is not announced as well, a selection by code is', () => {
     const fixture = create({
       keyboard: { barFocus: true, announce: true },
       selection: { onClick: true },
@@ -237,13 +237,77 @@ describe('keyboard.announce: the live region (FR-A11Y-2)', () => {
     fixture.frames.step();
     expect(fixture.bar('a').getAttribute('aria-pressed')).toBe('true');
     expect(fixture.live()).toBe('');
-    // A selection made from elsewhere is announced.
-    fixture.gantt.select(['b']);
-    fixture.frames.step();
-    document.body.focus();
+    // The focus stays on that bar, and a selection made from code is news: another task is selected.
+    expect(document.activeElement).toBe(fixture.bar('a'));
     fixture.gantt.select(['c']);
     fixture.frames.step();
     expect(fixture.live()).toBe('Charlie selected');
+    fixture.gantt.select(['b', 'c']);
+    fixture.frames.step();
+    expect(fixture.live()).toBe('2 tasks selected');
+    // Ctrl + Enter on the focused bar adds that bar, and the bar says it: nothing more is said.
+    fixture.gantt.select(['b', 'c', 'a']);
+    fixture.frames.step();
+    expect(fixture.live()).toBe('2 tasks selected');
+  });
+
+  it('FR-A11Y-2: keyboard.edit says what it changed, and the selection only with keyboard.announce', async () => {
+    const edit = create({ keyboard: { barFocus: true, edit: true } });
+    edit.gantt.select(['b']);
+    edit.frames.step();
+    expect(edit.live()).toBe('');
+    edit.bar('a').focus();
+    press(edit.bar('a'), 'ArrowRight');
+    await settle(edit);
+    expect(edit.live()).toMatch(/^Alpha, Mar 3, 2026/);
+    // Nothing to speak of without a focusable bar: no region.
+    const blind = create({ keyboard: { edit: true } });
+    expect(blind.chart.querySelector('.gantt__live')).toBeNull();
+  });
+
+  it('FR-A11Y-2: a pending operation says nothing, and the first change says its words when it is done', async () => {
+    let finish: () => void = () => undefined;
+    const fixture = create({
+      onBeforeTaskChange: () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    });
+    fixture.bar('a').focus();
+    press(fixture.bar('a'), 'ArrowRight');
+    press(fixture.bar('a'), 'ArrowRight');
+    await settle(fixture);
+    expect(fixture.live()).toBe('');
+    finish();
+    await settle(fixture);
+    expect(fixture.live()).toMatch(/^Alpha, Mar 3, 2026/);
+  });
+
+  it('FR-TX-2, FR-EDIT-9: a before-hook that throws on a key press is reported to the page, as for a drag', async () => {
+    const veto = new Error('veto');
+    const fixture = create({
+      onBeforeTaskChange: () => {
+        throw veto;
+      },
+    });
+    // What reaches the page's unhandled-rejection channel, kept from the test runner.
+    const reported: unknown[] = [];
+    vi.spyOn(Promise, 'reject').mockImplementation((reason) => {
+      reported.push(reason);
+      return new Promise<never>(() => undefined);
+    });
+    fixture.bar('a').focus();
+    press(fixture.bar('a'), 'ArrowRight');
+    await settle(fixture);
+    expect(reported).toEqual([veto]);
+    expect(dates(fixture, 'a')).toBe('2026-03-02/2026-03-06');
+  });
+
+  it('FR-EDIT-9: the chart’s own nudge moves the task and says nothing', async () => {
+    const fixture = create();
+    expect(await fixture.gantt.nudge('a', 'move', 1)).toMatchObject({ status: 'committed' });
+    expect(dates(fixture, 'a')).toBe('2026-03-03/2026-03-07');
+    expect(fixture.live()).toBe('');
   });
 
   it('FR-A11Y-2: the region follows the option, and goes with the chart', () => {
@@ -278,5 +342,28 @@ describe('contextmenu: a press that opens a menu is no drag (FR-EDIT-1)', () => 
     );
     expect(fixture.gantt.core.getSnapshot().feedback.phase).toBe('idle');
     expect(fixture.changes).toEqual([]);
+  });
+
+  it('FR-EDIT-1: the pointer the press captured is let go, so the hover works again after the menu', () => {
+    const fixture = create({ keyboard: { barFocus: true } });
+    const scroller = fixture.chart.querySelector<HTMLElement>('.gantt__scroller')!;
+    // A browser knows the pointer; the synthetic events of a test are not known to happy-dom.
+    scroller.setPointerCapture = vi.fn();
+    scroller.releasePointerCapture = vi.fn();
+    const bar = fixture.bar('a').querySelector('.gantt__bar-track')!;
+    bar.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 7,
+        pointerType: 'mouse',
+        isPrimary: true,
+        button: 0,
+        ctrlKey: true,
+      }),
+    );
+    expect(scroller.setPointerCapture).toHaveBeenCalledWith(7);
+    scroller.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 0 }));
+    expect(scroller.releasePointerCapture).toHaveBeenCalledWith(7);
   });
 });

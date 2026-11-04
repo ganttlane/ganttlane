@@ -529,8 +529,10 @@ describe('<TaskList>: the cells', () => {
       return <TaskList gantt={gantt} cellNavigation={on} />;
     }
     expect(renderToString(<Page on />)).toContain('aria-colindex="1"');
-    expect(renderToString(<Page on />)).toContain('tabindex="-1"');
+    // A cell, not a row (the rows that are not the tab stop have tabindex -1 whatever the option).
+    expect(renderToString(<Page on />)).toMatch(/role="gridcell"[^>]*tabindex="-1"/);
     expect(renderToString(<Page on={false} />)).not.toContain('aria-colindex');
+    expect(renderToString(<Page on={false} />)).not.toMatch(/role="gridcell"[^>]*tabindex/);
   });
 
   it('FR-A11Y-2: with the option off, Right on a row is what it was, and no cell takes a key', async () => {

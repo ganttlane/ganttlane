@@ -1,5 +1,5 @@
 import { deepFreeze } from '@ganttlane/fixtures';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Link, Task } from '../model';
 import { parseDateInput, toDate } from '../time';
@@ -166,5 +166,87 @@ describe('core.nudge: one snap step, the rules of the same drag (FR-EDIT-9)', ()
     });
     await gantt.nudge('timed', 'move', 1);
     expect(gantt.getTask('timed')?.start).toEqual(date('2026-03-02T09:15'));
+  });
+
+  it('FR-TX-2, FR-EDIT-9: a throwing before-hook is in the result, and not reported to the unhandled-rejection channel as well', async () => {
+    // What the core hands to the host's unhandled-rejection channel (a drag's hook error goes there).
+    const reports: unknown[] = [];
+    vi.spyOn(Promise, 'reject').mockImplementation((reason) => {
+      reports.push(reason);
+      return new Promise<never>(() => undefined);
+    });
+    const veto = new Error('veto');
+    const gantt = chart({
+      onBeforeTaskChange: () => {
+        throw veto;
+      },
+    });
+    expect(await gantt.nudge('design', 'move', 1)).toMatchObject({
+      status: 'cancelled',
+      reason: 'error',
+      error: veto,
+    });
+    expect(reports).toEqual([]);
+    vi.restoreAllMocks();
+  });
+
+  it('FR-EDIT-9: a gesture or a direction that is none of the three leaves the task alone', async () => {
+    const gantt = chart();
+    const call = gantt.nudge as (
+      id: string,
+      gesture: unknown,
+      direction: unknown,
+    ) => Promise<unknown>;
+    for (const [gesture, direction] of [
+      ['progress', 1],
+      ['link-create', 1],
+      ['foo', 1],
+      ['move', 2],
+      ['move', -3],
+      ['move', 0],
+      ['move', Number.NaN],
+      ['move', undefined],
+    ] as const) {
+      expect(
+        await call('design', gesture, direction),
+        `${gesture} ${String(direction)}`,
+      ).toMatchObject({
+        status: 'unchanged',
+      });
+    }
+    expect(span(gantt, 'design')).toBe('2026-03-02/2026-03-06');
+  });
+
+  it('FR-SNAP-3, FR-EDIT-9: relative snapping steps from the edge itself, and snap off steps by the data step', async () => {
+    const relative = chart({
+      tasks: [{ id: 't', name: 'T', start: '2026-03-02T10:00', end: '2026-03-04T10:00' }],
+      links: [],
+      scheduling: { granularity: '1h', snap: { step: '1d', mode: 'relative' } },
+    });
+    await relative.nudge('t', 'move', 1);
+    expect(relative.getTask('t')?.start).toEqual(date('2026-03-03T10:00'));
+    await relative.nudge('t', 'resize-end', -1);
+    expect(relative.getTask('t')?.end).toEqual(date('2026-03-04T10:00'));
+    const off = chart({
+      tasks: [{ id: 't', name: 'T', start: '2026-03-02T10:00', end: '2026-03-04T10:00' }],
+      links: [],
+      scheduling: { granularity: '1h', snap: false },
+    });
+    await off.nudge('t', 'move', 1);
+    expect(off.getTask('t')?.start).toEqual(date('2026-03-02T11:00'));
+  });
+
+  it('FR-SNAP-7, FR-EDIT-9: a day task nudged by an hour becomes a timed one only with keepDayPrecision off', async () => {
+    const options = {
+      tasks: [{ id: 't', name: 'T', start: '2026-03-02', end: '2026-03-04' }],
+      links: [],
+      viewMode: 'hour',
+    } as const;
+    const kept = chart({ ...options, scheduling: { granularity: '1h' } });
+    await kept.nudge('t', 'move', 1);
+    expect(kept.getTask('t')).toMatchObject({ precision: 'day', start: date('2026-03-03') });
+    const free = chart({ ...options, scheduling: { granularity: '1h', keepDayPrecision: false } });
+    await free.nudge('t', 'move', 1);
+    expect(free.getTask('t')).toMatchObject({ precision: 'time', start: date('2026-03-02T01:00') });
   });
 });

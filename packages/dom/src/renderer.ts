@@ -342,7 +342,8 @@ export function mountRenderer<TCore extends RendererCore>(
       core,
       root: skeleton.root,
       signal: abort.signal,
-      enabled: () => display.announce || display.keyEdit,
+      enabled: () => display.announce || (display.keyEdit && display.barFocus),
+      selection: () => display.announce,
       strings: () => strings,
       pressed: () => display.barFocus && display.clickSelects,
     });

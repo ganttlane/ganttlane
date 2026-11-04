@@ -850,7 +850,7 @@ describe('styles.css: contrast (FR-A11Y-3)', () => {
     });
   }
 
-  it('FR-A11Y-3: the focus ring is two pixels wide in every theme, and the motion test covers prefers-reduced-motion', () => {
+  it('FR-A11Y-3: the focus ring is two pixels wide in every theme', () => {
     for (const tokens of [lightTokens, darkTokens]) {
       expect(
         tokens.get('--gantt-focus-ring-width') ?? lightTokens.get('--gantt-focus-ring-width'),

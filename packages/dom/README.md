@@ -1236,8 +1236,8 @@ nothing listens for the keys.
   the permissions of a drag; `onTasksChange` hears it with the reason `move`, `resize-start` or
   `resize-end`. A task that cannot be edited that way does not take the key, and the chart scrolls
   as it did. Off by default.
-- **Announcements.** `keyboard.edit` and `keyboard.announce` add `div.gantt__live` (`role="status"`)
-  to the chart. After a keyboard change it says the task with its new dates, progress and working
+- **Announcements.** `keyboard.announce`, and `keyboard.edit` with `keyboard.barFocus` (nothing can
+  speak without a focusable bar), add `div.gantt__live` (`role="status"`) to the chart. After a keyboard change it says the task with its new dates, progress and working
   days and how many other tasks the change moved, or that the task was not changed (cancelled by a
   hook, or at its minimum length). With `keyboard.announce` it also says when the selection changes
   other than by a press on a bar that says it is pressed (`select()`, a task list), so a selection

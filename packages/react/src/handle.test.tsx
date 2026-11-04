@@ -52,6 +52,7 @@ describe('<Gantt ref> (FR-REACT-3)', () => {
       'setTasks',
       'setLinks',
       'updateTask',
+      'nudge',
       'addLink',
       'removeLink',
       'setOptions',
