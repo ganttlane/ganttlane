@@ -850,7 +850,8 @@ createGantt(container, { tasks, links, ...options });
   ganttlane cannot do it yet: `today_button`, `view_mode_select`, `auto_move_label`,
   `show_expected_progress`), `'removed'` (ganttlane has no such option: `date_format`,
   `hover_on_date`, `on_date_click`) or `'unknown'` (not an option of frappe-gantt). A value of the
-  wrong type is reported, not copied.
+  wrong type is reported, not copied. The one exception: of two `view_modes` entries with the same
+  name the later replaces the earlier without a report.
 - **`notes`** are remarks about what was converted but behaves differently, such as `padding`
   (a gap in frappe-gantt, `barHeight + padding` here) and `column_width` (pixels per column there,
   pixels per day here).

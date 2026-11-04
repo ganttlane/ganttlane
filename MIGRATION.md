@@ -315,9 +315,10 @@ const gantt = createGantt(container, { tasks, links, ...options });
   controlled prop there, so pass it as `defaultViewMode`). It holds only keys that were given and
   whose value was usable; a value of the wrong type or a number ganttlane cannot use is reported,
   not copied.
-- `unmapped` lists **every other key**, so nothing is lost without you seeing it. The `reason` says
-  what to do: `'manual'` (it has a place now, with another contract: `popup`, `holidays`, `ignore`,
-  `is_weekend`, the `on_*` events and the functions of a view mode; read the table below),
+- `unmapped` lists **every other key**, so nothing is lost without you seeing it, with one exception:
+  of two `view_modes` entries with the same name the later replaces the earlier without a report.
+  The `reason` says what to do: `'manual'` (it has a place now, with another contract: `popup`,
+  `holidays`, `ignore`, `is_weekend`, the `on_*` events and the functions of a view mode; read the table below),
   `'unsupported'` (turned on, and ganttlane cannot do it yet: `today_button`, `view_mode_select`,
   `auto_move_label`, `show_expected_progress`), `'removed'` (no such option now) or `'unknown'`
   (not an option of frappe-gantt, a misspelling for one). A view mode of your own comes back with a

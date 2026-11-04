@@ -201,6 +201,18 @@ describe('FR-DATA-10: fromFrappeGanttOptions', () => {
     });
   });
 
+  it('FR-DATA-10: of two view modes with one name the later replaces the earlier without a report', () => {
+    const { options, unmapped } = fromFrappeGanttOptions({
+      view_modes: [
+        { name: 'Day', padding: '7d' },
+        { name: 'Day', padding: '14d' },
+      ],
+    });
+
+    expect(options.viewModes).toEqual({ day: { label: 'Day', padding: '14d' } });
+    expect(unmapped).toEqual([]);
+  });
+
   it('FR-DATA-10: a view mode of your own is a suggestion to complete, because it needs headers', () => {
     const entry = {
       name: 'Fortnight',

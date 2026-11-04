@@ -8,7 +8,7 @@ import type { SizeLimitConfig } from 'size-limit';
  * up to a whole kB: the production entry with every export (61.37 kB now; `@internationalized/date`
  * and valibot included), what an app importing only `createGanttCore` ships (57.99 kB), and,
  * loosely, the development build with the full issue messages and the hints for unknown options
- * (66.60 kB; its limit went from 66 to 67 for plan step 7.6). `pnpm size:report`
+ * (66.63 kB; its limit went from 66 to 67 for plan step 7.6). `pnpm size:report`
  * breaks a build down by core module and dependency.
  *
  * The single-utility entries (plan step 6.2) are set the same way, but rounded up to 0.1 kB: a
@@ -23,7 +23,7 @@ import type { SizeLimitConfig } from 'size-limit';
  * that already ships those. dom is 23.18 kB of 24 (raised in Q14 for the disposal contract of
  * ADR-029, `DisposableNode`, and again for keyboard editing and the live region of plan step 7.11);
  * its subpath `task-list` is 5.38 kB of 6 (ADR-031, raised for the cell navigation of 7.11);
- * react is 7.99 kB of 10; the stylesheet is 7.46 kB of 8. `pnpm size:report --package dom` breaks the
+ * react is 7.99 kB of 10; the stylesheet is 7.47 kB of 8. `pnpm size:report --package dom` breaks the
  * dom number down by layer, shared helper and file (plan step 4.5); `pnpm bench` prints every
  * entry next to its limit with the performance numbers (`docs/perf.md`).
  */
@@ -97,7 +97,7 @@ const config: SizeLimitConfig = [
     gzip: true,
   },
   // Subpaths of their own (plan step 7.6): what an app pays for them, valibot included (schema
-  // 2.02 kB, migrate 3.00 kB). Neither is in `createGanttCore` or in the main entry of the
+  // 2.02 kB, migrate 3.16 kB). Neither is in `createGanttCore` or in the main entry of the
   // production build; the development build of the main entry holds the hints for unknown options
   // (the table of old names), which is why its limit is above.
   {

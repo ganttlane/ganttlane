@@ -289,8 +289,9 @@ function put(target: Record<string, unknown>, path: string, value: unknown): voi
  * Turns the options of the public frappe-gantt library into options of ganttlane.
  *
  * Nothing is dropped silently. What cannot be turned is listed in `unmapped` with a reason; what
- * was turned but behaves differently has a remark in `notes`. Only the keys that were given are
- * converted: defaults that differ between the libraries (the popup opens on hover, the timeline
+ * was turned but behaves differently has a remark in `notes`. The one exception: of two `view_modes`
+ * entries with the same name the later replaces the earlier without a report. Only the keys that
+ * were given are converted: defaults that differ between the libraries (the popup opens on hover, the timeline
  * does not grow, weekends are days off) stay as ganttlane has them. The input is not modified,
  * nothing throws, and a value of the wrong type is reported, not copied.
  *
