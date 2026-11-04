@@ -5,10 +5,10 @@ import type { SizeLimitConfig } from 'size-limit';
  * numbers below are those of plan step 6.2; the budgets are the limits in the entries.
  *
  * Core budgets (plan step 3.9, ADR-019) were set at the size measured then plus about 10 %, rounded
- * up to a whole kB: the production entry with every export (61.35 kB now; `@internationalized/date`
- * and valibot included), what an app importing only `createGanttCore` ships (57.97 kB), and,
+ * up to a whole kB: the production entry with every export (61.37 kB now; `@internationalized/date`
+ * and valibot included), what an app importing only `createGanttCore` ships (57.99 kB), and,
  * loosely, the development build with the full issue messages and the hints for unknown options
- * (66.52 kB; its limit went from 66 to 67 for plan step 7.6). `pnpm size:report`
+ * (66.60 kB; its limit went from 66 to 67 for plan step 7.6). `pnpm size:report`
  * breaks a build down by core module and dependency.
  *
  * The single-utility entries (plan step 6.2) are set the same way, but rounded up to 0.1 kB: a
@@ -20,7 +20,7 @@ import type { SizeLimitConfig } from 'size-limit';
  * `@ganttlane/dom` and `@ganttlane/react` are "on top of what they are built on": the packages
  * below them are marked external via `ignore` (core for dom; core, dom with all its subpaths
  * (`/facade`, `/dom-utils`) and React for react), so the number is what the package adds to an app
- * that already ships those. dom is 23.02 kB of 24 (raised in Q14 for the disposal contract of
+ * that already ships those. dom is 23.18 kB of 24 (raised in Q14 for the disposal contract of
  * ADR-029, `DisposableNode`, and again for keyboard editing and the live region of plan step 7.11);
  * its subpath `task-list` is 5.38 kB of 6 (ADR-031, raised for the cell navigation of 7.11);
  * react is 7.99 kB of 10; the stylesheet is 7.46 kB of 8. `pnpm size:report --package dom` breaks the

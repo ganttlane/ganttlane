@@ -50,8 +50,8 @@ pnpm add @ganttlane/react react react-dom   # React
   moves. A task never gets shorter than one step.
 - Focus Review and press Right: it is locked, so the key is left to the chart and the chart scrolls.
 - Up, Down, Home and End walk the bars, and Enter selects.
-- Turn on a screen reader and move a bar: it says `Design, Mar 3, 2026 – Mar 7, 2026, 80% done ·
-4 working days; 1 other task changed`.
+- Turn on a screen reader and move Design a day later: it says `Design, Mar 6, 2026 – Mar 12, 2026,
+80% done · 5 working days; 3 other tasks changed` (Build, QA and Launch follow it).
 
 ## Notes
 

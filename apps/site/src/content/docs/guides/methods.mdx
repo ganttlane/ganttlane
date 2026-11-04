@@ -259,6 +259,12 @@ emitted as `editRefused`.
 The result is the commit's (`committed`, `unchanged` when the edge cannot move that way,
 `cancelled`, `busy`), or `{ status: 'refused', reason: 'permission' | 'unknown-task' }`.
 
+The call says nothing and does not scroll: the live region and the scroll to the bar belong to the
+arrow keys of `keyboard.edit`. For buttons of your own, tell the user what happened from the result,
+or from `onTasksChange`. A before-hook that throws is in the result (`cancelled`, `error`), as it is for
+`updateTask`, and is not reported a second time. A direction other than `1` or `-1`, or a gesture other
+than the three, changes nothing (`unchanged`).
+
 ### `addLink`
 
 ```ts

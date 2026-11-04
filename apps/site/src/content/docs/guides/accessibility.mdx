@@ -90,19 +90,24 @@ buttons of your own ([Methods](../methods/)).
 There is no edit mode to enter, and so nothing to cancel with `Escape`; undo is `undo()` until the
 hotkeys of a later release.
 
+Screen readers that have a browse mode (NVDA and JAWS on Windows) keep the arrow keys for their own
+cursor there, and the keys reach the chart only in the mode that passes them on (focus mode). Such a
+reader switches to it on its own for a grid or a dialog, and may not for a button, so a user may have to
+switch (NVDA: Insert + Space). This has not been tried with a real reader.
+
 ### Announcements
 
-`keyboard.edit` and [`keyboard.announce`](../options/#keyboard) add a hidden live region
-(`div.gantt__live`, `role="status"`) to the chart. A keyboard change says the task with its new
-dates, progress and working days, and how many other tasks the change moved
-(`Design, Mar 3, 2026 – Mar 7, 2026, 80% done · 4 working days; 1 other task changed`), or that the
-task was not changed (a hook cancelled it, or it is at its minimum length). `announce` also says
-when the selection changes other than by a press on a bar that says it is pressed (`select()`, a
-[task list](../task-list/)): `Design selected`, `3 tasks selected`, `Selection cleared`. The words
-are three keys of [`strings`](../options/#locale-and-strings), `taskChanged`, `notChanged` and
-`selection`, which are functions of the values and the locale, so that a language with more plural
-forms can say it right. The [keyboard editing example](../../examples/keyboard-editing/) shows
-both.
+[`keyboard.announce`](../options/#keyboard), and `keyboard.edit` with `barFocus` (nothing can speak
+without a focusable bar), add a hidden live region (`div.gantt__live`, `role="status"`) to the chart. A
+keyboard change says the task with its new dates, progress and working days, and how many other tasks the
+change moved (for example `Design, Mar 3, 2026 – Mar 7, 2026, 80% done · 4 working days; 1 other task
+changed`), or that the task was not changed (a hook cancelled it, or it is at its minimum length).
+`announce` also says when the selection changes other than by a press on the bar that has the focus and
+says it is pressed (`select()`, a [task list](../task-list/)): `Design selected`, `3 tasks selected`,
+`Selection cleared`. The words are three keys of [`strings`](../options/#locale-and-strings),
+`taskChanged`, `notChanged` and `selection`, which are functions of the values and the locale, so that a
+language with more plural forms can say it right. The
+[keyboard editing example](../../examples/keyboard-editing/) shows both.
 
 ### What it does not do
 
