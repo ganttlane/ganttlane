@@ -15,6 +15,8 @@ export const typeDocOptions: StarlightTypeDocOptions = {
   tsconfig: here('../tsconfig.typedoc.json'),
   entryPoints: [
     '../../../packages/core/src/index.ts',
+    '../../../packages/core/src/schema.ts',
+    '../../../packages/core/src/migrate.ts',
     '../../../packages/dom/src/index.ts',
     '../../../packages/dom/src/facade.ts',
     '../../../packages/dom/src/dom-utils/index.ts',

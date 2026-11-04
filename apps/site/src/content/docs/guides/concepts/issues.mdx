@@ -30,13 +30,14 @@ interface Issue {
   was ignored and its default used.
 - **`warning`** means it was accepted or corrected: a progress clamped to 100, a date aligned to the
   granularity, a task with no dates shown as a row without a bar.
-- **`code`, `path`, `value`, `suggested` and the ids are stable** and identical in every build.
+- **`code`, `path`, `value`, `suggested` and the ids are stable** and identical in every build. The one
+  issue that only the development build gives is the `unknown-option` warning.
 - **`message`** differs. The development build (the `development` export condition, which Vite and
   webpack pick in dev mode) spells out the value and a hint. The production build says only
   `'<path>: <code>'`. The renderer's own issues always use the short form.
 
-An `OptionIssue` is an issue about an option; it has the code `invalid-option` or
-`unsupported-option`. A `cycle` issue also carries `taskIds` and `linkIds`.
+An `OptionIssue` is an issue about an option; it has the code `invalid-option`,
+`unsupported-option` or `unknown-option`. A `cycle` issue also carries `taskIds` and `linkIds`.
 
 ## Where issues are delivered
 
@@ -208,18 +209,21 @@ Records carry the issues of their own task, which is handy for a badge in a tool
 
 ### Other options
 
-| Code                      | Severity         | When                                                                                                                                    | What the chart does                                                          |
-| ------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `invalid-option`          | error            | An option has the wrong type or an unusable value: `dataMode: 'x'`, `locale: '!'`, a handler that is not a function, a missing `tasks`. | The default is used; `suggested` holds it when it is a plain value.          |
-| `unsupported-option`      | error            | A value reserved for a later release (see below).                                                                                       | Accepted, behaves as the default, and has no other effect.                   |
-| `invalid-layout-option`   | error or warning | `layout.rowHeight`, `barHeight`, `barRadius` or `headerRowHeight` is not a usable size.                                                 | The default (an error), or a bar taller than its row is clamped (a warning). |
-| `invalid-timeline-option` | error            | `timeline.range`, `padding`, `includeToday` or `infinite` is unusable.                                                                  | The default is used.                                                         |
-| `invalid-scroll-option`   | error            | `scroll.initial`, `align`, `behavior` or `autoScroll` has an unusable value.                                                            | The default is used.                                                         |
+| Code                      | Severity         | When                                                                                                                                     | What the chart does                                                          |
+| ------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `invalid-option`          | error            | An option has the wrong type or an unusable value: `dataMode: 'x'`, `locale: '!'`, a handler that is not a function, a missing `tasks`.  | The default is used; `suggested` holds it when it is a plain value.          |
+| `unsupported-option`      | error            | A value reserved for a later release (see below).                                                                                        | Accepted, behaves as the default, and has no other effect.                   |
+| `unknown-option`          | warning          | A top-level key that is no option of the core. **Development build only**; the message names the new place of an option of frappe-gantt. | The key is ignored, as it is in the production build.                        |
+| `invalid-layout-option`   | error or warning | `layout.rowHeight`, `barHeight`, `barRadius` or `headerRowHeight` is not a usable size.                                                  | The default (an error), or a bar taller than its row is clamped (a warning). |
+| `invalid-timeline-option` | error            | `timeline.range`, `padding`, `includeToday` or `infinite` is unusable.                                                                   | The default is used.                                                         |
+| `invalid-scroll-option`   | error            | `scroll.initial`, `align`, `behavior` or `autoScroll` has an unusable value.                                                             | The default is used.                                                         |
 
 `path` names the option in full: `scheduling.alignInput`, `calendar.holidays[1].name`,
 `viewModes.day.pxPerDay`, `timeline.range.start`, `highlights[1].dates`, `onTasksChange`. Option
-keys that nobody knows are ignored without an issue, which lets a renderer pass its own options
-object whole.
+keys that nobody knows are ignored. The development build reports a top-level one as an
+`unknown-option` warning (`bar_height: is an option of frappe-gantt; here it is layout.barHeight`);
+the renderers take their own keys out before the core sees them, so it does not fire for them. A key
+inside a group is not looked at.
 
 **The DOM package** checks the options of the renderer the same way and reports them with
 `invalid-option` and the full path: `theme`, `strings.removeLink`, `layout.height`,

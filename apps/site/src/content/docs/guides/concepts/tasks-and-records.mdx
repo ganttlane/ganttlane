@@ -331,6 +331,30 @@ export function Plan() {
 Without a type argument, `TData` is inferred from `tasks`. The [release plan
 example](../../../examples/release-plan/) types its payload and reads it in the tooltip.
 
+## Checking data from an API
+
+`TaskSchema` and `LinkSchema` are the [valibot](https://valibot.dev) schemas the chart checks its
+input with, exported from `@ganttlane/core/schema`. Run a response through them before it reaches the
+chart, and extend `TaskSchema` with the payload you keep in `data`:
+
+```ts
+import { LinkSchema, TaskSchema } from '@ganttlane/core/schema';
+import * as v from 'valibot';
+
+const checked = v.safeParse(v.array(TaskSchema), await response.json());
+if (!checked.success) console.error(checked.issues);
+
+const MyTaskSchema = v.object({
+  ...TaskSchema.entries,
+  data: v.object({ status: v.picklist(['done', 'active']) }),
+});
+```
+
+The schemas check the shape: the types of the fields and the allowed values of `type`, `precision`
+and the like. Whether a date exists, a parent is there or a link closes a cycle is found later, by
+the chart, and reported as an [issue](../issues/). Install `valibot` yourself to import it (`^1.5`),
+since the package keeps it to itself under strict pnpm; the entry costs about 2 kB gzipped.
+
 ## Your objects are never mutated
 
 The chart does not change the tasks, links or options you pass in, and it accepts them deep-frozen.

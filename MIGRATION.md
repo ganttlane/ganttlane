@@ -10,8 +10,10 @@ maps what you have today to what exists now, and says where the behaviour is dif
   extra options such as dependencies with anchors, parent and child movement, ignored days, an
   infinite timeline and readonly flags.
 
-> **Status:** `0.x`: the API may still change between minor versions until `1.0`. There is no
-> automatic converter yet: see [What is not available yet](#what-is-not-available-yet).
+> **Status:** `0.x`: the API may still change between minor versions until `1.0`. Options of
+> frappe-gantt can be converted by code ([`fromFrappeGanttOptions`](#convert-an-options-object-with-code));
+> tasks and event handlers you move yourself: see
+> [What is not available yet](#what-is-not-available-yet).
 
 > **Documentation:** the [documentation site](https://ganttlane.github.io/ganttlane/) has the guides,
 > live examples that run next to their code, and the generated
@@ -54,9 +56,12 @@ These apply to both parts. The rest of the guide is detail.
    returns an object with methods. The tasks and the links are options, not arguments.
 2. **Options are camelCase and grouped by domain** (`layout`, `calendar`, `scheduling`,
    `hierarchy`, `display`, `editing`, `timeline`, `scroll`, `tooltip`, …).
-3. **Unknown options are ignored silently.** An old key such as `bar_height` or `view_mode` does
-   nothing and reports nothing; hints for old names are planned, not shipped. Walk your options
-   object through the tables below instead of waiting for the chart to complain.
+3. **Unknown options are ignored, and only the development build says so.** An old key such as
+   `bar_height` or `view_mode` does nothing. While you develop (Vite and webpack load the
+   `development` build of `@ganttlane/core`) it is an `unknown-option` warning that names the new
+   place, in `onIssues` and `gantt.getIssues().options`; the production build does not look for it.
+   [`fromFrappeGanttOptions`](#convert-an-options-object-with-code) converts a whole options object,
+   or walk it through the tables below.
 4. **Your data is never mutated.** The chart reads your tasks and links and keeps its own state.
    What it computes (dates, working days, issues, conflicts) is in a read-only `TaskRecord` that you
    get from `gantt.getTask(id)` or as the argument of an event, never written into your objects.
@@ -283,6 +288,46 @@ the start goes down and the end up, so no time is lost), `'nearest'` or `'reject
 Every upstream option, grouped by what it does. "Default" is upstream's. Where a result is "not
 available yet", the option exists but is reserved: turning it on is reported as an
 `unsupported-option` issue and draws nothing.
+
+### Convert an options object with code
+
+`fromFrappeGanttOptions` of `@ganttlane/core/migrate` does what the tables below describe, for the
+options you give it, and tells you what it could not do:
+
+```ts
+import { fromFrappeGanttOptions } from '@ganttlane/core/migrate';
+
+const { options, notes, unmapped } = fromFrappeGanttOptions({
+  view_mode: 'Week',
+  bar_height: 24,
+  padding: 16,
+  readonly: true,
+  on_click: (task) => open(task.id),
+});
+
+console.log(options); // { viewMode: 'week', layout: { barHeight: 24, rowHeight: 40 }, editing: false }
+console.table(unmapped); // on_click: manual, "is not converted, its contract differs: see onTaskClick"
+
+const gantt = createGantt(container, { tasks, links, ...options });
+```
+
+- `options` goes to `createGantt` (or `<Gantt>`) as it is. It holds only keys that were given and
+  whose value was usable; a value of the wrong type is reported, not copied.
+- `unmapped` lists **every other key**, so nothing is lost without you seeing it. The `reason` says
+  what to do: `'manual'` (it has a place now, with another contract: `popup`, `holidays`, `ignore`,
+  `is_weekend`, the `on_*` events and the functions of a view mode; read the table below),
+  `'unsupported'` (turned on, and ganttlane cannot do it yet: `today_button`, `view_mode_select`,
+  `auto_move_label`, `show_expected_progress`), `'removed'` (no such option now) or `'unknown'`
+  (not an option of frappe-gantt, a misspelling for one). A view mode of your own comes back with a
+  `suggested` start to complete with `headers`.
+- `notes` are about what was converted but is not the same: `padding` is the gap between bars there
+  and `barHeight + padding` here; `column_width` is pixels per column there and `pxPerDay` here.
+- **Defaults are not converted**, only what you gave: the tooltip still opens on hover, the timeline
+  does not grow and weekends are days off. See
+  [Behaviour that will surprise you](#behaviour-that-will-surprise-you).
+
+Run it once, paste the result into your code and delete the old keys; it is a migration aid, not
+something to keep in the application.
 
 ### View and scale
 
@@ -1320,8 +1365,9 @@ it your own.
 - [ ] Convert tasks: `id`, `parentId` and link ends of the same type; `dependencies` as an array or
       `links`; durations with `mo` for months; `custom_class` to `className`; no `thumbnail` or
       `invalid`.
-- [ ] Take every old option through the tables and delete the old keys: unknown keys are ignored
-      silently. Then check that `gantt.getIssues().options` is empty.
+- [ ] Take every old option through the tables (or through `fromFrappeGanttOptions`) and delete the
+      old keys: unknown keys are ignored, and only the development build warns about them. Then
+      check that `gantt.getIssues().options` is empty, with the `development` condition on.
 - [ ] View modes: lower-case ids (`'week'`, not `'Week'`), `pxPerDay` for your zoom, `headers` for
       custom labels.
 - [ ] Calendar: decide the weekends (`calendar.weekends`, `[]` for none), holidays, `durationMode`, and
@@ -1351,11 +1397,9 @@ complete lists are in "Limits and roadmap" in the READMEs of
 [`@ganttlane/dom`](packages/dom/README.md#limits-and-roadmap) and
 [`@ganttlane/react`](packages/react/README.md#limits-and-roadmap)):
 
-- **A migration adapter.** A `fromFrappeGanttOptions` adapter is planned for a later release and is
-  **not shipped now**: convert your options by hand with this guide (the converters above help with
-  tasks). Dev-time hints for old option names and an exported validation schema
-  (`@ganttlane/core/schema`) are planned as well, so unknown keys are ignored silently today. No adapter
-  for the extended fork's options is planned yet.
+- **A converter for tasks, event handlers and the extended fork.** `fromFrappeGanttOptions` converts
+  the options of frappe-gantt, not its tasks (the converters above help) or its event handlers,
+  whose arguments differ. No adapter for the extended fork's options is planned yet.
 - **The toolbar.** `today_button`, `view_mode_select` and zoom buttons: the `toolbar` options are
   reserved. Use `scrollToToday()`, `setViewMode(id)` and `zoomTo(pxPerDay)` from your own controls.
 - **Sticky bar labels and the expected-progress marker** (`auto_move_label`, `show_expected_progress`):

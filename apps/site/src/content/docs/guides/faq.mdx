@@ -272,9 +272,12 @@ instead. See [Change sets and before-hooks](../concepts/change-sets-and-hooks/).
 
 ### I passed an option and nothing changed
 
-Unknown options are ignored silently: an old key such as `view_mode` or `bar_height` does nothing
-and says nothing. Check the spelling against [Options](../options/), and see
-[Migration](../migration/) if the key comes from frappe-gantt. A value of the wrong type is not
+Unknown options are ignored: an old key such as `view_mode` or `bar_height` does nothing. The
+development build says so with an `unknown-option` warning in `getIssues().options` and `onIssues`
+(you need the `development` export condition, which Vite and webpack set in dev mode); the
+production build does not. Check the spelling against [Options](../options/), and see
+[Migration](../migration/) if the key comes from frappe-gantt: `fromFrappeGanttOptions` converts a
+whole options object. A value of the wrong type is not
 ignored: it is an option issue in `getIssues().options`, and the default is used.
 
 ### A task is a row without a bar

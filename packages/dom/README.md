@@ -1542,8 +1542,7 @@ Limits you should know about today (what is planned for 1.0 is listed at the end
 Planned for 1.0: zoom gestures and a toolbar, selection and keyboard navigation with ARIA roles
 and keyboard editing, undo and redo hotkeys, markers, sticky labels and the
 expected-progress marker, right-to-left charts, week-start and weekend defaults from the locale,
-the `push-forward` propagation policy, a context menu, and dev-time hints for old option names with
-a frappe-gantt option adapter.
+the `push-forward` propagation policy and a context menu.
 
 The generated [API reference](https://ganttlane.github.io/ganttlane/api/) is not on that list: it
 exists, on the [documentation site](https://ganttlane.github.io/ganttlane/), next to the guides and

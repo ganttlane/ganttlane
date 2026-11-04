@@ -45,6 +45,9 @@ Coming from frappe-gantt, or from a modified fork of it? See the [migration guid
 - [Methods](#methods)
 - [Writing a renderer](#writing-a-renderer)
 - [Building blocks](#building-blocks)
+- [Validating data and moving over](#validating-data-and-moving-over)
+  - [Schemas](#schemas)
+  - [Options of frappe-gantt](#options-of-frappe-gantt)
 - [Development and production builds](#development-and-production-builds)
 - [Accessibility](#accessibility)
 - [Browser and runtime support](#browser-and-runtime-support)
@@ -360,7 +363,8 @@ row without a bar, a bad link is dropped.
   (`onIssues`) fires when the list changes, with `source: 'data' | 'options' | 'change-set'`;
   `setOptions` returns the issues of the options now in use; a `TaskRecord` carries its own
   `issues`.
-- **`code`, `path`, `value` and `suggested` are stable and identical in every build.** `message`
+- **`code`, `path`, `value` and `suggested` are stable and identical in every build** (the one
+  warning that only the development build gives is `unknown-option`, below). `message`
   is for people: the [development build](#development-and-production-builds) spells it out; the
   production build says only `'<path>: <code>'`. Never parse it.
 
@@ -372,10 +376,14 @@ row without a bar, a bad link is dropped.
 | Links    | `unknown-link-task`, `self-link`, `duplicate-link`, `inactive-link`, `cycle`                                                                                                 |
 | Calendar | `invalid-weekend`, `invalid-holiday`, `invalid-working-day`, `invalid-rule`, `time-ignored`, `no-working-days`                                                               |
 | Scale    | `invalid-view-mode`, `unknown-view-mode`, `invalid-snap`, `snap-below-granularity`, `snap-not-multiple`                                                                      |
-| Options  | `invalid-option`, `unsupported-option`, `invalid-layout-option`, `invalid-timeline-option`, `invalid-scroll-option`                                                          |
+| Options  | `invalid-option`, `unsupported-option`, `unknown-option` (development build only), `invalid-layout-option`, `invalid-timeline-option`, `invalid-scroll-option`               |
 | Changes  | `too-short`, `invalid-change`, `unknown-task`, `locked-task`, `duplicate-change`, plus `misaligned`, `end-before-start` and `progress-out-of-range` (`source: 'change-set'`) |
 
-Keys the core does not know are ignored, not reported.
+A top-level key the core does not know is ignored. The [development build](#development-and-production-builds)
+also reports it, as an `unknown-option` warning (the production build does not look for it), and
+names the new place when the key is an option of frappe-gantt:
+`bar_height: is an option of frappe-gantt; here it is layout.barHeight`. A key inside a group
+(`layout: { barheight }`) is not looked at.
 
 ## Options
 
@@ -779,20 +787,101 @@ const changeSet = propagate(
 console.log(changeSet.changes.map((change) => [change.id, change.cause])); // [['design', 'direct'], ['build', 'link']]
 ```
 
+## Validating data and moving over
+
+Two entry points of their own. An application that does not import them does not pay for them.
+
+### Schemas
+
+`@ganttlane/core/schema` exports `TaskSchema` and `LinkSchema`, the [valibot](https://valibot.dev)
+schemas that the core checks its input with. Use them to validate a response of your API before it
+reaches the chart, and to extend a task with a payload of your own:
+
+```ts
+import { LinkSchema, TaskSchema } from '@ganttlane/core/schema';
+import * as v from 'valibot';
+
+// Check what the API sent.
+const parsed = v.safeParse(v.array(TaskSchema), await response.json());
+if (!parsed.success) console.error(parsed.issues);
+
+// The same schema with a payload of your own: `data` is `unknown` in TaskSchema.
+const MyTaskSchema = v.object({
+  ...TaskSchema.entries,
+  data: v.object({ status: v.picklist(['done', 'active']) }),
+});
+const links = v.safeParse(v.array(LinkSchema), await linksResponse.json());
+```
+
+- **The shape only:** types of fields and allowed literals. A date that does not exist, a task that
+  refers to a missing parent or a link that closes a cycle pass the schema, and the chart reports
+  them as [issues](#issues).
+- **Unknown keys are allowed** and stripped from the output of `safeParse`.
+- **Install `valibot` yourself** (`^1.5`) to import it: it is a dependency of the core, which strict
+  pnpm does not let you reach. The entry costs about 2 kB gzipped, valibot included.
+
+### Options of frappe-gantt
+
+`@ganttlane/core/migrate` exports `fromFrappeGanttOptions(options)`: it turns the options object you
+gave `new Gantt(element, tasks, options)` into options of ganttlane, and says what it could not turn.
+
+```ts
+import { fromFrappeGanttOptions } from '@ganttlane/core/migrate';
+
+const { options, notes, unmapped } = fromFrappeGanttOptions({
+  view_mode: 'Week',
+  bar_height: 24,
+  padding: 16,
+  readonly: true,
+  on_click: (task) => open(task.id),
+});
+// options:  { viewMode: 'week', layout: { barHeight: 24, rowHeight: 40 }, editing: false }
+// notes:    [{ key: 'padding', message: 'was the gap between bars; the row is now barHeight + padding …' }]
+// unmapped: [{ key: 'on_click', reason: 'manual', message: 'is not converted, … see onTaskClick', value }]
+
+createGantt(container, { tasks, links, ...options });
+```
+
+- **Nothing is dropped silently.** Every key is either in `options`, or in `unmapped` with a reason:
+  `'manual'` (it has a place in ganttlane but another contract: `popup`, `holidays`, `ignore`,
+  `is_weekend`, the `on_*` events, the functions of a view mode), `'unsupported'` (it is on, and
+  ganttlane cannot do it yet: `today_button`, `view_mode_select`, `auto_move_label`,
+  `show_expected_progress`), `'removed'` (ganttlane has no such option: `date_format`,
+  `hover_on_date`, `on_date_click`) or `'unknown'` (not an option of frappe-gantt). A value of the
+  wrong type is reported, not copied.
+- **`notes`** are remarks about what was converted but behaves differently, such as `padding`
+  (a gap in frappe-gantt, `barHeight + padding` here) and `column_width` (pixels per column there,
+  pixels per day here).
+- **Only the keys you gave are converted.** Defaults that differ between the libraries stay as
+  ganttlane has them: the tooltip opens on hover, the timeline does not grow, weekends are days
+  off. [The migration guide](https://github.com/ganttlane/ganttlane/blob/main/MIGRATION.md) lists
+  them.
+- The result has options of `createGantt` (`display`, `tooltip`, `layout.height`) next to those of
+  the core; `createGanttCore` ignores the renderer's.
+- It converts options. Tasks and event handlers are for you to move, and the options of a modified
+  fork are not known to it.
+
 ## Development and production builds
 
 The package ships two builds of the same code. They report the same issues (`code`, `severity`,
-`path`, `value`, `suggested`, ids) and behave identically; only the issue `message` differs:
+`path`, `value`, `suggested`, ids) and behave identically; only the issue `message` differs, and
+the development build alone looks for option keys it does not know (`unknown-option`, a
+warning; the key is ignored in both):
 
 - `dist/index.js` (default, production): short messages, `'<path>: <code>'`;
 - `dist/index.development.js` (export condition `development`): full English explanations with the
-  offending value and a hint.
+  offending value and a hint, and the `unknown-option` warning with the table of the option names
+  of frappe-gantt it reads.
 
 Vite and webpack choose the `development` condition in development mode on their own, which is why
 `@ganttlane/dom` and `@ganttlane/react` give you readable issues while you build and short ones in
 production. Elsewhere opt in explicitly: `node --conditions=development`, esbuild
 `--conditions=development`, `@rollup/plugin-node-resolve` `exportConditions: ['development']`,
-Jest `testEnvironmentOptions.customExportConditions`. The development build is about 4 kB larger.
+Jest `testEnvironmentOptions.customExportConditions`. The development build is about 5 kB larger.
+
+A test of yours that runs with the `development` condition (Vitest does) and expects `getIssues().options`
+to be empty will see an `unknown-option` warning for a key the core does not know. That is the
+warning doing its job: remove the key, or filter by `code`.
 
 ## Accessibility
 
@@ -813,7 +902,7 @@ so it runs in a worker as it is.
 
 Minified and gzipped, with its dependencies (`@internationalized/date`, `valibot`), the production
 build is about 60 kB for the whole entry and about 56 kB for an application that imports only
-`createGanttCore`; the development build adds about 4 kB. `pnpm size` measures the current numbers
+`createGanttCore`; the development build adds about 5 kB. The entry points `@ganttlane/core/schema` and `@ganttlane/core/migrate` are about 2 kB and 3 kB on their own. `pnpm size` measures the current numbers
 against the budgets, and `pnpm size:report` breaks a build down by module and
 dependency. `pnpm bench` measures the performance numbers.
 
@@ -834,15 +923,17 @@ Limits you should know about today:
 - **Rows have one height**, and a row holds one task.
 - `scheduling.propagation: 'push-forward'` is reported as `unsupported-option` and behaves as
   `'preserve-lag'`; `direction: 'rtl'` is stored but not mirrored.
-- Unknown option keys are ignored without a hint (hints for old option names, an exported schema
-  entry, `@ganttlane/core/schema`, and a `fromFrappeGanttOptions` adapter are planned).
+- Unknown option keys are ignored; only the development build warns about a top-level one, and keys
+  inside a group are not looked at.
+- `fromFrappeGanttOptions` converts options, not tasks or event handlers, and does not know the
+  options of a modified fork of frappe-gantt.
 
 The [API reference](https://ganttlane.github.io/ganttlane/api/) is generated from the TSDoc of the
 sources and is on the documentation site.
 
 Planned for 1.0: zoom gestures and `zoomToFit`, selection and keyboard navigation, undo and redo
-hotkeys, `push-forward` propagation, week-start and weekend defaults from the locale, RTL, exported
-validation schemas and compound React components. Later: zoned dates, working hours,
+hotkeys, `push-forward` propagation, week-start and weekend defaults from the locale, RTL and
+compound React components. Later: zoned dates, working hours,
 baselines, critical path, rollup of parent dates.
 
 ## License

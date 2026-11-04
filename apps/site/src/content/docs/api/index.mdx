@@ -38,14 +38,16 @@ which lists everything that entry exports, and one page per export.
   />
 </CardGrid>
 
-| Import                     | Entry                                                                                          |
-| -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `@ganttlane/core`          | [The core](ganttlane/core/)                                                                    |
-| `@ganttlane/dom`           | [`createGantt`, `Gantt`, the options and the renderer](ganttlane/dom/)                         |
-| `@ganttlane/dom/facade`    | [`createChart`: the part of `createGantt` that needs no DOM](ganttlane/dom/facade/)            |
-| `@ganttlane/dom/dom-utils` | [Helpers shared by renderers: listeners, positioning, pointer input](ganttlane/dom/dom-utils/) |
-| `@ganttlane/react`         | [`Gantt`, `useGantt`, `useGanttState` and their types](ganttlane/react/)                       |
-| `@ganttlane/react/core`    | [`patchTasks` and the types, without the client directive](ganttlane/react/core/)              |
+| Import                     | Entry                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `@ganttlane/core`          | [The core](ganttlane/core/)                                                                            |
+| `@ganttlane/core/schema`   | [`TaskSchema` and `LinkSchema`: valibot schemas to check and extend your data](ganttlane/core/schema/) |
+| `@ganttlane/core/migrate`  | [`fromFrappeGanttOptions`: options of frappe-gantt turned into ganttlane's](ganttlane/core/migrate/)   |
+| `@ganttlane/dom`           | [`createGantt`, `Gantt`, the options and the renderer](ganttlane/dom/)                                 |
+| `@ganttlane/dom/facade`    | [`createChart`: the part of `createGantt` that needs no DOM](ganttlane/dom/facade/)                    |
+| `@ganttlane/dom/dom-utils` | [Helpers shared by renderers: listeners, positioning, pointer input](ganttlane/dom/dom-utils/)         |
+| `@ganttlane/react`         | [`Gantt`, `useGantt`, `useGanttState` and their types](ganttlane/react/)                               |
+| `@ganttlane/react/core`    | [`patchTasks` and the types, without the client directive](ganttlane/react/core/)                      |
 
 `@ganttlane/dom` and `@ganttlane/react` re-export the types of the core that you meet around a
 chart (`Task`, `Link`, `TaskRecord`, `ChangeSet`, ...). In the reference, a re-export links to the

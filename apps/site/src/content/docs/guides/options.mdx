@@ -132,9 +132,15 @@ gantt.setOptions({ editing: { resize: false } }); // taken whole: move, progress
 
 ### Bad values and unknown keys
 
-**Unknown keys are ignored**, silently: a typo in a name has no effect and no issue. Unknown fields
-inside a group are ignored as well. The one exception is `viewModes`, where an unknown field of a
-view mode, of a header row or of `majorLine` is reported as an `invalid-view-mode` warning.
+**Unknown keys are ignored.** In the production build a typo in a name has no effect and no issue.
+The development build (the `development` export condition, which Vite and webpack pick in dev mode)
+reports a top-level key that is no option as an `unknown-option` warning, and when the key is a name
+from frappe-gantt it says where the option lives now (`bar_height: is an option of frappe-gantt;
+here it is layout.barHeight`). Unknown fields inside a group are ignored in both builds. The one
+exception is `viewModes`, where an unknown field of a view mode, of a header row or of `majorLine`
+is reported as an `invalid-view-mode` warning. Moving options over from frappe-gantt?
+[`fromFrappeGanttOptions`](../migration/#convert-an-options-object-with-code) converts a whole
+object.
 
 **A value that cannot be used is never a throw.** It becomes an [issue](../concepts/issues/), the
 option's default is used instead, and the rest of the options still apply. An issue carries a

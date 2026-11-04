@@ -20,6 +20,8 @@ const OVERVIEW = 'index.mdx';
 /** Module name by the entry point's path relative to `packages/` (no extension). */
 const MODULE_NAMES = new Map([
   ['core/src', '@ganttlane/core'],
+  ['core/src/schema', '@ganttlane/core/schema'],
+  ['core/src/migrate', '@ganttlane/core/migrate'],
   ['dom/src', '@ganttlane/dom'],
   ['dom/src/facade', '@ganttlane/dom/facade'],
   ['dom/src/dom-utils', '@ganttlane/dom/dom-utils'],
