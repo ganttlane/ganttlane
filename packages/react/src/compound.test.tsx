@@ -575,7 +575,7 @@ describe('useGanttBar', () => {
       const top = seen.bar!.box!.top;
       const renders = seen.renders;
       await run(() => {
-        gantt().core.scroll({ top: 120 });
+        gantt().core.scroll({ left: gantt().getSnapshot().timeline.scrollLeft, top: 120 });
         frames.step();
       });
       expect(gantt().getSnapshot().scrollTop).toBe(120);
@@ -590,7 +590,7 @@ describe('useGanttBar', () => {
       });
       const top = seen.bar!.box!.top;
       await run(() => {
-        gantt().core.scroll({ top: 40 });
+        gantt().core.scroll({ left: gantt().getSnapshot().timeline.scrollLeft, top: 40 });
         frames.step();
       });
       expect(gantt().getSnapshot().scrollTop).toBe(40);
