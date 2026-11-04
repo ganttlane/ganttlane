@@ -1,4 +1,5 @@
 import type { Task } from '@ganttlane/dom';
+import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { Gantt } from './Gantt';
@@ -11,7 +12,7 @@ import {
   trackListeners,
 } from './testing';
 import { charts, forgetCharts } from './testing/charts';
-import type { GanttProps } from './types';
+import type { GanttHandle, GanttProps } from './types';
 
 vi.mock('@ganttlane/dom/facade', async (importOriginal) => {
   const { wrapFacade } = await import('./testing/charts');
@@ -45,6 +46,39 @@ afterEach(() => {
 });
 
 describe('<Gantt>', () => {
+  it('FR-DATA-12: the props of the component that are not options of the chart do not reach the core as unknown options', async () => {
+    // `className`, `style`, `id`, `aria-*`, `data-*` stay on the container; `defaultTasks`,
+    // `links`, `renderTooltip` and the other props React handles itself are taken out. What is
+    // left is options the core knows, so the development build has nothing to warn about.
+    const handle = createRef<GanttHandle>();
+    const view = await renderInto(
+      <Gantt
+        ref={handle}
+        defaultTasks={TASKS}
+        defaultLinks={LINKS}
+        defaultViewMode="week"
+        defaultExpandedKeys="all"
+        defaultSelectedKeys={['a']}
+        now={NOW}
+        renderer={{ frames }}
+        className="chart"
+        style={{ height: 320 }}
+        id="plan"
+        aria-label="Plan"
+        data-testid="plan"
+        locale="en"
+        layout={{ height: 320 }}
+        display={{ today: true }}
+        tooltip={{ trigger: 'hover' }}
+        renderTooltip={() => null}
+        onTaskClick={() => undefined}
+      />,
+    );
+
+    expect(handle.current?.getIssues().options).toEqual([]);
+    await view.unmount();
+  });
+
   it('FR-REACT-1: it renders a container div with the className and the style, and the chart in it', async () => {
     const view = await renderInto(
       <Gantt
