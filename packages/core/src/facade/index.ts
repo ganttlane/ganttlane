@@ -27,6 +27,8 @@ export type {
   GanttSnapshot,
   HistoryOption,
   LayoutMetrics,
+  NudgeRefusedResult,
+  NudgeResult,
   RangeChangeInfo,
   RendererEffect,
   RowWindow,

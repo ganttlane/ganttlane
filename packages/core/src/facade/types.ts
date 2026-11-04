@@ -28,6 +28,8 @@ import type {
   InteractionFeedback,
   InteractionOptions,
   LinkPreviewEffect,
+  NudgeGesture,
+  RefusalReason,
   ResolvedEditing,
   ResolvedHandles,
 } from '../interaction';
@@ -466,6 +468,25 @@ export interface UpdateRejectedResult {
 /** Outcome of `updateTask`: the commit's result, or why it was refused. */
 export type UpdateTaskResult = CommitResult | UpdateRejectedResult;
 
+/**
+ * `nudge` refused the step before computing a change set, for the reason a gesture would be
+ * refused (`editRefused` is emitted too): `'permission'` (`editing`, `editable`, `locked`,
+ * `fixedDuration`, a milestone's length) or `'unknown-task'` (an unknown id, or no bar). A pending
+ * operation is the commit's `'busy'`.
+ */
+export interface NudgeRefusedResult {
+  /** Discriminant. */
+  readonly status: 'refused';
+  /** Why. */
+  readonly reason: RefusalReason;
+}
+
+/**
+ * Outcome of `nudge`: the commit's result, `'unchanged'` when the edge cannot move that way (a
+ * task is not made shorter than one step), or why it was refused.
+ */
+export type NudgeResult = CommitResult | NudgeRefusedResult;
+
 /** How a scroll request moves: the `scroll.behavior` option or the call's `behavior`. */
 export type ScrollBehaviorOption = 'smooth' | 'instant' | 'auto';
 
@@ -733,6 +754,15 @@ export interface GanttCore<TData = unknown> {
    * propagated like the same drag and passed through the before-hooks.
    */
   readonly updateTask: (id: TaskId, update: TaskUpdate) => Promise<UpdateTaskResult>;
+  /**
+   * Moves a task, or one of its edges, by one snap step: what an arrow key does. The edge goes to
+   * the next boundary of the step of its gesture (`scheduling.snap`, else the view mode's, else the
+   * data step) in `direction` and nothing else differs from dragging it there: snapping, skipped
+   * non-working days, the minimum length, propagation, the before-hooks and the permissions
+   * (`editing`, `editable`, `locked`, `fixedDuration`). The change has the reason `gesture`, so
+   * `onTasksChange` tells it from `updateTask`'s `'api'`. A refusal emits `editRefused`.
+   */
+  readonly nudge: (id: TaskId, gesture: NudgeGesture, direction: -1 | 1) => Promise<NudgeResult>;
   /**
    * Creates a link through the `beforeLinkCreate` hooks. A value that is no valid link (not an
    * object, an unknown type, …) is `'rejected'` as `'invalid'`, with the issues.

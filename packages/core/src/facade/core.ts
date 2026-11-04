@@ -19,6 +19,7 @@ import {
   type HistorySettings,
   type LinkCreateResult,
   type LinkDeleteResult,
+  type UnchangedResult,
   type Unsubscribe,
 } from '../events';
 import {
@@ -29,6 +30,8 @@ import {
   type InteractionEvent,
   type InteractionFeedback,
   type InteractionOptions,
+  nudge,
+  type NudgeGesture,
   type ResolvedEditing,
   type ResolvedHandles,
   resolveEditing,
@@ -138,6 +141,7 @@ import type {
   GanttSnapshot,
   HistoryOption,
   LayoutMetrics,
+  NudgeResult,
   RendererEffect,
   RowWindow,
   ScrollBehaviorOption,
@@ -226,6 +230,10 @@ const DISPOSED: CancelledResult = /* @__PURE__ */ Object.freeze({
   reason: 'disposed',
 });
 const BUSY: BusyResult = /* @__PURE__ */ Object.freeze({ status: 'busy' });
+const UNCHANGED: UnchangedResult = /* @__PURE__ */ Object.freeze({
+  status: 'unchanged',
+  issues: /* @__PURE__ */ Object.freeze([]),
+});
 const NO_EFFECTS: readonly RendererEffect[] = /* @__PURE__ */ Object.freeze([]);
 const NO_ISSUES: readonly Issue[] = /* @__PURE__ */ Object.freeze([]);
 /** Cascades of listeners that change the chart again are followed this many rounds at most. */
@@ -1513,6 +1521,22 @@ export function createGanttCore<TData = unknown>(
         const operation = controller.commit(changeSet);
         track(operation, false);
         return operation.then((result) => withIssues(result, issues));
+      });
+    },
+    nudge: (id: TaskId, gesture: NudgeGesture, direction: -1 | 1): Promise<NudgeResult> => {
+      if (destroyed) return Promise.resolve(DISPOSED);
+      return batch((): Promise<NudgeResult> => {
+        const outcome = nudge(gesture, id, direction, context());
+        if ('refused' in outcome) {
+          const { refused: reason } = outcome;
+          if (reason === 'busy') return Promise.resolve(BUSY);
+          queue('editRefused', { gesture, id, target: undefined, reason, at: 'start' });
+          return Promise.resolve({ status: 'refused', reason });
+        }
+        if (outcome.changeSet === undefined) return Promise.resolve(UNCHANGED);
+        const operation = controller.commit(outcome.changeSet);
+        track(operation, true);
+        return operation;
       });
     },
     addLink: (link: Link): Promise<LinkCreateResult> => {

@@ -790,7 +790,7 @@ function hitInput(run: Run): Parameters<typeof hitTest>[1] {
 }
 
 /** Why a gesture may not start or commit now, `undefined` when it may. */
-function refusalOf(
+export function refusalOf(
   ctx: InteractionContext,
   gesture: GestureKind,
   id: TaskId,

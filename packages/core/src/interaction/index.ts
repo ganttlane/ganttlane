@@ -16,6 +16,8 @@ export { INTERACTION_DEFAULTS } from './defaults';
 export type { BarHandles, HandleRect, HitTestInput } from './hit-test';
 export { barHandles, hitTest, resolveHandles } from './hit-test';
 export { createInteraction } from './machine';
+export type { NudgeGesture, NudgeOutcome } from './nudge';
+export { nudge } from './nudge';
 export type { PermissionSource, TaskPermissions } from './permissions';
 export { resolveEditing, resolvePermissions } from './permissions';
 export type {
