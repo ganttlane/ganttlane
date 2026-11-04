@@ -10,6 +10,7 @@
  * - `barFocus=1`: bars take the keyboard focus (`keyboard.barFocus`);
  * - `multiple=1`: Ctrl or Cmd adds to the selection (`selection.multiple`);
  * - `edit=1`: the arrow keys edit the focused bar (`keyboard.edit`, with `barFocus=1`);
+ * - `undo=1`: history is on and the undo keys work (`history`, `keyboard.undo`);
  * - `announce=1`: the selection is said in a live region (`keyboard.announce`);
  * - `cells=1`: the keys walk the cells of the list (`cellNavigation`).
  */
@@ -25,6 +26,7 @@ export interface PlanSettings {
   readonly multiple: boolean;
   readonly edit: boolean;
   readonly announce: boolean;
+  readonly undo: boolean;
   readonly cells: boolean;
 }
 
@@ -48,6 +50,7 @@ export function planSettings(search: string): PlanSettings {
     multiple: params.get('multiple') === '1',
     edit: params.get('edit') === '1',
     announce: params.get('announce') === '1',
+    undo: params.get('undo') === '1',
     cells: params.get('cells') === '1',
   };
 }
@@ -107,9 +110,15 @@ export const planChoices = ({
   barFocus,
   edit,
   announce,
+  undo,
   multiple,
-}: PlanSettings): { readonly keyboard: object; readonly selection: object } => ({
-  keyboard: { barFocus, edit, announce },
+}: PlanSettings): {
+  readonly keyboard: object;
+  readonly selection: object;
+  readonly history: boolean;
+} => ({
+  keyboard: { barFocus, edit, announce, undo },
+  history: undo,
   selection: { ...planOptions.selection, multiple },
 });
 

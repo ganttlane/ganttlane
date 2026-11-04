@@ -1,4 +1,11 @@
-import type { GanttCore, NudgeResult, TaskId } from '@ganttlane/core';
+import type {
+  GanttCore,
+  HistoryResult,
+  NudgeResult,
+  TaskId,
+  TaskPatch,
+  TaskRecord,
+} from '@ganttlane/core';
 
 import { createHtml, previewOf, taskSummary } from './shared';
 import type { GanttStrings } from './strings';
@@ -33,6 +40,8 @@ export interface Announcer {
   sync(): void;
   /** Says what became of a keyboard change of a task. */
   report(id: TaskId, result: NudgeResult): void;
+  /** Says what an undo or a redo did. */
+  reportHistory(result: HistoryResult): void;
 }
 
 /**
@@ -65,6 +74,15 @@ export function mountAnnouncer(options: AnnouncerOptions): Announcer {
     region.textContent = last;
   };
   const locale = (): string => core.getSnapshot().header.locale;
+  /** The task as a change leaves it, in words. */
+  const describe = (task: TaskRecord, patch: TaskPatch): string =>
+    taskSummary(
+      task,
+      locale(),
+      strings(),
+      patch.progress,
+      previewOf(core.getSnapshot(), task, patch),
+    );
 
   signal.addEventListener('abort', () => {
     region?.remove();
@@ -115,14 +133,25 @@ export function mountAnnouncer(options: AnnouncerOptions): Announcer {
         say(words.notChanged(task.name === '' ? String(id) : task.name, where));
         return;
       }
-      const summary = taskSummary(
-        task,
-        where,
-        words,
-        change.after.progress,
-        previewOf(core.getSnapshot(), task, change.after),
+      say(
+        words.taskChanged(describe(task, change.after), result.changeSet.changes.length - 1, where),
       );
-      say(words.taskChanged(summary, result.changeSet.changes.length - 1, where));
+    },
+    reportHistory(result): void {
+      if (result.status !== 'undone' && result.status !== 'redone') return;
+      const { entry } = result;
+      // The first task the entry moved, as the step left it; a link has nothing to describe.
+      const change = entry.type === 'tasks' ? entry.changeSet.changes[0] : undefined;
+      const task = change && core.getTask(change.id);
+      const detail =
+        change && task
+          ? strings().taskChanged(
+              describe(task, result.status === 'undone' ? change.before : change.after),
+              entry.type === 'tasks' ? entry.changeSet.changes.length - 1 : 0,
+              locale(),
+            )
+          : '';
+      say(strings()[result.status === 'undone' ? 'undone' : 'redone'](detail, locale()));
     },
   };
 }

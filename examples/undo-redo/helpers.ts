@@ -4,25 +4,6 @@ import type { ChangeSet, Gantt, HistoryChangePayload, TaskId } from '@ganttlane/
 export const LIMITS = [3, 5, 100] as const;
 
 /**
- * Which of undo and redo a key press asks for. The library has no hotkeys: a page decides what
- * its keys do, and calls `undo()` and `redo()`. Ctrl or Cmd with Z undoes, with Shift redoes.
- *
- * @param event - A `keydown` event.
- * @returns The action, or `undefined` for any other key.
- */
-export function shortcutOf(event: KeyboardEvent): 'undo' | 'redo' | undefined {
-  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 'z') {
-    return undefined;
-  }
-  return event.shiftKey ? 'redo' : 'undo';
-}
-
-/** Whether a key press comes from a field where Ctrl+Z belongs to the browser (a select, a text box). */
-export function isTyping(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('input, textarea, select') !== null;
-}
-
-/**
  * Undoes until there is nothing left to undo.
  *
  * @param chart - The chart.

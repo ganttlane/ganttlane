@@ -244,8 +244,9 @@ drag, resize, progress change or link drawing) or by kind (`{ move, resize, prog
 `clearOnEmptyClick` clears them on a click on an empty part of the chart, and `multiple` makes Ctrl
 or Cmd + click add the task or take it out. All are off by default.
 `keyboard.barFocus` lets bars take the keyboard focus, `keyboard.edit` lets the arrow keys move and
-resize the bar that has it, and `keyboard.announce` says selection changes in a live region (see
-[Keyboard focus](#keyboard-focus-on-the-bars)); all three are off by default too.
+resize the bar that has it, `keyboard.announce` says selection changes in a live region, and
+`keyboard.undo` makes Ctrl or Cmd + Z undo and Ctrl or Cmd + Shift + Z or Ctrl + Y redo (see
+[Keyboard focus](#keyboard-focus-on-the-bars)); all four are off by default too.
 
 Defaults: `locale` is `'en'`, not the browser's, so that a server and a browser draw the same text;
 `theme` is `'auto'`; `scroll.initial` is `'today'`; `timeline.infinite` is off. Keys nobody knows are
@@ -838,19 +839,20 @@ const uk: GanttStringsInput = {
 createGantt(container, { tasks, locale: 'uk', strings: uk });
 ```
 
-| Key                                                                        | Default                                         | Used for                                                      |
-| -------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------- |
-| `chartLabel`                                                               | `Gantt chart`                                   | The `aria-label` of the chart's focusable region              |
-| `progress(percent, locale)`                                                | `60% done`                                      | The progress line of the task tooltip (whole percent)         |
-| `workingDays(days, locale)`                                                | `1 working day`, `2.5 working days`             | The length line of the task tooltip (days to one decimal)     |
-| `dateRange(from, to, locale)`                                              | `Mar 2, 2026 – Mar 6, 2026`                     | The dates line of a task of more than one moment              |
-| `linkTitle(source, target, locale)`                                        | `Design → Build`                                | The title of the link menu                                    |
-| `removeLink`                                                               | `Remove dependency`                             | The action of the link menu                                   |
-| `taskChanged(summary, others, locale)`                                     | `Design, Mar 3, 2026 – …; 1 other task changed` | What is said after a keyboard change (`keyboard.edit`)        |
-| `notChanged(name, locale)`                                                 | `Design was not changed`                        | What is said when a keyboard change left the task as it was   |
-| `selection(count, name, locale)`                                           | `Design selected`, `3 tasks selected`           | What is said when the selection changes (`keyboard.announce`) |
-| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `Today`, `Zoom in`, `Zoom out`, `View mode`     | The toolbar (reserved: nothing draws them yet)                |
-| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `Hour`, `Quarter day`, … `Year`                 | The view mode switcher's items (reserved)                     |
+| Key                                                                        | Default                                         | Used for                                                               |
+| -------------------------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
+| `chartLabel`                                                               | `Gantt chart`                                   | The `aria-label` of the chart's focusable region                       |
+| `progress(percent, locale)`                                                | `60% done`                                      | The progress line of the task tooltip (whole percent)                  |
+| `workingDays(days, locale)`                                                | `1 working day`, `2.5 working days`             | The length line of the task tooltip (days to one decimal)              |
+| `dateRange(from, to, locale)`                                              | `Mar 2, 2026 – Mar 6, 2026`                     | The dates line of a task of more than one moment                       |
+| `linkTitle(source, target, locale)`                                        | `Design → Build`                                | The title of the link menu                                             |
+| `removeLink`                                                               | `Remove dependency`                             | The action of the link menu                                            |
+| `taskChanged(summary, others, locale)`                                     | `Design, Mar 3, 2026 – …; 1 other task changed` | What is said after a keyboard change (`keyboard.edit`)                 |
+| `notChanged(name, locale)`                                                 | `Design was not changed`                        | What is said when a keyboard change left the task as it was            |
+| `selection(count, name, locale)`                                           | `Design selected`, `3 tasks selected`           | What is said when the selection changes (`keyboard.announce`)          |
+| `undone(detail, locale)`, `redone(detail, locale)`                         | `Undone. Design, Mar 2, 2026 – …`, `Undone`     | What is said after an undo or redo from the keyboard (`keyboard.undo`) |
+| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `Today`, `Zoom in`, `Zoom out`, `View mode`     | The toolbar (reserved: nothing draws them yet)                         |
+| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `Hour`, `Quarter day`, … `Year`                 | The view mode switcher's items (reserved)                              |
 
 - A string that puts a number or a name into a sentence is a **function** of the value and the
   chart's locale; the others are plain strings. Strings are inserted as text, never as markup.
@@ -1243,6 +1245,13 @@ nothing listens for the keys.
   other than by a press on a bar that says it is pressed (`select()`, a task list), so a selection
   that a click does not make is not silent. The words are `strings.taskChanged`, `notChanged` and
   `selection`.
+- **Undo and redo keys.** `keyboard.undo` (with `history`): Ctrl or Cmd + Z undoes, Ctrl or Cmd +
+  Shift + Z and Ctrl + Y redo (Cmd + Y is left to the browser). Only a key pressed on a bar or on
+  the scroller itself is heard, so an input, a `contenteditable` or a control of a slot keeps its own
+  undo; not during a drag or while a change waits to be applied. A key that has nothing to do (no
+  history, nothing to undo, a stale entry) is left to the browser, with no `preventDefault`. The
+  result is said in the live region when the chart announces (`strings.undone`, `redone`). Off by
+  default.
 - **State.** The bar with the browser's focus is `focusTask`, whichever way it got it: a press focuses
   a bar too, with no ring. `focusTask(id)` moves the browser's focus only while a bar has it, and
   `focusTask(undefined)` takes it from the bar to the chart (a window that loses the focus does not
@@ -1573,7 +1582,7 @@ Limits you should know about today (what is planned for 1.0 is listed at the end
   [`@ganttlane/core`](https://github.com/ganttlane/ganttlane/blob/main/packages/core/README.md#limits-and-roadmap)).
 
 Planned for 1.0: zoom gestures and a toolbar, selection and keyboard navigation with ARIA roles
-and keyboard editing, undo and redo hotkeys, markers, sticky labels and the
+and keyboard editing, markers, sticky labels and the
 expected-progress marker, right-to-left charts, week-start and weekend defaults from the locale,
 the `push-forward` propagation policy and a context menu.
 

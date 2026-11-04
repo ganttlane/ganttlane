@@ -1413,7 +1413,8 @@ complete lists are in "Limits and roadmap" in the READMEs of
   pieces to build one. A left-hand task list is there now: `createTaskList` of
   `@ganttlane/dom/task-list`, `<TaskList>` of `@ganttlane/react`.
 - **Keyboard editing, ARIA roles on bars, a context menu, pinch and
-  `Ctrl` + wheel zoom** (`zoomTo()` zooms from code), and undo and redo hotkeys: planned for 1.0.
+  `Ctrl` + wheel zoom** (`zoomTo()` zooms from code): planned for 1.0. Undo and redo hotkeys are there:
+  `keyboard.undo`.
 - **`on_date_click` and `hover_on_date`.** There is no date-click event.
 - **Right-to-left charts** and week-start and weekend defaults from the locale (`calendar.weekends` is
   explicit): planned for 1.0.

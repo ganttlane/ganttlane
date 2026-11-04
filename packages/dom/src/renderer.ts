@@ -14,6 +14,7 @@ import {
   prefixedId,
 } from './dom-utils';
 import { throwCollected } from './dom-utils/errors';
+import { mountHistoryKeys } from './history-keys';
 import { mountInput } from './input';
 import type { PopoverLayer } from './layers/popover';
 import { resolveLayerFactories } from './layers/registry';
@@ -57,6 +58,8 @@ export type RendererCore = Pick<
   | 'scrollToTask'
   | 'getLayoutMetrics'
   | 'nudge'
+  | 'undo'
+  | 'redo'
 >;
 
 /**
@@ -357,6 +360,13 @@ export function mountRenderer<TCore extends RendererCore>(
       announcer,
     });
     disposables.add(barFocus.dispose);
+    const armHistoryKeys = mountHistoryKeys({
+      core,
+      scroller: skeleton.scroller,
+      signal: abort.signal,
+      enabled: () => display.keyUndo,
+      announcer,
+    });
     focusBar = barFocus.focus;
 
     let rendered: GanttSnapshot | undefined;
@@ -412,6 +422,7 @@ export function mountRenderer<TCore extends RendererCore>(
         }
       });
       announcer.sync();
+      armHistoryKeys();
       throwCollected(errors, 'Several layers failed to update');
     };
 

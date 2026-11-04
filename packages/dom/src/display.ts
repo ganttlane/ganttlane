@@ -112,6 +112,11 @@ export interface DisplayOptions<TData = unknown> {
    */
   readonly announce?: boolean | undefined;
   /**
+   * Whether Ctrl or Cmd + Z undoes and Ctrl or Cmd + Shift + Z, Ctrl + Y redo, while the focus is
+   * on the chart or a bar. Default `false`. `createGantt` takes it as `keyboard.undo`.
+   */
+  readonly keyUndo?: boolean | undefined;
+  /**
    * Whether a click on a bar selects it, so that a bar can say it is pressed. Default `false`.
    * `createGantt` takes it from `selection.onClick`.
    */
@@ -154,7 +159,14 @@ export type GroupKey = 'tooltip' | 'linkMenu' | 'highlightTooltip';
 /** The display options that are plain values, which `createGantt` takes under `display`. */
 export type PlainDisplayKey = Exclude<
   keyof DisplayOptions,
-  GroupKey | 'highlightDays' | 'barFocus' | 'keyEdit' | 'announce' | 'clickSelects' | 'multiSelect'
+  | GroupKey
+  | 'highlightDays'
+  | 'barFocus'
+  | 'keyEdit'
+  | 'announce'
+  | 'keyUndo'
+  | 'clickSelects'
+  | 'multiSelect'
 >;
 
 /** {@link DisplayOptions} with every default applied. Frozen. */
@@ -169,6 +181,7 @@ export interface ResolvedDisplay {
   readonly barFocus: boolean;
   readonly keyEdit: boolean;
   readonly announce: boolean;
+  readonly keyUndo: boolean;
   readonly clickSelects: boolean;
   readonly multiSelect: boolean;
   readonly barLabel: BarLabelOption;
@@ -194,6 +207,7 @@ export const DISPLAY_DEFAULTS: ResolvedDisplay = Object.freeze({
   barFocus: false,
   keyEdit: false,
   announce: false,
+  keyUndo: false,
   clickSelects: false,
   multiSelect: false,
   barLabel: 'auto',
@@ -270,6 +284,7 @@ const ALL_RULES: { readonly [K in keyof ResolvedDisplay]: Rule } = {
   barFocus: flag(D.barFocus),
   keyEdit: flag(D.keyEdit),
   announce: flag(D.announce),
+  keyUndo: flag(D.keyUndo),
   clickSelects: flag(D.clickSelects),
   multiSelect: flag(D.multiSelect),
   highlightDays: [Array.isArray],

@@ -845,7 +845,8 @@ the `strings.chartLabel` prop), tooltips with `role="tooltip"` and `aria-describ
 `keyboard={{ barFocus: true }}` prop, named with their dates, progress and working days;
 `keyboard={{ barFocus: true, edit: true }}` lets the arrow keys move and resize the focused bar one
 snap step, and says the result in a hidden live region (`keyboard.announce` adds the selection to
-what is said). They are props like the others, off by default. Links and the handles of a bar are
+what is said), and `keyboard={{ undo: true }}` with `history` makes Ctrl or Cmd + Z undo and Ctrl or
+Cmd + Shift + Z or Ctrl + Y redo. They are props like the others, off by default. Links and the handles of a bar are
 not focusable, and there is no keyboard way to draw a link.
 
 What React adds: `id`, `aria-*` and `data-*` props go to the container `div`, and the content you

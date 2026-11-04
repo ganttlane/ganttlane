@@ -48,6 +48,14 @@ export interface GanttStrings {
    * focus: `count` tasks are selected, `name` is the first of them (`0`: the selection is empty).
    */
   readonly selection: (count: number, name: string, locale: string) => string;
+  /**
+   * What is said after an undo from the keyboard (`keyboard.undo`): `detail` is the first task
+   * the entry moved as the undo left it, worded as `taskChanged`, or `''` for an entry that is not
+   * a change of tasks (a link).
+   */
+  readonly undone: (detail: string, locale: string) => string;
+  /** What is said after a redo from the keyboard: see `undone`. */
+  readonly redone: (detail: string, locale: string) => string;
 
   // ---- the toolbar (not available yet: nothing draws these) ----
 
@@ -114,6 +122,8 @@ export const DEFAULT_STRINGS: GanttStrings = Object.freeze<GanttStrings>({
       : selected === 1
         ? `${name} selected`
         : `${count(selected, locale)} tasks selected`,
+  undone: (detail) => (detail === '' ? 'Undone' : `Undone. ${detail}`),
+  redone: (detail) => (detail === '' ? 'Redone' : `Redone. ${detail}`),
   today: 'Today',
   zoomIn: 'Zoom in',
   zoomOut: 'Zoom out',

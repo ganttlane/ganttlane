@@ -3,7 +3,7 @@ import '@ganttlane/dom/styles.css';
 import { createGantt, type Gantt, type TaskId } from '@ganttlane/dom';
 
 import { links, tasks } from './data';
-import { changeText, historyText, isTyping, LIMITS, shortcutOf, undoAll } from './helpers';
+import { changeText, historyText, LIMITS, undoAll } from './helpers';
 import { options } from './options';
 
 export function mount(container: HTMLElement): () => void {
@@ -84,19 +84,6 @@ export function mount(container: HTMLElement): () => void {
   const limitLabel = document.createElement('label');
   limitLabel.append('Keep the last ', limit, ' actions');
   toolbar.append(limitLabel);
-
-  // The library has no hotkeys, so the page makes its own: Ctrl or Cmd + Z, with Shift to redo.
-  // They work while the focus is in this example (after a click on the chart, for one).
-  root.addEventListener(
-    'keydown',
-    (event) => {
-      const action = shortcutOf(event);
-      if (action === undefined || isTyping(event.target)) return;
-      event.preventDefault();
-      run(action);
-    },
-    { signal },
-  );
 
   // The handlers read `gantt`, which they are passed to: give it a type.
   const nameOf = (id: TaskId): string => gantt.getTask(id)?.name ?? String(id);

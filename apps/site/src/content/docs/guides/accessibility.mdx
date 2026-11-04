@@ -87,8 +87,19 @@ receives one per press, as it does per drag. A task that cannot be edited that w
 Right scroll the chart as they would without the option. The same step is a method, `nudge`, for
 buttons of your own ([Methods](../methods/)).
 
-There is no edit mode to enter, and so nothing to cancel with `Escape`; undo is `undo()` until the
-hotkeys of a later release.
+There is no edit mode to enter, and so nothing to cancel with `Escape`.
+
+### Undo and redo keys
+
+With [`keyboard.undo`](../options/#keyboard) and [`history`](../options/) on, Ctrl or Cmd + Z undoes the
+last action, and Ctrl or Cmd + Shift + Z or Ctrl + Y redoes it (Cmd + Y is the browser's history, so it
+is left alone). The keys work while the focus is on a bar or on the chart's scrollable region and
+nowhere else: an `input`, a `contenteditable` or a control of a [slot](../slots/) keeps its own undo,
+and so does the rest of the page. They do nothing during a drag or while a change waits to be applied
+(controlled data). A key that has nothing to do, with no `history` or with nothing to undo or redo, is
+not taken from the browser (no `preventDefault`). Letters are read from the typed character, so a layout
+that types them elsewhere has its own keys. With `announce`, or `edit` with `barFocus`, the result is
+said in the live region: `Undone. Design, Mar 2, 2026 – …`, `Redone. …`, or only `Undone` for a link.
 
 Screen readers that have a browse mode (NVDA and JAWS on Windows) keep the arrow keys for their own
 cursor there, and the keys reach the chart only in the mode that passes them on (focus mode). Such a
@@ -104,8 +115,8 @@ change moved (for example `Design, Mar 3, 2026 – Mar 7, 2026, 80% done · 4 wo
 changed`), or that the task was not changed (a hook cancelled it, or it is at its minimum length).
 `announce` also says when the selection changes other than by a press on the bar that has the focus and
 says it is pressed (`select()`, a [task list](../task-list/)): `Design selected`, `3 tasks selected`,
-`Selection cleared`. The words are three keys of [`strings`](../options/#locale-and-strings),
-`taskChanged`, `notChanged` and `selection`, which are functions of the values and the locale, so that a
+`Selection cleared`. The words are keys of [`strings`](../options/#locale-and-strings),
+`taskChanged`, `notChanged`, `selection`, `undone` and `redone`, which are functions of the values and the locale, so that a
 language with more plural forms can say it right. The
 [keyboard editing example](../../examples/keyboard-editing/) shows both.
 
@@ -122,7 +133,6 @@ These are not available in this version:
 - **The contrast of the default themes** is pinned by a test of the token pairs (WCAG AA 4.5:1 for
   text, 3:1 for bars, links, the focus ring and the invalid and conflict states). A theme of your own
   has to be checked by you; the tokens are in [Theming](../theming/).
-- **There are no undo and redo hotkeys.** History is available from code (`undo()`, `redo()`).
 
 ### Covering the rest
 

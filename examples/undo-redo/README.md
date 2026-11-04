@@ -1,6 +1,6 @@
 ---
 title: Undo and redo
-description: Turn the history on, wire Undo and Redo buttons and Ctrl or Cmd + Z shortcuts to undo() and redo(), and watch canUndo, canRedo, the limit and onHistoryChange.
+description: Turn the history on, wire Undo and Redo buttons and the Ctrl or Cmd + Z keys (keyboard.undo) to undo() and redo(), and watch canUndo, canRedo, the limit and onHistoryChange.
 category: Editing
 order: 450
 height: 480
@@ -13,9 +13,9 @@ The history is **off by default**. With `history` on, every action is an entry: 
 last entry and `redo()` puts it back; `canUndo` and `canRedo` say whether there is anything to do,
 and `onHistoryChange` tells you when either flips, which is what the buttons follow.
 
-The library has **no keyboard shortcuts yet**: it never listens for Ctrl or Cmd + Z. The example
-adds its own `keydown` listener on the page (Ctrl or Cmd + Z undoes, with Shift it redoes) and calls
-the same two methods as the buttons.
+The keys are **off by default** too. `keyboard.undo` makes Ctrl or Cmd + Z undo and Ctrl or Cmd +
+Shift + Z (or Ctrl + Y) redo, while the focus is on a bar or on the chart; the chart calls the same two
+methods as the buttons.
 
 ```sh
 pnpm add @ganttlane/dom                     # vanilla
@@ -25,21 +25,22 @@ pnpm add @ganttlane/react react react-dom   # React
 ## Files
 
 - [`data.ts`](data.ts): seven tasks and six links.
-- [`options.ts`](options.ts): `history` with its limit, the view mode, the first scroll and the layout.
-- [`helpers.ts`](helpers.ts): which key press means undo or redo, `undoAll`, and the lines of the status.
-- [`vanilla.ts`](vanilla.ts) and [`react.tsx`](react.tsx): the buttons, the select for the limit, the shortcuts and the events.
+- [`options.ts`](options.ts): `history` with its limit, `keyboard` (bars take the focus, the undo keys), the view mode, the first scroll and the layout.
+- [`helpers.ts`](helpers.ts): `undoAll`, and the lines of the status.
+- [`vanilla.ts`](vanilla.ts) and [`react.tsx`](react.tsx): the buttons, the select for the limit and the events.
 
 ## Options
 
-| Option                           | Value                       | What it does                                                                        |
-| -------------------------------- | --------------------------- | ----------------------------------------------------------------------------------- |
-| `history`                        | `{ limit: 5 }`              | Undo and redo on, and the last five actions kept; `true` is on with the default 100 |
-| `onHistoryChange`                | a function (in the example) | `({ canUndo, canRedo })`, only when one of them changes: the buttons follow it      |
-| `onTasksChange`                  | a function (in the example) | A change set, also for an undo or a redo (`reason: 'undo'` or `'redo'`)             |
-| `onLinkCreate`, `onLinkDelete`   | functions (in the example)  | A link drawn or removed, also by an undo or a redo                                  |
-| `viewMode`                       | `'week'`                    | The scale of the timeline (React: `defaultViewMode`)                                |
-| `scroll.initial`                 | `'first-task'`              | Opens on the plan                                                                   |
-| `layout.rowHeight`, `.barHeight` | `36`, `24`                  | Smaller rows, so that every task is in view                                         |
+| Option                           | Value                       | What it does                                                                           |
+| -------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| `history`                        | `{ limit: 5 }`              | Undo and redo on, and the last five actions kept; `true` is on with the default 100    |
+| `keyboard`                       | `{ barFocus, undo: true }`  | Bars take the focus; Ctrl or Cmd + Z undoes, Ctrl or Cmd + Shift + Z and Ctrl + Y redo |
+| `onHistoryChange`                | a function (in the example) | `({ canUndo, canRedo })`, only when one of them changes: the buttons follow it         |
+| `onTasksChange`                  | a function (in the example) | A change set, also for an undo or a redo (`reason: 'undo'` or `'redo'`)                |
+| `onLinkCreate`, `onLinkDelete`   | functions (in the example)  | A link drawn or removed, also by an undo or a redo                                     |
+| `viewMode`                       | `'week'`                    | The scale of the timeline (React: `defaultViewMode`)                                   |
+| `scroll.initial`                 | `'first-task'`              | Opens on the plan                                                                      |
+| `layout.rowHeight`, `.barHeight` | `36`, `24`                  | Smaller rows, so that every task is in view                                            |
 
 ## Methods
 
@@ -56,8 +57,9 @@ pnpm add @ganttlane/react react react-dom   # React
 - Press **Undo**: the bar goes back, `onTasksChange` reports it with `reason: 'undo'`, and the
   call returns `undone`. **Redo** puts it back. Make a new change after an undo: `canRedo` goes
   false, because the redo entries no longer apply.
-- Click the chart, then press **Ctrl+Z** (**Cmd+Z** on a Mac), and **Shift+Ctrl+Z** to redo.
-  The shortcuts work while the focus is in the example.
+- Click a bar, or Tab to one, then press **Ctrl+Z** (**Cmd+Z** on a Mac), and **Shift+Ctrl+Z** to
+  redo. The keys work while the focus is on a bar or on the chart; in the select they are the
+  browser's.
 - Undo the link you drew: it is removed, and `onLinkDelete` reports it.
 - Choose **Keep the last 3 actions**, make five changes and press **Undo all**: it undoes three.
   Lowering the limit drops the oldest entries at once.

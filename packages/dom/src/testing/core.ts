@@ -132,6 +132,8 @@ export function createFakeCore(initial: GanttSnapshot = fakeSnapshot()): FakeCor
     scrollToTask: vi.fn<RendererCore['scrollToTask']>(() => undefined),
     getLayoutMetrics: vi.fn<RendererCore['getLayoutMetrics']>(),
     nudge: vi.fn<RendererCore['nudge']>(() => Promise.resolve({ status: 'busy' })),
+    undo: vi.fn<RendererCore['undo']>(() => ({ status: 'empty' })),
+    redo: vi.fn<RendererCore['redo']>(() => ({ status: 'empty' })),
     getSnapshot: () => snapshot,
     subscribe(listener) {
       listeners.add(listener);
@@ -221,6 +223,8 @@ export function observeCore(inner: GanttCore): ObservedCore {
     scrollToTask: (id, options) => inner.scrollToTask(id, options),
     getLayoutMetrics: () => inner.getLayoutMetrics(),
     nudge: (id, gesture, direction) => inner.nudge(id, gesture, direction),
+    undo: () => inner.undo(),
+    redo: () => inner.redo(),
     getLink: (id) => inner.getLink(id),
   };
 }

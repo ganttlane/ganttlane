@@ -349,8 +349,8 @@ restored by the core; in controlled mode the rollback is one `editRollback` even
 **History.** Undo and redo are off until you set `history: true` (or `{ limit }`, default 100): then
 one action is one entry, and `undo()` and `redo()` replay entries without asking the hooks, but with
 the same re-validation, inside a session too (a rollback puts the history back as it was at
-`begin()`). They answer `'stale'` if your data changed behind the history's back. There are no
-hotkeys at this level.
+`begin()`). They answer `'stale'` if your data changed behind the history's back. The hotkeys are the renderer's
+(`keyboard.undo` of `@ganttlane/dom`).
 
 ### Issues
 
@@ -938,8 +938,7 @@ Limits you should know about today:
 The [API reference](https://ganttlane.github.io/ganttlane/api/) is generated from the TSDoc of the
 sources and is on the documentation site.
 
-Planned for 1.0: zoom gestures and `zoomToFit`, selection and keyboard navigation, undo and redo
-hotkeys, `push-forward` propagation, week-start and weekend defaults from the locale, RTL and
+Planned for 1.0: zoom gestures and `zoomToFit`, selection and keyboard navigation, `push-forward` propagation, week-start and weekend defaults from the locale, RTL and
 compound React components. Later: zoned dates, working hours,
 baselines, critical path, rollup of parent dates.
 

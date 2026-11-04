@@ -58,6 +58,14 @@ export interface KeyboardOptions {
    * is.
    */
   readonly announce?: boolean | undefined;
+  /**
+   * Ctrl or Cmd + Z undoes, Ctrl or Cmd + Shift + Z and Ctrl + Y redo (needs `history`), while the
+   * focus is on the chart itself or on a bar. Keys typed into anything else in the chart, such as an
+   * input in a slot, stay with it, and so do they during a drag or while a change waits to be
+   * applied. A key that has nothing to do (no history, nothing to undo) is left to the browser. The
+   * result is said in the live region when the chart announces. Default `false`.
+   */
+  readonly undo?: boolean | undefined;
 }
 
 /**
@@ -211,6 +219,7 @@ const LIFTED: ReadonlySet<string> = new Set([
   'barFocus',
   'keyEdit',
   'announce',
+  'keyUndo',
   'clickSelects',
   'multiSelect',
   'highlightDays',
@@ -224,6 +233,7 @@ const BORROWED = [
   ['keyboard', 'barFocus', 'barFocus'],
   ['keyboard', 'edit', 'keyEdit'],
   ['keyboard', 'announce', 'announce'],
+  ['keyboard', 'undo', 'keyUndo'],
   ['selection', 'onClick', 'clickSelects'],
   ['selection', 'multiple', 'multiSelect'],
 ] as const;
@@ -429,7 +439,7 @@ const HEIGHT: Rule = [(value) => resolveHeight(value) === value];
 const GROUPS: Readonly<Record<string, Readonly<Record<string, Rule>>>> = {
   display: DISPLAY_RULES,
   strings: STRING_RULES,
-  keyboard: { barFocus: flag(false), edit: flag(false), announce: flag(false) },
+  keyboard: { barFocus: flag(false), edit: flag(false), announce: flag(false), undo: flag(false) },
   ...GROUP_RULES,
 };
 

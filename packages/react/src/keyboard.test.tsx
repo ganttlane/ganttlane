@@ -114,3 +114,66 @@ describe('<Gantt keyboard>: editing and announcements (FR-A11Y-1, FR-A11Y-2, FR-
     await view.unmount();
   });
 });
+
+describe('<Gantt keyboard.undo> (FR-TX-5)', () => {
+  it('FR-TX-5: Ctrl + Z on a bar undoes the last change and Ctrl + Y redoes it', async () => {
+    const ref = createRef<GanttHandle>();
+    const reasons: string[] = [];
+    const view = await renderInto(
+      <Gantt
+        ref={ref}
+        defaultTasks={TASKS}
+        now={NOW}
+        renderer={{ frames }}
+        history
+        keyboard={{ barFocus: true, undo: true, announce: true }}
+        onTasksChange={(changeSet) => reasons.push(changeSet.reason)}
+      />,
+    );
+    await ref.current?.nudge('a', 'move', 1);
+    const bar = view.container.querySelector<SVGElement>('.gantt__bar[data-task-id="a"]');
+    bar?.focus();
+    const key = (name: string): KeyboardEvent => {
+      const event = new KeyboardEvent('keydown', {
+        key: name,
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      view.container.querySelector('.gantt__bar[data-task-id="a"]')?.dispatchEvent(event);
+      return event;
+    };
+    expect(key('z').defaultPrevented).toBe(true);
+    expect(ref.current?.getTask('a')?.start).toEqual(new Date(2026, 2, 2));
+    expect(key('y').defaultPrevented).toBe(true);
+    expect(ref.current?.getTask('a')?.start).toEqual(new Date(2026, 2, 3));
+    expect(reasons).toEqual(['move', 'undo', 'redo']);
+    expect(view.container.querySelector('.gantt__live')?.textContent).toMatch(/^Redone\. Alpha/);
+    await view.unmount();
+  });
+
+  it('FR-TX-5: without the prop the key stays with the browser', async () => {
+    const ref = createRef<GanttHandle>();
+    const view = await renderInto(
+      <Gantt
+        ref={ref}
+        defaultTasks={TASKS}
+        now={NOW}
+        renderer={{ frames }}
+        history
+        keyboard={{ barFocus: true }}
+      />,
+    );
+    await ref.current?.nudge('a', 'move', 1);
+    const event = new KeyboardEvent('keydown', {
+      key: 'z',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    view.container.querySelector('.gantt__bar[data-task-id="a"]')?.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(ref.current?.getTask('a')?.start).toEqual(new Date(2026, 2, 3));
+    await view.unmount();
+  });
+});
