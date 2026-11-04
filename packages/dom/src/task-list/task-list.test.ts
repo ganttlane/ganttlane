@@ -778,6 +778,415 @@ describe('createTaskList: the keyboard', () => {
   });
 });
 
+describe('createTaskList: the cells', () => {
+  const COLUMNS: TaskListOptions['columns'] = [
+    { id: 'name' },
+    { id: 'progress', header: '%', value: (r) => String(r.record.progress) },
+    { id: 'more', header: 'More', value: () => 'x' },
+  ];
+  const cellsOn = (more: TaskListOptions = {}): Fixture =>
+    create({ columns: COLUMNS, cellNavigation: true, ...more });
+  const cell = ({ row }: Fixture, id: string, column: number): HTMLElement =>
+    row(id)!.children[column] as HTMLElement;
+  /** Where the focus is, as `row` or `row/column` (a column counts from 0). */
+  const at = ({ side }: Fixture): string => {
+    const active = document.activeElement as HTMLElement | null;
+    const node = active?.closest<HTMLElement>('.gantt-task-list__row');
+    if (!node || !side.contains(node)) return String(active?.tagName);
+    const column = [...node.children].indexOf(active!);
+    return column < 0 ? node.dataset.taskId! : `${node.dataset.taskId!}/${String(column)}`;
+  };
+
+  it('FR-A11Y-1: the cells and the headers say their column, and can be focused by script, only with the option on', () => {
+    const off = create({ columns: COLUMNS });
+    expect(off.side.querySelectorAll('[aria-colindex]')).toHaveLength(0);
+    expect(off.row('a')?.querySelectorAll('[tabindex]')).toHaveLength(0);
+    expect(off.side.querySelectorAll('[role="gridcell"][tabindex]')).toHaveLength(0);
+
+    const on = cellsOn();
+    const index = (nodes: NodeListOf<Element>): (string | null)[] =>
+      [...nodes].map((node) => node.getAttribute('aria-colindex'));
+    expect(index(on.side.querySelectorAll('[role="columnheader"]'))).toEqual(['1', '2', '3']);
+    expect(index(on.row('g')!.querySelectorAll('[role="gridcell"]'))).toEqual(['1', '2', '3']);
+    expect(
+      [...on.row('g')!.querySelectorAll('[role="gridcell"]')].map((node) =>
+        node.getAttribute('tabindex'),
+      ),
+    ).toEqual(['-1', '-1', '-1']);
+    // The headers are not for the keys; the rows are the one tab stop, and the splitter.
+    expect(on.side.querySelectorAll('[role="columnheader"][tabindex]')).toHaveLength(0);
+    expect(on.side.querySelectorAll('[tabindex="0"]')).toHaveLength(2);
+    expect(on.row('a')?.getAttribute('tabindex')).toBe('0');
+    expect(on.row('g')?.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('FR-A11Y-1: setOptions turns the cells on and off, also for rows drawn later', () => {
+    const fixture = create({ columns: COLUMNS });
+    const { list, row, side, gantt } = fixture;
+    const focusable = (): number =>
+      side.querySelectorAll('[role="gridcell"][tabindex="-1"]').length;
+    const counted = (): number => side.querySelectorAll('[role="gridcell"]').length;
+    expect(focusable()).toBe(0);
+    const content = row('z')?.children[0];
+
+    list.setOptions({ cellNavigation: true });
+    expect(focusable()).toBe(counted());
+    expect(side.querySelectorAll('[aria-colindex]')).toHaveLength(counted() + 3);
+    // The cells were marked, not drawn again.
+    expect(row('z')?.children[0]).toBe(content);
+
+    gantt.collapse('g');
+    gantt.expandAll();
+    expect(focusable()).toBe(counted());
+
+    list.setOptions({ cellNavigation: false });
+    expect(focusable()).toBe(0);
+    expect(side.querySelectorAll('[aria-colindex]')).toHaveLength(0);
+    list.setOptions({ cellNavigation: true, columns: [{ id: 'name' }] });
+    expect(side.querySelectorAll('[role="gridcell"][aria-colindex="1"]')).toHaveLength(counted());
+    expect(side.querySelectorAll('[aria-colindex]')).toHaveLength(counted() + 1);
+  });
+
+  it('FR-A11Y-2: with the option off, Left and Right on a row are what they were, and no cell takes a key', () => {
+    const fixture = create({ columns: COLUMNS });
+    const { row, ids } = fixture;
+    row('a')?.focus();
+    expect(press(row('a')!, 'ArrowRight').defaultPrevented).toBe(false);
+    expect(at(fixture)).toBe('a');
+    row('g')?.focus();
+    press(row('g')!, 'ArrowRight');
+    expect(at(fixture)).toBe('g1');
+    press(row('g1')!, 'ArrowLeft');
+    expect(at(fixture)).toBe('g');
+    press(row('g')!, 'ArrowLeft');
+    expect(ids()).not.toContain('g1');
+    // A cell is not what the key came from: nothing happens, and the key is the browser's.
+    const name = cell(fixture, 'g', 0);
+    expect(press(name, 'ArrowRight').defaultPrevented).toBe(false);
+    expect(press(name, 'ArrowDown').defaultPrevented).toBe(false);
+    expect(at(fixture)).toBe('g');
+  });
+
+  it('FR-A11Y-2: Right steps from a row into its first cell, Left back, and the row stays the tab stop', () => {
+    const fixture = cellsOn();
+    const { row, gantt } = fixture;
+    row('a')?.focus();
+    expect(press(row('a')!, 'ArrowRight').defaultPrevented).toBe(true);
+    expect(at(fixture)).toBe('a/0');
+    expect(gantt.core.getSnapshot().focusedTask).toBe('a');
+    expect(row('a')?.tabIndex).toBe(0);
+    expect(press(cell(fixture, 'a', 0), 'ArrowLeft').defaultPrevented).toBe(true);
+    expect(at(fixture)).toBe('a');
+    // On a row, Left is still the tree's: a task at the top has nowhere to go.
+    expect(press(row('a')!, 'ArrowLeft').defaultPrevented).toBe(false);
+  });
+
+  it('FR-A11Y-2: on a group Right opens it first, then steps into its first cell; Left shuts it', () => {
+    const fixture = cellsOn();
+    const { row, ids, gantt } = fixture;
+    gantt.collapse('g');
+    row('g')?.focus();
+    press(row('g')!, 'ArrowRight');
+    expect(ids()).toContain('g1');
+    expect(at(fixture)).toBe('g');
+    press(row('g')!, 'ArrowRight');
+    expect(at(fixture)).toBe('g/0');
+    // The first cell is the tree's: Left shuts the group from there, and then goes back to the row.
+    press(cell(fixture, 'g', 0), 'ArrowLeft');
+    expect(ids()).not.toContain('g1');
+    expect(at(fixture)).toBe('g/0');
+    press(cell(fixture, 'g', 0), 'ArrowLeft');
+    expect(at(fixture)).toBe('g');
+    // On the row itself, Left shuts an open group, as without cells.
+    press(row('g')!, 'ArrowRight');
+    expect(ids()).toContain('g1');
+    press(row('g')!, 'ArrowLeft');
+    expect(ids()).not.toContain('g1');
+    expect(at(fixture)).toBe('g');
+    // And Left on a task steps out to its group, as without cells.
+    gantt.expandAll();
+    row('g1')?.focus();
+    press(row('g1')!, 'ArrowLeft');
+    expect(at(fixture)).toBe('g');
+  });
+
+  it('FR-A11Y-2: Right and Left walk the cells of a row and stay at its ends, keeping the key', () => {
+    const fixture = cellsOn();
+    const { row } = fixture;
+    // The tree is the first column, and a task has nothing to open in it.
+    row('a')?.focus();
+    press(row('a')!, 'ArrowRight');
+    press(cell(fixture, 'a', 0), 'ArrowRight');
+    expect(at(fixture)).toBe('a/1');
+    press(cell(fixture, 'a', 1), 'ArrowRight');
+    expect(at(fixture)).toBe('a/2');
+    expect(press(cell(fixture, 'a', 2), 'ArrowRight').defaultPrevented).toBe(true);
+    expect(at(fixture)).toBe('a/2');
+    press(cell(fixture, 'a', 2), 'ArrowLeft');
+    press(cell(fixture, 'a', 1), 'ArrowLeft');
+    expect(at(fixture)).toBe('a/0');
+    // On the last cell of the last row nothing moves and nothing scrolls the box.
+    cell(fixture, 'n', 2).focus();
+    expect(press(cell(fixture, 'n', 2), 'ArrowDown').defaultPrevented).toBe(true);
+    expect(at(fixture)).toBe('n/2');
+  });
+
+  it('FR-A11Y-2: Up and Down keep the column, and the focused task follows, with the tab stop', () => {
+    const fixture = cellsOn();
+    const { row, gantt } = fixture;
+    cell(fixture, 'a', 1).focus();
+    expect(gantt.core.getSnapshot().focusedTask).toBe('a');
+    press(cell(fixture, 'a', 1), 'ArrowDown');
+    expect(at(fixture)).toBe('g/1');
+    expect(gantt.core.getSnapshot().focusedTask).toBe('g');
+    expect(row('g')?.tabIndex).toBe(0);
+    expect(row('a')?.tabIndex).toBe(-1);
+    press(cell(fixture, 'g', 1), 'ArrowDown');
+    press(cell(fixture, 'g1', 1), 'ArrowDown');
+    expect(at(fixture)).toBe('g2/1');
+    press(cell(fixture, 'g2', 1), 'ArrowUp');
+    expect(at(fixture)).toBe('g1/1');
+    // A row taken out of the list while the column is kept: the next one that is there.
+    gantt.collapse('g');
+    expect(at(fixture)).toBe('a');
+    cell(fixture, 'g', 2).focus();
+    press(cell(fixture, 'g', 2), 'ArrowDown');
+    expect(at(fixture)).toBe('z/2');
+  });
+
+  it('FR-A11Y-2: Home and End go to the ends of the row, Ctrl or Cmd with them to the ends of the column', () => {
+    const fixture = cellsOn();
+    cell(fixture, 'g1', 1).focus();
+    press(cell(fixture, 'g1', 1), 'End');
+    expect(at(fixture)).toBe('g1/2');
+    press(cell(fixture, 'g1', 2), 'Home');
+    expect(at(fixture)).toBe('g1/0');
+    cell(fixture, 'g1', 1).focus();
+    expect(press(cell(fixture, 'g1', 1), 'End', { ctrlKey: true }).defaultPrevented).toBe(true);
+    expect(at(fixture)).toBe('n/1');
+    press(cell(fixture, 'n', 1), 'Home', { metaKey: true });
+    expect(at(fixture)).toBe('a/1');
+    // Other keys with Ctrl or Cmd are still the browser's, in a cell as on a row.
+    expect(press(cell(fixture, 'a', 1), 'ArrowDown', { ctrlKey: true }).defaultPrevented).toBe(
+      false,
+    );
+    expect(press(cell(fixture, 'a', 1), 'ArrowRight', { metaKey: true }).defaultPrevented).toBe(
+      false,
+    );
+    expect(at(fixture)).toBe('a/1');
+  });
+
+  it('FR-A11Y-2: Page Down and Page Up move a page of rows in the same column', () => {
+    const fixture = cellsOn();
+    cell(fixture, 'a', 2).focus();
+    press(cell(fixture, 'a', 2), 'PageDown');
+    expect(at(fixture)).toBe('g1/2');
+    press(cell(fixture, 'g1', 2), 'PageDown');
+    press(cell(fixture, 'z', 2), 'PageDown');
+    expect(at(fixture)).toBe('n/2');
+    press(cell(fixture, 'n', 2), 'PageUp');
+    expect(at(fixture)).toBe('g2/2');
+  });
+
+  it('FR-A11Y-2: Enter and Space on a cell activate its row, with Ctrl or Cmd adding it to the selection', () => {
+    const onRowClick = vi.fn();
+    const fixture = cellsOn({ onRowClick });
+    const { gantt, row } = fixture;
+    cell(fixture, 'z', 1).focus();
+    expect(press(cell(fixture, 'z', 1), 'Enter').defaultPrevented).toBe(true);
+    expect(gantt.core.getSnapshot().selection.tasks).toEqual(['z']);
+    expect(onRowClick.mock.calls[0]?.[0]).toBe(gantt.getTask('z'));
+    expect(at(fixture)).toBe('z/1');
+    cell(fixture, 'a', 0).focus();
+    press(cell(fixture, 'a', 0), ' ');
+    expect(gantt.core.getSnapshot().selection.tasks).toEqual(['a']);
+    expect(row('a')?.getAttribute('aria-selected')).toBe('true');
+    // Without selection.multiple Ctrl + Enter is left alone, as on a row.
+    expect(press(cell(fixture, 'g', 1), 'Enter', { ctrlKey: true }).defaultPrevented).toBe(false);
+  });
+
+  it('FR-SEL-2: with selection.multiple Ctrl or Cmd + Enter on a cell adds the row and takes it out', () => {
+    const fixture = create(
+      { columns: COLUMNS, cellNavigation: true },
+      { selection: { multiple: true } },
+    );
+    const { gantt } = fixture;
+    cell(fixture, 'a', 1).focus();
+    press(cell(fixture, 'a', 1), 'Enter', { ctrlKey: true });
+    cell(fixture, 'g1', 2).focus();
+    press(cell(fixture, 'g1', 2), ' ', { metaKey: true });
+    expect(gantt.core.getSnapshot().selection.tasks).toEqual(['a', 'g1']);
+    press(cell(fixture, 'a', 1), 'Enter', { ctrlKey: true });
+    expect(gantt.core.getSnapshot().selection.tasks).toEqual(['g1']);
+  });
+
+  it('FR-A11Y-2: in the column of the tree Left shuts a group and Right opens it before they move', () => {
+    const fixture = cellsOn({
+      columns: [{ id: 'progress', value: () => 'p' }, { id: 'name', tree: true }, { id: 'more' }],
+    });
+    const { row, ids, gantt } = fixture;
+    cell(fixture, 'g', 1).focus();
+    press(cell(fixture, 'g', 1), 'ArrowLeft');
+    expect(ids()).not.toContain('g1');
+    expect(at(fixture)).toBe('g/1');
+    press(cell(fixture, 'g', 1), 'ArrowLeft');
+    expect(at(fixture)).toBe('g/0');
+    press(cell(fixture, 'g', 0), 'ArrowRight');
+    expect(at(fixture)).toBe('g/1');
+    press(cell(fixture, 'g', 1), 'ArrowRight');
+    expect(ids()).toContain('g1');
+    expect(at(fixture)).toBe('g/1');
+    press(cell(fixture, 'g', 1), 'ArrowRight');
+    expect(at(fixture)).toBe('g/2');
+    // Another column does not change a group, nor does a task have anything to open.
+    press(cell(fixture, 'g', 2), 'ArrowLeft');
+    gantt.collapse('g');
+    cell(fixture, 'g', 0).focus();
+    press(cell(fixture, 'g', 0), 'ArrowRight');
+    expect(ids()).not.toContain('g1');
+    expect(row('g')?.getAttribute('aria-expanded')).toBe('false');
+    expect(at(fixture)).toBe('g/1');
+  });
+
+  it('FR-A11Y-2: what is drawn in a cell keeps its own keys, and its focus', () => {
+    const fixture = cellsOn({
+      columns: [
+        { id: 'name' },
+        {
+          id: 'edit',
+          render: () => {
+            const input = document.createElement('input');
+            input.className = 'edit';
+            return input;
+          },
+        },
+      ],
+    });
+    const { row, gantt } = fixture;
+    const input = row('g')!.querySelector<HTMLInputElement>('.edit')!;
+    input.focus();
+    expect(gantt.core.getSnapshot().focusedTask).toBe('g');
+    for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'Home', 'End', 'Enter', ' ']) {
+      expect(press(input, key).defaultPrevented).toBe(false);
+    }
+    expect(press(input, 'End', { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(input);
+    expect(gantt.core.getSnapshot().selection.tasks).toEqual([]);
+    // A redraw does not take the focus from it.
+    gantt.setHoveredRow('z');
+    fixture.flush();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('FR-A11Y-2: a cell with the focus keeps it across a redraw of the rows', () => {
+    const fixture = cellsOn();
+    const { gantt, flush } = fixture;
+    cell(fixture, 'g1', 1).focus();
+    gantt.setHoveredRow('z');
+    gantt.select(['n']);
+    flush();
+    gantt.setTasks(TASKS.map((task) => (task.id === 'g1' ? { ...task, name: 'Renamed' } : task)));
+    flush();
+    expect(at(fixture)).toBe('g1/1');
+    gantt.scrollTo({ top: 10 });
+    flush();
+    expect(at(fixture)).toBe('g1/1');
+  });
+
+  it('FR-A11Y-2: a focusTask from elsewhere brings the focus to the row, not to the cell of the column before', () => {
+    const fixture = cellsOn();
+    const { gantt, flush } = fixture;
+    cell(fixture, 'a', 2).focus();
+    gantt.focusTask('z');
+    flush();
+    expect(at(fixture)).toBe('z');
+    // The list forgets the column when the focus leaves it.
+    cell(fixture, 'g', 1).focus();
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    outside.focus();
+    expect(gantt.core.getSnapshot().focusedTask).toBeUndefined();
+    gantt.focusTask('g2');
+    flush();
+    expect(at(fixture)).toBe('g2');
+    press(fixture.row('g2')!, 'ArrowRight');
+    expect(at(fixture)).toBe('g2/0');
+  });
+
+  it('FR-A11Y-2: the focus can go to a cell by script or by pointer, and the keys go on from there', () => {
+    const fixture = cellsOn();
+    const { gantt } = fixture;
+    cell(fixture, 'g2', 2).focus();
+    expect(gantt.core.getSnapshot().focusedTask).toBe('g2');
+    expect(fixture.row('g2')?.tabIndex).toBe(0);
+    press(cell(fixture, 'g2', 2), 'ArrowUp');
+    expect(at(fixture)).toBe('g1/2');
+  });
+
+  it('FR-A11Y-2: a row that a sort moves keeps the focus in its cell', () => {
+    // What Chromium does when a sort moves the node of the focused row: `focusout`, nothing to
+    // take it, and the focus on the body. Happy DOM keeps the focus on a moved node, so it is sent here.
+    const fixture = cellsOn();
+    const { gantt, row, flush } = fixture;
+    const heard: unknown[] = [];
+    gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    const flat = TASKS.filter((task) => task.parentId === undefined);
+    gantt.setTasks(flat);
+    flush();
+    const moved = row('z')!;
+    const target = cell(fixture, 'z', 2);
+    target.focus();
+    flush();
+    const box = moved.parentElement!;
+    const original = box.insertBefore.bind(box);
+    vi.spyOn(box, 'insertBefore').mockImplementation((node: Node, before: Node | null) => {
+      if (node === moved) target.blur();
+      return original(node, before);
+    });
+    gantt.setTasks([...flat].reverse());
+    flush();
+    expect(fixture.ids()[0]).toBe('n');
+    expect(document.activeElement).toBe(target);
+    expect(gantt.core.getSnapshot().focusedTask).toBe('z');
+    expect(heard).toEqual(['z']);
+  });
+
+  it('FR-A11Y-2: a row that goes away with the focus in its cell hands it to the tab stop', () => {
+    const fixture = cellsOn();
+    const { gantt, flush } = fixture;
+    cell(fixture, 'g1', 2).focus();
+    gantt.collapse('g');
+    flush();
+    expect(gantt.core.getSnapshot().focusedTask).toBe('a');
+    expect(at(fixture)).toBe('a');
+  });
+
+  it('FR-A11Y-2: a bar that holds the focus keeps it, with the cells on', () => {
+    const fixture = create(
+      { columns: COLUMNS, cellNavigation: true },
+      { keyboard: { barFocus: true } },
+    );
+    const { chart, gantt, flush } = fixture;
+    const bar = chart.querySelector<SVGElement>('.gantt__bar[data-task-id="g"]')!;
+    bar.focus();
+    flush();
+    expect(document.activeElement).toBe(bar);
+    expect(gantt.core.getSnapshot().focusedTask).toBe('g');
+    cell(fixture, 'a', 1).focus();
+    press(cell(fixture, 'a', 1), 'ArrowDown');
+    flush();
+    expect(at(fixture)).toBe('g/1');
+  });
+
+  it('FR-A11Y-2: destroy leaves no listener behind, with the cells on', () => {
+    const fixture = cellsOn();
+    cell(fixture, 'a', 1).focus();
+    fixture.list.destroy();
+    fixture.gantt.destroy();
+    expect(tracker.alive()).toEqual([]);
+  });
+});
+
 describe('createTaskList: scrolling with a chart of its own height', () => {
   it('FR-ROW-6: the chart scrolling moves the list in the same task', () => {
     const { gantt, body } = create(

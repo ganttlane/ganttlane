@@ -43,7 +43,11 @@ function Plan(): ReactElement {
       data-height={settings.height}
       style={{ '--plan-height': `${String(PLAN_HEIGHT)}px` } as CSSProperties}
     >
-      {settings.list ? <TaskList gantt={gantt} columns={planColumns} /> : <div />}
+      {settings.list ? (
+        <TaskList gantt={gantt} columns={planColumns} cellNavigation={settings.cells} />
+      ) : (
+        <div />
+      )}
       <div ref={setContainer} className="plan__chart" />
       {slots}
     </div>

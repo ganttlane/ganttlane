@@ -1,7 +1,7 @@
 import type { GanttRow, GanttSnapshot, TaskRecord } from '@ganttlane/core';
 
 import { listen } from '../dom-utils';
-import { type TaskListHost, treeAction } from './model';
+import { cellAction, type TaskListHost, treeAction } from './model';
 
 /** How long the list's own scrolling goes on counting as the user's, in ms. */
 const LIST_DRIVES_MS = 120;
@@ -39,6 +39,8 @@ export interface TaskListMediatorOptions<TData = unknown> {
   readonly width: () => { readonly width: number; readonly min: number; readonly max: number };
   /** The user moved the splitter; the list takes the width it can. */
   readonly resize: (width: number) => void;
+  /** Whether the keys walk the cells now (`cellNavigation`); default never. */
+  readonly cellNavigation?: (() => boolean) | undefined;
 }
 
 /** A list and its chart kept together, see {@link mediateTaskList}. */
@@ -74,10 +76,14 @@ const closest = (target: EventTarget | null, selector: string): HTMLElement | nu
  * - **Rows.** A click selects and scrolls to the task, the toggle opens or shuts its group, the
  *   keys walk the tree (`treeAction`). With `selection.multiple` on the chart, Ctrl or Cmd adds the
  *   task to the selected ones or takes it out. The pointer lights the chart's row (`setHoveredRow`).
- * - **Focus.** The row with the browser's focus is `focusTask`; a `focusTask` from elsewhere brings
- *   the browser's focus to that row, and a row that goes away hands it to the tab stop. A row that a
- *   sort moves keeps it. A bar of the chart that has the focus (`keyboard.barFocus`) keeps it: the row
- *   only follows.
+ * - **Cells.** With `cellNavigation` the keys walk the cells of the row with the focus as well
+ *   (`cellAction`), keeping the column from row to row. The column is where the browser's focus
+ *   is, so it is forgotten when the focus leaves, and a `focusTask` from elsewhere brings the
+ *   focus to the row, not to a cell. Keys typed into something drawn in a cell stay its own.
+ * - **Focus.** The row with the browser's focus, or a cell of it, is `focusTask`; a `focusTask` from
+ *   elsewhere brings the browser's focus to that row, and a row that goes away hands it to the tab
+ *   stop. A row that a sort moves keeps it, and its cell. A bar of the chart that has the focus
+ *   (`keyboard.barFocus`) keeps it: the row only follows.
  * - **Row hover.** A chart shows none on its own: `display.rowHover` turns it on while the list is
  *   there, also after the chart was replaced with its state (a hidden `<Activity>`).
  * - **Splitter.** Pointer and keys; the view draws the width.
@@ -89,7 +95,7 @@ const closest = (target: EventTarget | null, selector: string): HTMLElement | nu
  * @returns What the view calls.
  */
 export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>): TaskListMediator {
-  const { gantt, body, splitter, handlers, width, resize } = options;
+  const { gantt, body, splitter, handlers, width, resize, cellNavigation } = options;
   const abort = new AbortController();
   const { signal } = abort;
   const snapshot = (): GanttSnapshot<TData> => gantt.core.getSnapshot();
@@ -199,18 +205,37 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
     (event) => {
       const found = hit(event);
       if (found === undefined) return;
+      // The cells of the row, when the keys walk them; `column` is where the focus is, -1 the row.
+      const cells = cellNavigation?.() === true ? [...found.node.children] : [];
+      const column = cells.indexOf(event.target as Element);
       // Keys typed into something drawn in a cell are that thing's.
-      if (event.target !== found.node || event.altKey) return;
-      // Ctrl and Cmd belong to the browser, except to add a task to the selected ones.
+      if ((event.target !== found.node && column < 0) || event.altKey) return;
+      // Ctrl and Cmd belong to the browser, except to add a task to the selected ones, and to go
+      // to the ends of a column.
+      const ctrl = event.ctrlKey || event.metaKey;
+      const ends = column >= 0 && (event.key === 'Home' || event.key === 'End');
       const adds =
         gantt.getAppearance().multiSelect && (event.key === 'Enter' || event.key === ' ');
-      if ((event.ctrlKey || event.metaKey) && !adds) return;
+      if (ctrl && !adds && !ends) return;
       const { rowHeight, viewportHeight, headerHeight } = gantt.getLayoutMetrics();
       const page = Math.max(Math.floor((viewportHeight - headerHeight) / rowHeight) - 1, 1);
-      const action = treeAction(event.key, gantt.getRows(), found.row.id, page);
+      const rows = gantt.getRows();
+      const { id } = found.row;
+      const place = {
+        column: column < 0 ? undefined : column,
+        columns: cells.length,
+        tree: cells.findIndex((cell) => cell.hasAttribute('data-tree')),
+      };
+      const action =
+        (cells.length > 0 ? cellAction(event.key, ctrl, rows, id, place, page) : undefined) ??
+        treeAction(event.key, rows, id, page);
       if (action === undefined) return;
-      if (action.type === 'focus') gantt.focusTask(action.id);
-      else if (action.type === 'toggle') gantt.toggle(action.id);
+      if (action.type === 'focus') {
+        aim = action.column ?? -1;
+        gantt.focusTask(action.id);
+        // The same row: nothing is drawn again to bring the focus to its cell.
+        if (action.id === id) settle();
+      } else if (action.type === 'toggle') gantt.toggle(action.id);
       else activate(found.row, event);
       // The arrows and Space would scroll the box otherwise.
       event.preventDefault();
@@ -240,12 +265,18 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
   let focusWas: unknown;
   /** The rows of the last draw, to tell when new ones are on their way. */
   let rowsDrawn: unknown;
+  /** The column of the cell that last had the focus in the list; `-1` for a row, or no cell. */
+  let cellWas = -1;
+  /** Where the keys are taking the focus on the focused task's row: a column, `-1` for the row. */
+  let aim: number | undefined;
   listen(
     body,
     'focusin',
     (event) => {
       const found = hit(event);
-      if (found !== undefined) gantt.focusTask(found.row.id);
+      if (found === undefined) return;
+      cellWas = [...found.node.children].indexOf(event.target as Element);
+      gantt.focusTask(found.row.id);
     },
     { signal },
   );
@@ -329,35 +360,51 @@ export function mediateTaskList<TData>(options: TaskListMediatorOptions<TData>):
     { signal },
   );
 
+  /** Brings the browser's focus to the focused task's row or cell, unless it is in the row. */
+  const settle = (): void => {
+    const { focusedTask } = snapshot();
+    const active = activeElement();
+    if (focusedTask === undefined) {
+      // The row with the focus went away, and the focus with it: not out of the list.
+      const lost =
+        focusWas !== undefined && (active === null || active === body.ownerDocument.body);
+      focusWas = undefined;
+      aim = undefined;
+      cellWas = -1;
+      if (lost) body.querySelector<HTMLElement>('[tabindex="0"]')?.focus({ preventScroll: true });
+      return;
+    }
+    // A bar holds the focus: the row only follows, and is no place to bring it back to.
+    if (closest(active ?? null, BAR) !== null) {
+      focusWas = undefined;
+      aim = undefined;
+      return;
+    }
+    const was = focusWas;
+    focusWas = focusedTask;
+    const index = gantt.getRowMetrics(focusedTask)?.index;
+    const node = body.querySelector<HTMLElement>(`[data-row="${String(index)}"]`);
+    if (node === null) return;
+    // Where the keys are taking it; else, if this row had it and a move of its node took it away,
+    // the cell it was in; else the row. A cell that is not there is the row.
+    const column = aim ?? (was === focusedTask ? cellWas : -1);
+    const to = (node.children[column] as HTMLElement | undefined) ?? node;
+    const stays = aim === undefined ? node.contains(active ?? null) : active === to;
+    aim = undefined;
+    if (stays) return;
+    to.focus({ preventScroll: true });
+    gantt.scrollToTask(focusedTask, {
+      align: false,
+      alignY: 'nearest',
+      behavior: 'instant',
+      expand: false,
+    });
+  };
+
   return {
     afterDraw(): void {
       rowsDrawn = gantt.getRows();
-      const { focusedTask } = snapshot();
-      const active = activeElement();
-      if (focusedTask === undefined) {
-        // The row with the focus went away, and the focus with it: not out of the list.
-        const lost =
-          focusWas !== undefined && (active === null || active === body.ownerDocument.body);
-        focusWas = undefined;
-        if (lost) body.querySelector<HTMLElement>('[tabindex="0"]')?.focus({ preventScroll: true });
-        return;
-      }
-      // A bar holds the focus: the row only follows, and is no place to bring it back to.
-      if (closest(active ?? null, BAR) !== null) {
-        focusWas = undefined;
-        return;
-      }
-      focusWas = focusedTask;
-      const index = gantt.getRowMetrics(focusedTask)?.index;
-      const node = body.querySelector<HTMLElement>(`[data-row="${String(index)}"]`);
-      if (node === null || node.contains(active ?? null)) return;
-      node.focus({ preventScroll: true });
-      gantt.scrollToTask(focusedTask, {
-        align: false,
-        alignY: 'nearest',
-        behavior: 'instant',
-        expand: false,
-      });
+      settle();
     },
     destroy(): void {
       abort.abort();

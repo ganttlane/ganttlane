@@ -94,6 +94,74 @@ const focusedTaskOf = (page: Page): Promise<unknown> =>
       ).__gantt.core.getSnapshot().focusedTask,
   );
 
+/**
+ * Where the keyboard focus is in the list: the task of the row, and the column of the cell (`null`
+ * when the row itself has it).
+ */
+const focusOf = (page: Page): Promise<{ task: string | null; column: number | null }> =>
+  page.evaluate(() => {
+    const active = document.activeElement;
+    const node = active?.closest<HTMLElement>('.gantt-task-list__row') ?? null;
+    return {
+      task: node?.dataset.taskId ?? null,
+      column: node === null || active === node ? null : [...node.children].indexOf(active!),
+    };
+  });
+
+/** Waits for the focus to be where the keys should have taken it: a row, or a cell of one. */
+const expectFocus = (page: Page, task: string, column: number | null = null): Promise<void> =>
+  expect.poll(() => focusOf(page)).toEqual({ task, column });
+
+/**
+ * Makes the page's tasks flat, and gives it `__sort`, which reverses their order (the reconciler
+ * then moves the nodes of the rows), and `__heard`, the `focusChange` events it hears from now on.
+ */
+async function armSort(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __gantt: {
+        getRows(): readonly {
+          id: string;
+          name: string;
+          record: { start: Date; end: Date };
+        }[];
+        setTasks(tasks: readonly unknown[]): void;
+        on(name: string, handler: (record: { id: string } | null) => void): () => void;
+      };
+      __sort: () => void;
+      __heard: unknown[];
+    };
+    let tasks = w.__gantt.getRows().map(({ id, name, record: { start, end } }) => {
+      return { id, name, start, end };
+    });
+    w.__gantt.setTasks(tasks);
+    w.__sort = () => {
+      tasks = [...tasks].reverse();
+      w.__gantt.setTasks(tasks);
+    };
+    w.__heard = [];
+    w.__gantt.on('focusChange', (record) => {
+      w.__heard.push(record?.id ?? null);
+    });
+  });
+}
+
+/** Reverses the order of the tasks, see {@link armSort}. */
+const sort = (page: Page): Promise<void> =>
+  page.evaluate(() => {
+    (window as unknown as { __sort: () => void }).__sort();
+  });
+
+/** The tasks of the rows drawn, in the order of the document. */
+const listIds = (page: Page): Promise<(string | undefined)[]> =>
+  page
+    .locator('.gantt-task-list__row')
+    .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.taskId));
+
+/** The tasks the focus was reported on since {@link armSort}, `null` for none. */
+const heardOf = (page: Page): Promise<unknown[]> =>
+  page.evaluate(() => (window as unknown as { __heard: unknown[] }).__heard);
+
 const scroller = (page: Page): Locator => page.locator('.gantt__scroller');
 const listBody = (page: Page): Locator => page.locator('.gantt-task-list__body');
 
@@ -395,61 +463,199 @@ for (const renderer of RENDERERS) {
     }) => {
       const errors = watchErrors(page);
       await open(page, renderer, { tasks: '9' });
-      await page.evaluate(() => {
-        const w = window as unknown as {
-          __gantt: {
-            getRows(): readonly {
-              id: string;
-              name: string;
-              record: { start: Date; end: Date };
-            }[];
-            setTasks(tasks: readonly unknown[]): void;
-            on(name: string, handler: (record: { id: string } | null) => void): () => void;
-          };
-          __sort: () => void;
-          __heard: unknown[];
-        };
-        let tasks = w.__gantt.getRows().map(({ id, name, record: { start, end } }) => {
-          return { id, name, start, end };
-        });
-        w.__gantt.setTasks(tasks);
-        w.__sort = () => {
-          tasks = [...tasks].reverse();
-          w.__gantt.setTasks(tasks);
-        };
-        w.__heard = [];
-        w.__gantt.on('focusChange', (record) => {
-          w.__heard.push(record?.id ?? null);
-        });
-      });
-      const ids = (): Promise<(string | undefined)[]> =>
-        page
-          .locator('.gantt-task-list__row')
-          .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.taskId));
-      const heard = (): Promise<unknown[]> =>
-        page.evaluate(() => (window as unknown as { __heard: unknown[] }).__heard);
+      await armSort(page);
+      const ids = (): Promise<(string | undefined)[]> => listIds(page);
+      const heard = (): Promise<unknown[]> => heardOf(page);
       await expect.poll(ids).toHaveLength(9);
       const before = await ids();
 
       await row(page, 't5').focus();
       // The tab stop is drawn: the row is settled before the rows move.
       await expect(row(page, 't5')).toHaveAttribute('tabindex', '0');
-      await page.evaluate(() => {
-        (window as unknown as { __sort: () => void }).__sort();
-      });
+      await sort(page);
       await expect.poll(ids).toEqual([...before].reverse());
       await expect(row(page, 't5')).toBeFocused();
       expect(await focusedTaskOf(page)).toBe('t5');
       expect(await heard()).toEqual(['t5']);
 
       // And back: a second sort is no different.
-      await page.evaluate(() => {
-        (window as unknown as { __sort: () => void }).__sort();
-      });
+      await sort(page);
       await expect.poll(ids).toEqual(before);
       await expect(row(page, 't5')).toBeFocused();
       expect(await focusedTaskOf(page)).toBe('t5');
       expect(await heard()).toEqual(['t5']);
+      expect(errors).toEqual([]);
+    });
+
+    test(`FR-A11Y-1: with cells=1 the cells and headers say their column, and the rows are still the one tab stop (${renderer.name})`, async ({
+      page,
+    }) => {
+      const errors = watchErrors(page);
+      await open(page, renderer);
+      await expect(page.locator('.gantt-task-list [aria-colindex]')).toHaveCount(0);
+      await expect(page.locator('.gantt-task-list__cell[tabindex]')).toHaveCount(0);
+
+      await open(page, renderer, { cells: '1' });
+      const index = (selector: string): Promise<(string | null)[]> =>
+        page
+          .locator(selector)
+          .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-colindex')));
+      await expect.poll(() => index('.gantt-task-list [role="columnheader"]')).toEqual(['1', '2']);
+      expect(await index('.gantt-task-list__row[data-task-id="t1"] [role="gridcell"]')).toEqual([
+        '1',
+        '2',
+      ]);
+      await expect(
+        page.locator('.gantt-task-list__row[data-task-id="t1"] > [tabindex="-1"]'),
+      ).toHaveCount(2);
+      await expect(page.locator('.gantt-task-list [role="columnheader"][tabindex]')).toHaveCount(0);
+      // A row, and the splitter.
+      await expect(page.locator('.gantt-task-list [tabindex="0"]')).toHaveCount(2);
+      await expect(page.locator('.gantt-task-list__row[tabindex="0"]')).toHaveCount(1);
+      expect(errors).toEqual([]);
+    });
+
+    test(`FR-A11Y-2: with cells=1 Right steps into the cells, Up and Down keep the column, Home and End walk the row (${renderer.name})`, async ({
+      page,
+    }) => {
+      const errors = watchErrors(page);
+      await open(page, renderer, { cells: '1' });
+      await row(page, 't2').focus();
+      await expectFocus(page, 't2');
+      await page.keyboard.press('ArrowRight');
+      await expectFocus(page, 't2', 0);
+      await page.keyboard.press('ArrowRight');
+      await expectFocus(page, 't2', 1);
+      // The last cell: the key stays, and nothing scrolls the box.
+      await page.keyboard.press('ArrowRight');
+      await expectFocus(page, 't2', 1);
+      await page.keyboard.press('ArrowDown');
+      await expectFocus(page, 't3', 1);
+      expect(await focusedTaskOf(page)).toBe('t3');
+      await expect(row(page, 't3')).toHaveAttribute('tabindex', '0');
+      await expect(page.locator('.gantt-task-list__row[tabindex="0"]')).toHaveCount(1);
+      await expect(chartRow(page, 't3')).toHaveAttribute('data-focused', /.*/);
+      await page.keyboard.press('ArrowUp');
+      await page.keyboard.press('ArrowUp');
+      await expectFocus(page, 't1', 1);
+      await page.keyboard.press('Home');
+      await expectFocus(page, 't1', 0);
+      await page.keyboard.press('End');
+      await expectFocus(page, 't1', 1);
+      await page.keyboard.press('ArrowLeft');
+      await expectFocus(page, 't1', 0);
+      // The first cell is the tree's, but a task has no group to shut: back to the row.
+      await page.keyboard.press('ArrowLeft');
+      await expectFocus(page, 't1');
+      await expect(row(page, 't1')).toHaveAttribute('tabindex', '0');
+      expect(errors).toEqual([]);
+    });
+
+    test(`FR-A11Y-2: with cells=1 Ctrl + Home and Ctrl + End go to the ends of the column, the pages keep it, Enter selects (${renderer.name})`, async ({
+      page,
+    }) => {
+      await open(page, renderer, { cells: '1' });
+      await row(page, 't1').focus();
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('ArrowRight');
+      await expectFocus(page, 't1', 1);
+      await page.keyboard.press('Control+End');
+      await expectFocus(page, 't59', 1);
+      await expect(row(page, 't59')).toBeInViewport();
+      await expect.poll(() => scrollTopOf(page)).toBeGreaterThan(1000);
+      await expectAligned(page);
+      await page.keyboard.press('Control+Home');
+      await expectFocus(page, 't0', 1);
+      await expect.poll(() => scrollTopOf(page)).toBe(0);
+      // A page of rows down and up, in the same column.
+      await page.keyboard.press('PageDown');
+      await expect
+        .poll(async () => {
+          const { task, column } = await focusOf(page);
+          return column === 1 && Number(task?.slice(1)) > 5;
+        })
+        .toBe(true);
+      await page.keyboard.press('PageUp');
+      await expectFocus(page, 't0', 1);
+      await page.keyboard.press('ArrowDown');
+      await expectFocus(page, 't1', 1);
+      await page.keyboard.press('Enter');
+      await expect(row(page, 't1')).toHaveAttribute('aria-selected', 'true');
+      await expect(bar(page, 't1')).toHaveAttribute('data-selected', /.*/);
+      await expectFocus(page, 't1', 1);
+      await page.keyboard.press('ArrowDown');
+      await expectFocus(page, 't2', 1);
+      await page.keyboard.press('Space');
+      await expect(row(page, 't2')).toHaveAttribute('aria-selected', 'true');
+      await expect(row(page, 't1')).toHaveAttribute('aria-selected', 'false');
+    });
+
+    test(`FR-A11Y-2: with cells=1 Left and Right in the tree cell shut and open the group first (${renderer.name})`, async ({
+      page,
+    }) => {
+      await open(page, renderer, { cells: '1' });
+      await row(page, 't0').focus();
+      await page.keyboard.press('ArrowRight');
+      await expectFocus(page, 't0', 0);
+      await expect(row(page, 't0')).toHaveAttribute('aria-expanded', 'true');
+      // The group is shut from the cell, which keeps the focus.
+      await page.keyboard.press('ArrowLeft');
+      await expect(row(page, 't0')).toHaveAttribute('aria-expanded', 'false');
+      await expect(row(page, 't1')).toHaveCount(0);
+      await expectFocus(page, 't0', 0);
+      // Then Left goes back to the row.
+      await page.keyboard.press('ArrowLeft');
+      await expectFocus(page, 't0');
+      // On the row, Right opens the group, as ever, and then steps into its first cell.
+      await page.keyboard.press('ArrowRight');
+      await expect(row(page, 't0')).toHaveAttribute('aria-expanded', 'true');
+      await expect(row(page, 't1')).toBeVisible();
+      await expectFocus(page, 't0');
+      await page.keyboard.press('ArrowRight');
+      await expectFocus(page, 't0', 0);
+      // Right in the tree cell of an open group moves along the row.
+      await page.keyboard.press('ArrowRight');
+      await expectFocus(page, 't0', 1);
+      // And Left from the other column does not touch the group.
+      await page.keyboard.press('ArrowLeft');
+      await expectFocus(page, 't0', 0);
+      await expect(row(page, 't0')).toHaveAttribute('aria-expanded', 'true');
+      await expectAligned(page);
+    });
+
+    test(`FR-A11Y-2: with cells=1 a sort leaves the focus in its cell, the focused task as it was, and no null is heard (${renderer.name})`, async ({
+      page,
+    }) => {
+      const errors = watchErrors(page);
+      await open(page, renderer, { tasks: '9', cells: '1' });
+      await armSort(page);
+      await expect.poll(() => listIds(page)).toHaveLength(9);
+      const before = await listIds(page);
+
+      await row(page, 't5').focus();
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('ArrowRight');
+      await expectFocus(page, 't5', 1);
+      // The tab stop is drawn: the row is settled before the rows move.
+      await expect(row(page, 't5')).toHaveAttribute('tabindex', '0');
+      await sort(page);
+      await expect.poll(() => listIds(page)).toEqual([...before].reverse());
+      await expectFocus(page, 't5', 1);
+      expect(await focusedTaskOf(page)).toBe('t5');
+      expect(await heardOf(page)).toEqual(['t5']);
+
+      // And back, from the other cell, and from the row.
+      await sort(page);
+      await expect.poll(() => listIds(page)).toEqual(before);
+      await expectFocus(page, 't5', 1);
+      await page.keyboard.press('ArrowLeft');
+      await page.keyboard.press('ArrowLeft');
+      await expectFocus(page, 't5');
+      await sort(page);
+      await expect.poll(() => listIds(page)).toEqual([...before].reverse());
+      await expectFocus(page, 't5');
+      expect(await focusedTaskOf(page)).toBe('t5');
+      expect(await heardOf(page)).toEqual(['t5']);
       expect(errors).toEqual([]);
     });
 

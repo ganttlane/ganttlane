@@ -8,7 +8,10 @@
  * - `theme`: the chart's theme (default `light`);
  * - `list=0`: the chart alone, to compare;
  * - `barFocus=1`: bars take the keyboard focus (`keyboard.barFocus`);
- * - `multiple=1`: Ctrl or Cmd adds to the selection (`selection.multiple`).
+ * - `multiple=1`: Ctrl or Cmd adds to the selection (`selection.multiple`);
+ * - `edit=1`: the arrow keys edit the focused bar (`keyboard.edit`, with `barFocus=1`);
+ * - `announce=1`: the selection is said in a live region (`keyboard.announce`);
+ * - `cells=1`: the keys walk the cells of the list (`cellNavigation`).
  */
 import type { GanttRow, Task } from '@ganttlane/dom';
 
@@ -20,6 +23,9 @@ export interface PlanSettings {
   readonly list: boolean;
   readonly barFocus: boolean;
   readonly multiple: boolean;
+  readonly edit: boolean;
+  readonly announce: boolean;
+  readonly cells: boolean;
 }
 
 /** The height of the chart when it scrolls itself, and of the box when that scrolls both. */
@@ -40,6 +46,9 @@ export function planSettings(search: string): PlanSettings {
     list: params.get('list') !== '0',
     barFocus: params.get('barFocus') === '1',
     multiple: params.get('multiple') === '1',
+    edit: params.get('edit') === '1',
+    announce: params.get('announce') === '1',
+    cells: params.get('cells') === '1',
   };
 }
 
@@ -96,9 +105,11 @@ export const planOptions = {
 /** The options of the chart that follow the settings of the page. */
 export const planChoices = ({
   barFocus,
+  edit,
+  announce,
   multiple,
 }: PlanSettings): { readonly keyboard: object; readonly selection: object } => ({
-  keyboard: { barFocus },
+  keyboard: { barFocus, edit, announce },
   selection: { ...planOptions.selection, multiple },
 });
 

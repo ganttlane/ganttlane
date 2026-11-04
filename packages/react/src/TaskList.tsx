@@ -1,5 +1,6 @@
 import type { GanttRow } from '@ganttlane/dom';
 import {
+  cellAttributes,
   cellText,
   columnTracks,
   createTabStop,
@@ -81,13 +82,23 @@ interface RowProps<TData> extends TaskListRowState {
   readonly tree: number;
   readonly tabStop: boolean;
   readonly rowHeight: number;
+  /** The `cellNavigation` option. */
+  readonly cells: boolean;
 }
 
 /** A custom property in a `style`, which `CSSProperties` does not name. */
 const vars = (values: Readonly<Record<string, string | number | undefined>>): CSSProperties =>
   values;
 
-function RowOf<TData>({ row, columns, tree, tabStop, rowHeight, ...state }: RowProps<TData>) {
+function RowOf<TData>({
+  row,
+  columns,
+  tree,
+  tabStop,
+  rowHeight,
+  cells,
+  ...state
+}: RowProps<TData>) {
   return (
     <div
       {...rowAttributes(row, state)}
@@ -105,8 +116,10 @@ function RowOf<TData>({ row, columns, tree, tabStop, rowHeight, ...state }: RowP
         return (
           <div
             key={column.id}
+            {...cellAttributes(index, cells)}
             role="gridcell"
             className="gantt-task-list__cell"
+            tabIndex={cells ? -1 : undefined}
             data-column={column.id}
             data-align={column.align}
             data-tree={isTree ? '' : undefined}
@@ -175,6 +188,7 @@ const Row = memo(RowOf) as typeof RowOf;
 export function TaskList<TData = unknown>(props: TaskListProps<TData>): ReactElement {
   const { gantt, width: controlled, defaultWidth, onWidthChange, id, className, style } = props;
   const { splitter, indent, theme, minWidth, maxWidth } = props;
+  const cells = props.cellNavigation === true;
   const strings = { ...TASK_LIST_DEFAULTS.strings, ...props.strings };
   const given = props.columns;
   const columns = useMemo<readonly TaskListColumn<TData>[]>(
@@ -239,6 +253,7 @@ export function TaskList<TData = unknown>(props: TaskListProps<TData>): ReactEle
       resize: (next) => {
         latest.current.resize(next);
       },
+      cellNavigation: () => latest.current.props.cellNavigation === true,
     });
     mediator.current = made;
     return () => {
@@ -286,9 +301,10 @@ export function TaskList<TData = unknown>(props: TaskListProps<TData>): ReactEle
       >
         <div className="gantt-task-list__header" role="rowgroup">
           <div className="gantt-task-list__header-row" role="row" aria-rowindex={1}>
-            {columns.map((column) => (
+            {columns.map((column, index) => (
               <div
                 key={column.id}
+                {...cellAttributes(index, cells)}
                 className="gantt-task-list__cell"
                 role="columnheader"
                 data-column={column.id}
@@ -309,6 +325,7 @@ export function TaskList<TData = unknown>(props: TaskListProps<TData>): ReactEle
                 tree={tree}
                 tabStop={row.id === tabStop}
                 rowHeight={rowHeight}
+                cells={cells}
                 selected={selected.includes(row.id)}
                 hovered={row.id === hovered}
                 invalid={taskById.get(row.id)?.valid === false}

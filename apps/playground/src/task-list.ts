@@ -38,6 +38,8 @@ const gantt = createGantt(chart, {
   theme: settings.theme,
   layout: planLayout(settings.height),
 });
-if (settings.list) createTaskList(side, gantt, { columns: planColumns });
+if (settings.list) {
+  createTaskList(side, gantt, { columns: planColumns, cellNavigation: settings.cells });
+}
 
 (window as unknown as { __gantt: unknown }).__gantt = gantt;

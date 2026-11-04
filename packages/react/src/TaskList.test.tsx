@@ -71,8 +71,8 @@ const run = (work: () => void): Promise<void> =>
     work();
     return Promise.resolve();
   });
-const press = (target: Element, key: string): KeyboardEvent => {
-  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+const press = (target: Element, key: string, init: KeyboardEventInit = {}): KeyboardEvent => {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
   target.dispatchEvent(event);
   return event;
 };
@@ -474,6 +474,257 @@ describe('<TaskList>: sync with the chart', () => {
       body.dispatchEvent(new Event('scroll'));
     });
     expect(gantt.getSnapshot().scrollRequest).toMatchObject({ top: 40, behavior: 'instant' });
+  });
+});
+
+describe('<TaskList>: the cells', () => {
+  const COLUMNS: TaskListProps['columns'] = [
+    { id: 'name' },
+    { id: 'progress', header: '%', value: (item) => String(item.record.progress) },
+    { id: 'more', header: 'More', value: () => 'x' },
+  ];
+  const cells = { columns: COLUMNS, cellNavigation: true } as const;
+  const cell = (id: string, column: number): HTMLElement =>
+    row(id)!.children[column] as HTMLElement;
+  /** Where the focus is, as `row` or `row/column` (a column counts from 0). */
+  const at = (): string => {
+    const active = document.activeElement as HTMLElement | null;
+    const node = active?.closest<HTMLElement>('.gantt-task-list__row');
+    if (!node) return String(active?.tagName);
+    const column = [...node.children].indexOf(active!);
+    return column < 0 ? node.dataset.taskId! : `${node.dataset.taskId!}/${String(column)}`;
+  };
+  const colindex = (selector: string): (string | null)[] =>
+    [...document.querySelectorAll(selector)].map((node) => node.getAttribute('aria-colindex'));
+
+  it('FR-A11Y-1: the cells and the headers say their column, and can be focused by script, only with the option on', async () => {
+    const { view } = await plan({ list: { columns: COLUMNS } });
+    expect(document.querySelectorAll('[aria-colindex]')).toHaveLength(0);
+    expect(document.querySelectorAll('[role="gridcell"][tabindex]')).toHaveLength(0);
+
+    await view.render(<Plan list={cells} />);
+    expect(colindex('[role="columnheader"]')).toEqual(['1', '2', '3']);
+    expect(colindex('.gantt-task-list__row[data-task-id="g"] [role="gridcell"]')).toEqual([
+      '1',
+      '2',
+      '3',
+    ]);
+    expect(
+      [...row('g')!.querySelectorAll('[role="gridcell"]')].map((node) =>
+        node.getAttribute('tabindex'),
+      ),
+    ).toEqual(['-1', '-1', '-1']);
+    expect(document.querySelectorAll('[role="columnheader"][tabindex]')).toHaveLength(0);
+    // The rows are the one tab stop, and the splitter.
+    expect(root().querySelectorAll('[tabindex="0"]')).toHaveLength(2);
+
+    await view.render(<Plan list={{ columns: COLUMNS }} />);
+    expect(document.querySelectorAll('[aria-colindex]')).toHaveLength(0);
+    expect(document.querySelectorAll('[role="gridcell"][tabindex]')).toHaveLength(0);
+  });
+
+  it('FR-REACT-5: a server draws the cells the same', () => {
+    function Page({ on }: { readonly on: boolean }): ReactElement {
+      const gantt = useGantt({ defaultTasks: TASKS });
+      return <TaskList gantt={gantt} cellNavigation={on} />;
+    }
+    expect(renderToString(<Page on />)).toContain('aria-colindex="1"');
+    expect(renderToString(<Page on />)).toContain('tabindex="-1"');
+    expect(renderToString(<Page on={false} />)).not.toContain('aria-colindex');
+  });
+
+  it('FR-A11Y-2: with the option off, Right on a row is what it was, and no cell takes a key', async () => {
+    await plan({ list: { columns: COLUMNS } });
+    await run(() => {
+      row('a')?.focus();
+    });
+    let event: KeyboardEvent | undefined;
+    await run(() => {
+      event = press(row('a')!, 'ArrowRight');
+    });
+    expect(event?.defaultPrevented).toBe(false);
+    expect(at()).toBe('a');
+    await run(() => {
+      event = press(cell('a', 0), 'ArrowDown');
+    });
+    expect(event?.defaultPrevented).toBe(false);
+    expect(at()).toBe('a');
+  });
+
+  it('FR-A11Y-2: Right steps from a row into its cells, Up and Down keep the column, Left goes back', async () => {
+    const { gantt } = await plan({ list: cells });
+    await run(() => {
+      row('a')?.focus();
+    });
+    await run(() => {
+      press(row('a')!, 'ArrowRight');
+    });
+    expect(at()).toBe('a/0');
+    await run(() => {
+      press(cell('a', 0), 'ArrowRight');
+      press(cell('a', 1), 'ArrowRight');
+    });
+    expect(at()).toBe('a/2');
+    let event: KeyboardEvent | undefined;
+    await run(() => {
+      event = press(cell('a', 2), 'ArrowRight');
+    });
+    expect(event?.defaultPrevented).toBe(true);
+    expect(at()).toBe('a/2');
+    await run(() => {
+      press(cell('a', 2), 'ArrowDown');
+    });
+    expect(at()).toBe('g/2');
+    expect(gantt.getSnapshot().focusedTask).toBe('g');
+    expect(row('g')?.tabIndex).toBe(0);
+    expect(row('a')?.tabIndex).toBe(-1);
+    await run(() => {
+      press(cell('g', 2), 'ArrowDown');
+    });
+    expect(at()).toBe('g1/2');
+    await run(() => {
+      press(cell('g1', 2), 'ArrowUp');
+    });
+    expect(at()).toBe('g/2');
+    await run(() => {
+      press(cell('g', 2), 'Home');
+    });
+    expect(at()).toBe('g/0');
+    await run(() => {
+      press(cell('g', 0), 'ArrowDown');
+    });
+    expect(at()).toBe('g1/0');
+    await run(() => {
+      press(cell('g1', 0), 'ArrowLeft');
+    });
+    expect(at()).toBe('g1');
+  });
+
+  it('FR-A11Y-2: End, Ctrl or Cmd with Home and End, and the pages, go where the column is', async () => {
+    await plan({ list: cells });
+    await run(() => {
+      cell('g1', 1).focus();
+    });
+    await run(() => {
+      press(cell('g1', 1), 'End');
+    });
+    expect(at()).toBe('g1/2');
+    await run(() => {
+      press(cell('g1', 2), 'End', { ctrlKey: true });
+    });
+    expect(at()).toBe('z/2');
+    await run(() => {
+      press(cell('z', 2), 'Home', { metaKey: true });
+    });
+    expect(at()).toBe('a/2');
+    await run(() => {
+      press(cell('a', 2), 'PageDown');
+    });
+    expect(at()).toBe('g1/2');
+    await run(() => {
+      press(cell('g1', 2), 'PageUp');
+    });
+    expect(at()).toBe('a/2');
+  });
+
+  it('FR-A11Y-2: Enter and Space on a cell activate the row; in the tree column Left and Right open and shut', async () => {
+    const onRowClick = vi.fn();
+    const { gantt } = await plan({ list: { ...cells, onRowClick } });
+    await run(() => {
+      cell('z', 1).focus();
+    });
+    await run(() => {
+      press(cell('z', 1), 'Enter');
+    });
+    expect(gantt.getSnapshot().selection.tasks).toEqual(['z']);
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+
+    await run(() => {
+      cell('g', 0).focus();
+    });
+    await run(() => {
+      press(cell('g', 0), 'ArrowLeft');
+    });
+    expect(ids()).toEqual(['a', 'g', 'z']);
+    expect(at()).toBe('g/0');
+    await run(() => {
+      press(cell('g', 0), 'ArrowRight');
+    });
+    expect(ids()).toContain('g1');
+    expect(at()).toBe('g/0');
+    await run(() => {
+      press(cell('g', 0), 'ArrowRight');
+    });
+    expect(at()).toBe('g/1');
+  });
+
+  it('FR-A11Y-2: what is drawn in a cell keeps its own keys, and its focus', async () => {
+    await plan({
+      list: {
+        cellNavigation: true,
+        columns: [{ id: 'name' }, { id: 'edit', render: () => <input className="edit" /> }],
+      },
+    });
+    const input = row('g')!.querySelector<HTMLInputElement>('.edit')!;
+    await run(() => {
+      input.focus();
+    });
+    let event: KeyboardEvent | undefined;
+    for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'Home', 'End', 'Enter', ' ']) {
+      await run(() => {
+        event = press(input, key);
+      });
+      expect(event?.defaultPrevented).toBe(false);
+    }
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('FR-A11Y-2: a cell with the focus keeps it across a redraw, and a focusTask from elsewhere goes to the row', async () => {
+    const { gantt } = await plan({ list: cells });
+    await run(() => {
+      cell('g1', 1).focus();
+    });
+    await run(() => {
+      gantt.setHoveredRow('z');
+      gantt.select(['z']);
+    });
+    expect(at()).toBe('g1/1');
+    await run(() => {
+      gantt.focusTask('z');
+    });
+    expect(at()).toBe('z');
+  });
+
+  it('FR-A11Y-2: a browser that takes the focus from a row that a sort moves gives the cell its focus back', async () => {
+    // What Chromium does during React's commit; React then gives the focus back by itself.
+    const flat = TASKS.filter((task) => task.parentId === undefined);
+    const { gantt } = await plan({ options: { defaultTasks: flat }, list: cells });
+    const heard: unknown[] = [];
+    gantt.on('focusChange', (record) => heard.push(record?.id ?? null));
+    const moved = row('g')!;
+    const target = cell('g', 2);
+    await run(() => {
+      target.focus();
+      frames.step();
+    });
+    const box = moved.parentElement!;
+    const insert = box.insertBefore.bind(box);
+    const append = box.appendChild.bind(box);
+    vi.spyOn(box, 'insertBefore').mockImplementation((node: Node, before: Node | null) => {
+      if (node === moved) target.blur();
+      return insert(node, before);
+    });
+    vi.spyOn(box, 'appendChild').mockImplementation((node: Node) => {
+      if (node === moved) target.blur();
+      return append(node);
+    });
+    await run(() => {
+      gantt.setTasks([...flat].reverse());
+    });
+    expect(ids()).toEqual(['z', 'g', 'a']);
+    expect(document.activeElement).toBe(target);
+    expect(gantt.getSnapshot().focusedTask).toBe('g');
+    expect(heard).toEqual(['g']);
   });
 });
 

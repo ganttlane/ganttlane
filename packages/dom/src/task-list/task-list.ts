@@ -5,6 +5,7 @@ import { createDisposables } from '../dom-utils';
 import { createHtml, createReconciler, px, setAttrs, setCssVar } from '../shared';
 import { mediateTaskList, type TaskListRowHandlers } from './mediator';
 import {
+  cellAttributes,
   cellText,
   columnTracks,
   createTabStop,
@@ -80,6 +81,8 @@ interface RowView<TData> {
   readonly node: HTMLDivElement;
   row?: GanttRow<TData>;
   columns?: readonly TaskListColumn<TData>[];
+  /** Whether its cells are marked for the keys that walk them (`cellNavigation`). */
+  cells?: boolean;
 }
 
 const DEFAULT_COLUMN = 'name';
@@ -198,6 +201,7 @@ export function createTaskList<TData = unknown>(
     const fresh = view.columns !== columns;
     view.columns = columns;
     if (fresh) {
+      view.cells = false;
       view.node.replaceChildren(
         ...columns.map((column, index) => {
           const cell = createHtml(document, 'div', {
@@ -236,6 +240,16 @@ export function createTaskList<TData = unknown>(
     setCssVar(view.node, '--gantt-task-list-depth', String(row.depth));
   };
 
+  /** Marks the cells of a row for the keys that walk them, when that has changed. */
+  const markCells = (view: RowView<TData>): void => {
+    const cells = current.cellNavigation === true;
+    if (view.cells === cells) return;
+    view.cells = cells;
+    [...view.node.children].forEach((cell, index) => {
+      setAttrs(cell, { ...cellAttributes(index, cells), tabindex: cells ? -1 : undefined });
+    });
+  };
+
   const reconciler = createReconciler<RowItem<TData>, TaskId, RowView<TData>>(rowsBox, {
     key: (item) => item.row.id,
     create: () => ({ node: createHtml(document, 'div') }),
@@ -253,6 +267,7 @@ export function createTaskList<TData = unknown>(
       });
       setCssVar(view.node, '--gantt-task-list-y', px(row.index * rowHeight));
       drawCells(view, row);
+      markCells(view);
     },
     node: (view) => view.node,
   });
@@ -312,6 +327,7 @@ export function createTaskList<TData = unknown>(
       snapshot.hoveredRow,
       tabStop,
       columns,
+      current.cellNavigation === true,
     ];
     // Most changes of the snapshot are a scroll frame or a drag preview, and none of these changed.
     if (inputs.some((input, index) => input !== drawnFrom[index])) {
@@ -329,13 +345,16 @@ export function createTaskList<TData = unknown>(
     mediator.afterDraw();
   };
 
-  /** Draws the header's cells when the columns changed. */
+  /** Draws the header's cells when the columns changed, or `cellNavigation` did. */
   let headerOf: readonly TaskListColumn<TData>[] | undefined;
+  let headerCells = false;
   const drawHeader = (): void => {
-    if (headerOf === columns) return;
+    const cells = current.cellNavigation === true;
+    if (headerOf === columns && headerCells === cells) return;
     headerOf = columns;
+    headerCells = cells;
     header.replaceChildren(
-      ...columns.map((column) =>
+      ...columns.map((column, index) =>
         createHtml(
           document,
           'div',
@@ -344,6 +363,7 @@ export function createTaskList<TData = unknown>(
             role: 'columnheader',
             'data-column': column.id,
             'data-align': column.align,
+            ...cellAttributes(index, cells),
           },
           column.header ?? '',
         ),
@@ -369,6 +389,7 @@ export function createTaskList<TData = unknown>(
       max: current.maxWidth ?? TASK_LIST_DEFAULTS.maxWidth,
     }),
     resize: setWidth,
+    cellNavigation: () => current.cellNavigation === true,
   });
   disposables.add(() => {
     mediator.destroy();

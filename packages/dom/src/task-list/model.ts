@@ -77,6 +77,16 @@ export interface TaskListSharedOptions {
   readonly splitter?: boolean | undefined;
   /** How far each level of the tree is indented, in px; default `16`. */
   readonly indent?: number | undefined;
+  /**
+   * Whether the keys walk the cells as well as the rows; default `false`. With it on, Right on a
+   * row steps into its first cell, the arrows, Home, End, Page Up and Page Down go on from cell to
+   * cell (Up and Down keep the column; Ctrl or Cmd with Home or End goes to the first or last row
+   * of the column), Left from the first cell steps back to the row, and Enter and Space on a cell
+   * activate its row. In the column of the tree, Left shuts a group and Right opens one before
+   * they move. A cell can be focused by script and by key, not by Tab: the row stays the one tab
+   * stop. Each cell and header gets an `aria-colindex`.
+   */
+  readonly cellNavigation?: boolean | undefined;
   /** Its `data-theme`; default the theme of the chart, which it follows. */
   readonly theme?: ThemeOption | undefined;
   /** Any of the text it writes on its own. */
@@ -271,11 +281,42 @@ export function rowClass<TData>(record: TaskRecord<TData>): string {
   return withClass('gantt-task-list__row', record.task.rowClassName);
 }
 
+/**
+ * The attributes of a cell, or of the header of a column, the same in both renderers: with
+ * `cellNavigation` its place in the row. (Its `tabindex` is the renderer's own, since React spells
+ * it `tabIndex`: -1 on a cell of a row, which script and keys can focus and Tab cannot.)
+ *
+ * @param index - The index of the column.
+ * @param on - The `cellNavigation` option.
+ * @returns The attributes by name.
+ */
+export function cellAttributes(
+  index: number,
+  on: boolean,
+): Readonly<Record<string, number | undefined>> {
+  return { 'aria-colindex': on ? index + 1 : undefined };
+}
+
 /** What a key does in a list, by the pattern of an ARIA tree. */
 export type TreeAction =
-  | { readonly type: 'focus'; readonly id: TaskId }
+  | {
+      readonly type: 'focus';
+      readonly id: TaskId;
+      /** The cell of the row to focus, by the index of its column; the row itself when left out. */
+      readonly column?: number | undefined;
+    }
   | { readonly type: 'toggle'; readonly id: TaskId }
   | { readonly type: 'activate'; readonly id: TaskId };
+
+/** The row `to` (kept among the rows) as a place for the focus, with one of its cells if asked. */
+const focusAt = <TData>(
+  rows: readonly GanttRow<TData>[],
+  to: number,
+  column?: number,
+): TreeAction | undefined => {
+  const target = rows[Math.min(Math.max(to, 0), rows.length - 1)];
+  return target && { type: 'focus', id: target.id, column };
+};
 
 /**
  * What a key does to the row that has the focus: Up, Down, Page Up, Page Down, Home and End move;
@@ -297,26 +338,22 @@ export function treeAction<TData>(
   const index = rows.findIndex((row) => row.id === current);
   const row = rows[index];
   if (row === undefined) return undefined;
-  const focusAt = (to: number): TreeAction | undefined => {
-    const target = rows[Math.min(Math.max(to, 0), rows.length - 1)];
-    return target && { type: 'focus', id: target.id };
-  };
   switch (key) {
     case 'ArrowDown':
-      return focusAt(index + 1);
+      return focusAt(rows, index + 1);
     case 'ArrowUp':
-      return focusAt(index - 1);
+      return focusAt(rows, index - 1);
     case 'PageDown':
-      return focusAt(index + page);
+      return focusAt(rows, index + page);
     case 'PageUp':
-      return focusAt(index - page);
+      return focusAt(rows, index - page);
     case 'Home':
-      return focusAt(0);
+      return focusAt(rows, 0);
     case 'End':
-      return focusAt(rows.length - 1);
+      return focusAt(rows, rows.length - 1);
     case 'ArrowRight':
       if (!row.hasChildren) return undefined;
-      return row.isExpanded ? focusAt(index + 1) : { type: 'toggle', id: row.id };
+      return row.isExpanded ? focusAt(rows, index + 1) : { type: 'toggle', id: row.id };
     case 'ArrowLeft': {
       if (row.isExpanded) return { type: 'toggle', id: row.id };
       const parent = row.record.parentId;
@@ -325,6 +362,74 @@ export function treeAction<TData>(
     case 'Enter':
     case ' ':
       return { type: 'activate', id: row.id };
+    default:
+      return undefined;
+  }
+}
+
+/** Where the focus is in a list that walks its cells, and how the cells of a row lie. */
+export interface CellPlace {
+  /** The column of the cell that has the focus; `undefined` when the row itself has it. */
+  readonly column: number | undefined;
+  /** How many columns a row has. */
+  readonly columns: number;
+  /** The index of the tree column. */
+  readonly tree: number;
+}
+
+/**
+ * What a key does when a list walks its cells (`cellNavigation`), by the pattern of an ARIA
+ * treegrid. From a row, Right steps into its first cell unless the row is a shut group, which
+ * {@link treeAction} opens first. From a cell: Right and Left move along the row, and stay at its
+ * ends, but in the tree column they open and shut the group first, and Left from the first cell
+ * steps back to the row; Up, Down, Page Up and Page Down keep the column; Home and End go to the
+ * first and last cell, with `ctrl` to the first and last row of the column. Enter and Space, and
+ * every key that means nothing here, are left to {@link treeAction} (the result is `undefined`).
+ *
+ * @param key - `KeyboardEvent.key`.
+ * @param ctrl - Whether Ctrl or Cmd is held.
+ * @param rows - The rows.
+ * @param current - The task of the row that has the focus, or whose cell has it.
+ * @param place - Where the focus is in the row, and the cells.
+ * @param page - How many rows Page Up and Page Down move.
+ * @returns The action, or `undefined`.
+ */
+export function cellAction<TData>(
+  key: string,
+  ctrl: boolean,
+  rows: readonly GanttRow<TData>[],
+  current: TaskId,
+  place: CellPlace,
+  page: number,
+): TreeAction | undefined {
+  const index = rows.findIndex((row) => row.id === current);
+  const row = rows[index];
+  const { column, columns, tree } = place;
+  if (row === undefined) return undefined;
+  const shut = row.hasChildren && !row.isExpanded;
+  if (column === undefined) {
+    return key === 'ArrowRight' && !shut ? { type: 'focus', id: row.id, column: 0 } : undefined;
+  }
+  const along = (to: number): TreeAction | undefined =>
+    focusAt(rows, index, Math.min(Math.max(to, 0), columns - 1));
+  switch (key) {
+    case 'ArrowDown':
+      return focusAt(rows, index + 1, column);
+    case 'ArrowUp':
+      return focusAt(rows, index - 1, column);
+    case 'PageDown':
+      return focusAt(rows, index + page, column);
+    case 'PageUp':
+      return focusAt(rows, index - page, column);
+    case 'Home':
+      return ctrl ? focusAt(rows, 0, column) : along(0);
+    case 'End':
+      return ctrl ? focusAt(rows, rows.length - 1, column) : along(columns - 1);
+    case 'ArrowRight':
+      return column === tree && shut ? { type: 'toggle', id: row.id } : along(column + 1);
+    case 'ArrowLeft':
+      if (column === tree && row.isExpanded) return { type: 'toggle', id: row.id };
+      return column === 0 ? { type: 'focus', id: row.id } : along(column - 1);
     default:
       return undefined;
   }

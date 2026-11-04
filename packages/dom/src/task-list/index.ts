@@ -17,6 +17,7 @@ export type {
   TreeAction,
 } from './model';
 export {
+  cellAttributes,
   cellText,
   columnTracks,
   createTabStop,
