@@ -29,6 +29,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import { useChartOr } from './context';
 import type { GanttInstance } from './types';
 import { useIsomorphicLayoutEffect } from './use-gantt';
 import { useGanttState } from './use-gantt-state';
@@ -54,8 +55,11 @@ export interface TaskListColumn<TData = unknown> extends TaskListColumnBase<TDat
  */
 export interface TaskListProps<TData = unknown>
   extends TaskListSharedOptions, TaskListRowHandlers<TData> {
-  /** The chart, from `useGantt`. */
-  readonly gantt: GanttInstance<TData>;
+  /**
+   * The chart, from `useGantt`. Without it the list takes the chart of the `GanttRoot` it is in
+   * (and throws outside one).
+   */
+  readonly gantt?: GanttInstance<TData> | undefined;
   /** The columns; default one, the task's name. */
   readonly columns?: readonly TaskListColumn<TData>[] | undefined;
   /**
@@ -154,8 +158,9 @@ const Row = memo(RowOf) as typeof RowOf;
  * keyboard focus, the vertical position, the theme and the sizes. It draws only the rows the chart
  * draws, and renders on a server.
  *
- * It takes the chart from `useGantt`, which exists while the component renders (a `ref` would be
- * `null` until the commit, and the first render of the list would be empty). Put it next to the
+ * It takes the chart from `useGantt` (the `gantt` prop) or, without one, from the `GanttRoot` it is
+ * in. Both exist while the component renders (a `ref` would be `null` until the commit, and the
+ * first render of the list would be empty). Put it next to the
  * chart's container, tops aligned: it is as wide as its `width`, and `flex: 1; min-width: 0` gives
  * the chart what is left. With a fixed or filling height each has its own scroller and the list
  * can be a frame behind during a fast fling; with `layout.height: 'auto'`, in one box that scrolls,
@@ -186,7 +191,8 @@ const Row = memo(RowOf) as typeof RowOf;
  * ```
  */
 export function TaskList<TData = unknown>(props: TaskListProps<TData>): ReactElement {
-  const { gantt, width: controlled, defaultWidth, onWidthChange, id, className, style } = props;
+  const { width: controlled, defaultWidth, onWidthChange, id, className, style } = props;
+  const gantt = useChartOr<GanttInstance<TData>>(props.gantt, 'TaskList');
   const { splitter, indent, theme, minWidth, maxWidth } = props;
   const cells = props.cellNavigation === true;
   const strings = { ...TASK_LIST_DEFAULTS.strings, ...props.strings };

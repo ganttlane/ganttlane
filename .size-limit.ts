@@ -23,7 +23,7 @@ import type { SizeLimitConfig } from 'size-limit';
  * that already ships those. dom is 23.18 kB of 24 (raised in Q14 for the disposal contract of
  * ADR-029, `DisposableNode`, and again for keyboard editing and the live region of plan step 7.11);
  * its subpath `task-list` is 5.38 kB of 6 (ADR-031, raised for the cell navigation of 7.11);
- * react is 7.99 kB of 10; the stylesheet is 7.47 kB of 8. `pnpm size:report --package dom` breaks the
+ * react is 8.87 kB of 10 (an app that imports only `<Gantt>` ships 6.67 of it, see the entry below); the stylesheet is 7.47 kB of 8. `pnpm size:report --package dom` breaks the
  * dom number down by layer, shared helper and file (plan step 4.5); `pnpm bench` prints every
  * entry next to its limit with the performance numbers (`docs/perf.md`).
  */
@@ -132,6 +132,16 @@ const config: SizeLimitConfig = [
     path: 'packages/react/dist/index.js',
     ignore: ['@ganttlane/core', '@ganttlane/dom', ...REACT_EXTERNALS],
     limit: '10 kB',
+    gzip: true,
+  },
+  {
+    // What an app that imports only `<Gantt>` pays: the compound components, `useGanttBar` and the
+    // context (plan step 7.13) must not reach it. 6.67 kB measured; the limit is this entry's own.
+    name: '@ganttlane/react: Gantt only (on top of core and dom, without React)',
+    path: 'packages/react/dist/index.js',
+    import: '{ Gantt }',
+    ignore: ['@ganttlane/core', '@ganttlane/dom', ...REACT_EXTERNALS],
+    limit: '6.8 kB',
     gzip: true,
   },
   {

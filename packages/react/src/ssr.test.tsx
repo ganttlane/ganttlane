@@ -64,9 +64,13 @@ describe('server rendering (no DOM at all)', () => {
       const imported = await import('./index');
       expect(Object.keys(imported).sort()).toEqual([
         'Gantt',
+        'GanttChart',
+        'GanttRoot',
         'TaskList',
         'patchTasks',
         'useGantt',
+        'useGanttBar',
+        'useGanttContext',
         'useGanttState',
       ]);
     } finally {

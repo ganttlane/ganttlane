@@ -12,7 +12,10 @@
  * @packageDocumentation
  */
 
+export { useGanttContext } from './context';
 export { Gantt } from './Gantt';
+export type { GanttChartProps, GanttRootProps } from './GanttRoot';
+export { GanttChart, GanttRoot } from './GanttRoot';
 export type { SlotKind, SlotRender } from './slots';
 export type { TaskListColumn, TaskListProps } from './TaskList';
 export { TaskList } from './TaskList';
@@ -28,6 +31,8 @@ export type {
   SnapshotSource,
 } from './types';
 export { useGantt } from './use-gantt';
+export type { GanttBar, GanttBarBox, GanttBarDraft } from './use-gantt-bar';
+export { useGanttBar } from './use-gantt-bar';
 export { useGanttState } from './use-gantt-state';
 export type {
   TaskListColumnBase,

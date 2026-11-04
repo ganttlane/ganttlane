@@ -1,6 +1,7 @@
 import type { GanttSnapshot } from '@ganttlane/dom';
 import { useState, useSyncExternalStore } from 'react';
 
+import { useChartOr } from './context';
 import type { SnapshotSource } from './types';
 
 /**
@@ -50,6 +51,10 @@ class Selection<TData, T> {
  * new object or array every time needs an `isEqual` (a shallow one), or it renders on every
  * change of the chart.
  *
+ * Without a chart (`useGanttState(selector)`) it reads the chart of the nearest `GanttRoot`, and
+ * throws outside one. A context cannot know the type of `task.data`: name it,
+ * `useGanttState<MyData, number>(…)`.
+ *
  * @typeParam TData - Type of `task.data`.
  * @typeParam T - What the selector returns.
  * @param instance - A chart from `useGantt`, or a core from `createGanttCore`.
@@ -61,15 +66,33 @@ class Selection<TData, T> {
  * ```tsx
  * const mode = useGanttState(gantt, (snapshot) => snapshot.viewMode.id);
  * const ids = useGanttState(gantt, (s) => s.selection.tasks);
+ * // Below a <GanttRoot>, with no chart to hand down:
+ * const count = useGanttState((s) => s.selection.tasks.length);
  * ```
  */
 export function useGanttState<TData = unknown, T = unknown>(
+  selector: (snapshot: GanttSnapshot<TData>) => T,
+  isEqual?: (a: T, b: T) => boolean,
+): T;
+export function useGanttState<TData = unknown, T = unknown>(
   instance: SnapshotSource<TData>,
   selector: (snapshot: GanttSnapshot<TData>) => T,
-  isEqual: (a: T, b: T) => boolean = Object.is,
+  isEqual?: (a: T, b: T) => boolean,
+): T;
+export function useGanttState<TData, T>(
+  first: SnapshotSource<TData> | ((snapshot: GanttSnapshot<TData>) => T),
+  second?: ((snapshot: GanttSnapshot<TData>) => T) | ((a: T, b: T) => boolean),
+  third?: (a: T, b: T) => boolean,
 ): T {
+  const given = typeof first === 'function' ? undefined : first;
+  const selector = (typeof first === 'function' ? first : second) as (
+    snapshot: GanttSnapshot<TData>,
+  ) => T;
+  const isEqual =
+    (typeof first === 'function' ? (second as ((a: T, b: T) => boolean) | undefined) : third) ??
+    Object.is;
   const [memo] = useState(() => new Selection<TData, T>());
-  const { getSnapshot, subscribe } = instance;
+  const { getSnapshot, subscribe } = useChartOr<SnapshotSource<TData>>(given, 'useGanttState');
   const read = (): T => memo.read(getSnapshot(), selector, isEqual);
   return useSyncExternalStore(subscribe, read, read);
 }
