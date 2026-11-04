@@ -16,15 +16,18 @@ export const GanttContext: Context<GanttInstance | null> =
  * @typeParam TChart - What the caller works with: a `GanttInstance`, or any `SnapshotSource`.
  * @param own - The chart the caller passed, if any; it wins over the context.
  * @param name - The hook or component that asks, for the message.
+ * @param canPass - Whether the caller can be given a chart by hand, for the message.
  * @returns The chart.
  * @throws When there is neither.
  */
-export function useChartOr<TChart>(own: TChart | undefined, name: string): TChart {
+export function useChartOr<TChart>(own: TChart | undefined, name: string, canPass = true): TChart {
   const shared = useContext(GanttContext);
   const found = own ?? (shared as unknown as TChart | null);
   if (found === null) {
     throw new Error(
-      `[@ganttlane/react] ${name} needs a chart: render it inside <GanttRoot>, or pass the chart of useGantt.`,
+      `[@ganttlane/react] ${name} needs a chart: render it inside <GanttRoot>${
+        canPass ? ', or pass the chart of useGantt' : ''
+      }.`,
     );
   }
   return found;
@@ -52,5 +55,5 @@ export function useChartOr<TChart>(own: TChart | undefined, name: string): TChar
  * ```
  */
 export function useGanttContext<TData = unknown>(): GanttInstance<TData> {
-  return useChartOr<GanttInstance<TData>>(undefined, 'useGanttContext');
+  return useChartOr<GanttInstance<TData>>(undefined, 'useGanttContext', false);
 }

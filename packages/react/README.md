@@ -482,6 +482,9 @@ and its `getSnapshot`, `subscribe` and `on` follow the chart. So it can be kept,
 
 ### `useGanttState(instance, selector, isEqual?)`
 
+Below a [`GanttRoot`](#compound-components-ganttroot-ganttchart-and-useganttbar) the instance can be
+left out, `useGanttState(selector, isEqual?)`: the hook takes the root's chart.
+
 Reads a slice of the snapshot through `useSyncExternalStore` and renders again only when the
 slice changes:
 
@@ -727,9 +730,12 @@ export function Plan() {
       <Toolbar />
       <div style={{ display: 'flex', height: 480 }}>
         <TaskList />
-        <GanttChart style={{ flex: 1, minWidth: 0 }} />
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          <GanttChart style={{ height: '100%' }} />
+          {/* Placed in this element: `box` is measured from the chart's corner. */}
+          <TaskPanel />
+        </div>
       </div>
-      <TaskPanel />
     </GanttRoot>
   );
 }
@@ -771,7 +777,6 @@ function TaskPanel() {
   const bar = useGanttBar(id);
   if (bar?.box === undefined) return null;
   const { task, draft, box } = bar;
-  // In an element with `position: relative` that holds the `GanttChart`.
   return (
     <aside style={{ position: 'absolute', left: box.left, top: box.top + box.height }}>
       {task.name}: {Math.round(draft?.progress ?? task.progress)}%
@@ -784,6 +789,9 @@ function TaskPanel() {
 renders then: keep it in a component of its own. It renders again only when a field changes, not
 for other tasks, hovering or a new view of the chart. `box` is outside the element when the bar is
 scrolled out of view: compare it with `snapshot.timeline.viewportWidth` and `snapshot.viewportHeight`.
+It is measured from the chart, which fills the `GanttChart` element, so give that element no padding.
+With `layout.height: 'auto'` the page scrolls the chart and the bar does not move in its element, so
+`box` does not change when the page scrolls.
 
 An app that imports only `<Gantt>` does not ship any of this. See the
 [example](https://github.com/ganttlane/ganttlane/tree/main/examples/react-compound).

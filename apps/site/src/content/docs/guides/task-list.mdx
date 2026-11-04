@@ -213,7 +213,8 @@ The result has `element`, `setOptions(patch)`, `getWidth()`, `setWidth(px)` and 
 </TabItem>
 <TabItem label="React">
 
-`<TaskList gantt={instance} … />`. The same options as props, with the width as a controlled or
+`<TaskList gantt={instance} … />`; inside a [`GanttRoot`](../react-compound/) the `gantt` prop can be left
+out, and the list takes the root's chart. The same options as props, with the width as a controlled or
 uncontrolled pair, and `id`, `className` and `style` for its root:
 
 | Prop                                                                                                    | What it does                          |

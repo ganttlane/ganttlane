@@ -24,9 +24,12 @@ export function Plan() {
       <Toolbar />
       <div style={{ display: 'flex', height: 480 }}>
         <TaskList />
-        <GanttChart style={{ flex: 1, minWidth: 0 }} />
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          <GanttChart style={{ height: '100%' }} />
+          {/* Placed in this element: `box` is measured from the chart's corner. */}
+          <TaskPanel />
+        </div>
       </div>
-      <TaskPanel />
     </GanttRoot>
   );
 }
@@ -103,7 +106,6 @@ function TaskPanel() {
   if (bar?.box === undefined) return null;
   const { task, draft, box } = bar;
   return (
-    // Placed in an element with `position: relative` that holds the `GanttChart`.
     <aside style={{ position: 'absolute', left: box.left, top: box.top + box.height }}>
       {task.name}: {Math.round(draft?.progress ?? task.progress)}%
     </aside>
@@ -120,6 +122,9 @@ function TaskPanel() {
   and before the first layout). It is outside the element when the bar is scrolled out of view:
   compare it with `snapshot.timeline.viewportWidth` and `snapshot.viewportHeight` to hide the panel,
   as the example does.
+- **`box` is measured from the chart,** which fills the `GanttChart` element, so give that element no
+  padding. With `layout.height: 'auto'` the page scrolls the chart and the bar does not move in its
+  element, so `box` does not change when the page scrolls.
 - **`draft` is in dates,** with the meaning the fields of a `TaskRecord` have (`end` is the last day
   for day-precision tasks, `endExclusive` the end of the half-open interval).
 

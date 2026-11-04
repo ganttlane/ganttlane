@@ -70,18 +70,22 @@ function Toolbar() {
  * A panel that follows the selected task. `useGanttBar` gives the task, its draft (the dates and
  * progress the chart shows while the bar is dragged), and `box`: where the bar is drawn, in px
  * from the corner of the chart's element. The panel goes under the bar, and is hidden when the
- * bar is scrolled out of view.
+ * bar is scrolled out of view (or under the header).
  */
 function TaskPanel() {
   const id = useGanttState((snapshot) => snapshot.selection.tasks[0]);
   const bar = useGanttBar(id);
   const width = useGanttState((snapshot) => snapshot.timeline.viewportWidth);
   const height = useGanttState((snapshot) => snapshot.viewportHeight);
+  const header = useGanttState((snapshot) => snapshot.layout.rows.headerHeight);
 
   if (bar?.box === undefined) return null;
   const { task, draft, box, isDragging } = bar;
   const inView =
-    box.left + box.width > 0 && box.left < width && box.top + box.height > 0 && box.top < height;
+    box.left + box.width > 0 &&
+    box.left < width &&
+    box.top + box.height > header &&
+    box.top < height;
   if (!inView) return null;
 
   const start = draft?.start ?? task.start;

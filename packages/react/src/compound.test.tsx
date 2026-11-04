@@ -1,4 +1,5 @@
-import { act, type ReactElement, type ReactNode } from 'react';
+import { barHandles } from '@ganttlane/core';
+import { act, type ReactElement, type ReactNode, StrictMode } from 'react';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
@@ -158,8 +159,11 @@ describe('<GanttRoot> and <GanttChart>', () => {
     }
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(() => renderToString(<Lonely />)).toThrow(/useGanttContext needs a chart/);
-    expect(() => renderToString(<GanttChart />)).toThrow(/GanttChart needs a chart/);
-    expect(() => renderToString(<TaskList />)).toThrow(/TaskList needs a chart/);
+    expect(() => renderToString(<GanttChart />)).toThrow(
+      /GanttChart needs a chart: render it inside <GanttRoot>\./,
+    );
+    expect(() => renderToString(<Lonely />)).not.toThrow(/or pass the chart/);
+    expect(() => renderToString(<TaskList />)).toThrow(/TaskList needs a chart.*or pass the chart/);
     function Reads(): null {
       useGanttState((s) => s.viewMode.id);
       return null;
@@ -197,6 +201,19 @@ describe('<GanttRoot> and <GanttChart>', () => {
     );
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toMatch(/has one chart/);
+  });
+
+  it('FR-REACT-6: the second <GanttChart> is reported once under StrictMode, which runs effects twice', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await renderInto(
+      <StrictMode>
+        <GanttRoot {...options()}>
+          <GanttChart />
+          <GanttChart />
+        </GanttRoot>
+      </StrictMode>,
+    );
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it('FR-REACT-6: StrictMode mounts the chart once and leaves nothing behind', async () => {
@@ -467,6 +484,118 @@ describe('useGanttBar', () => {
     expect(seen.bar?.isDragging).toBe(false);
     expect(seen.bar?.task.start?.getTime()).toBe(start);
     expect(seen.bar?.draft?.start.getTime()).toBeGreaterThan(start);
+  });
+
+  it('FR-REACT-6: the end of the draft has the meaning of TaskRecord.end, inclusive or not', async () => {
+    for (const endInclusive of [true, false]) {
+      const seen: Into = seenBar();
+      const { gantt, view } = await below(<Probe id="a" into={seen} />, {
+        defaultTasks: undefined,
+        tasks: TASKS,
+        links: [],
+        onTasksChange: () => undefined,
+        dates: { endInclusive },
+      });
+      const rect = gantt().getBarRect('a')!;
+      const x = rect.x + rect.width / 2;
+      const y = rect.y + rect.height / 2;
+      await run(() => {
+        gantt().core.send({ type: 'down', pointerId: 1, x, y, time: 0 });
+        gantt().core.send({ type: 'move', pointerId: 1, x: x + 90, y, time: 10 });
+        gantt().core.send({ type: 'up', pointerId: 1, x: x + 90, y, time: 20 });
+        frames.step();
+      });
+      const { draft } = seen.bar!;
+      expect(draft).toBeDefined();
+      const last = new Date(draft!.endExclusive);
+      last.setDate(last.getDate() - 1);
+      expect(draft!.end.getTime()).toBe(
+        endInclusive ? last.getTime() : draft!.endExclusive.getTime(),
+      );
+      await view.unmount();
+      cleanUpDocument();
+    }
+  });
+
+  it('FR-REACT-6: drawing a link from the bar is not dragging the bar', async () => {
+    const seen: Into = seenBar();
+    const { gantt } = await below(<Probe id="a" into={seen} />);
+    const rect = gantt().getBarRect('a')!;
+    const handle = barHandles(rect, gantt().getSnapshot().handles).linkEnd;
+    const x = handle.x + handle.width / 2;
+    const y = handle.y + handle.height / 2;
+    await run(() => {
+      gantt().core.send({ type: 'down', pointerId: 1, x, y, time: 0 });
+      gantt().core.send({ type: 'move', pointerId: 1, x: x + 60, y: y + 80, time: 10 });
+      frames.step();
+    });
+    expect(gantt().getSnapshot().feedback.phase).toBe('linking');
+    expect(seen.bar?.isDragging).toBe(false);
+    expect(seen.bar?.draft).toBeUndefined();
+  });
+
+  it('FR-REACT-6: it follows the id it is given, and an id that goes away gives undefined', async () => {
+    const seen: Into = seenBar();
+    function Which({ id }: { id: string | undefined }): ReactElement {
+      return <Probe id={id} into={seen} />;
+    }
+    const { view } = await below(<Which id="a" />);
+    expect(seen.bar?.task.id).toBe('a');
+    await view.render(
+      <GanttRoot {...options()}>
+        <GanttChart />
+        <Which id="g" />
+      </GanttRoot>,
+    );
+    expect(seen.bar?.task.id).toBe('g');
+    await view.render(
+      <GanttRoot {...options()}>
+        <GanttChart />
+        <Which id={undefined} />
+      </GanttRoot>,
+    );
+    expect(seen.bar).toBeUndefined();
+    await view.render(
+      <GanttRoot {...options()}>
+        <GanttChart />
+        <Which id="a" />
+      </GanttRoot>,
+    );
+    expect(seen.bar?.task.id).toBe('a');
+  });
+
+  describe('with layout.height: auto, where the page scrolls the chart', () => {
+    const auto = {
+      layout: { rowHeight: 40, barHeight: 24, headerRowHeight: 25, height: 'auto' as const },
+    };
+
+    it('FR-REACT-6: the offset the page scrolls the chart by does not move the box, and costs no render', async () => {
+      const seen: Into = seenBar();
+      const { gantt } = await below(<Probe id="g1" into={seen} />, auto);
+      const top = seen.bar!.box!.top;
+      const renders = seen.renders;
+      await run(() => {
+        gantt().core.scroll({ top: 120 });
+        frames.step();
+      });
+      expect(gantt().getSnapshot().scrollTop).toBe(120);
+      expect(seen.bar?.box?.top).toBe(top);
+      expect(seen.renders).toBe(renders);
+    });
+
+    it('FR-REACT-6: in a fixed height the same offset moves it, so the two are told apart', async () => {
+      const seen: Into = seenBar();
+      const { gantt } = await below(<Probe id="g1" into={seen} />, {
+        layout: { rowHeight: 40, barHeight: 24, headerRowHeight: 25, height: 100 },
+      });
+      const top = seen.bar!.box!.top;
+      await run(() => {
+        gantt().core.scroll({ top: 40 });
+        frames.step();
+      });
+      expect(gantt().getSnapshot().scrollTop).toBe(40);
+      expect(seen.bar?.box?.top).toBe(top - 40);
+    });
   });
 
   it('FR-REACT-6: it takes a chart from useGantt instead of the context', async () => {

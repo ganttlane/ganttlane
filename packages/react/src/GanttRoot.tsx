@@ -72,6 +72,9 @@ export type GanttChartProps = Readonly<AriaAttributes> &
 /** How many {@link GanttChart}s are mounted for each chart: more than one is a mistake. */
 const claims = /* @__PURE__ */ new WeakMap<object, number>();
 
+/** The charts that were reported once: StrictMode runs an effect twice. */
+const reported = /* @__PURE__ */ new WeakSet<object>();
+
 /**
  * The element a {@link GanttRoot}'s chart is drawn into: the same `div` `<Gantt>` renders, with
  * the same `id`, `className`, `style`, `aria-*` and `data-*` props. A root has one chart, so one
@@ -82,12 +85,13 @@ const claims = /* @__PURE__ */ new WeakMap<object, number>();
  * @throws Outside a `GanttRoot`.
  */
 export function GanttChart(props: GanttChartProps): ReactElement {
-  const gantt = useChartOr<GanttInstance>(undefined, 'GanttChart');
+  const gantt = useChartOr<GanttInstance>(undefined, 'GanttChart', false);
   useEffect(() => {
     if (!isDev()) return undefined;
     const count = (claims.get(gantt) ?? 0) + 1;
     claims.set(gantt, count);
-    if (count > 1) {
+    if (count > 1 && !reported.has(gantt)) {
+      reported.add(gantt);
       warn('a <GanttRoot> has one chart: the second <GanttChart> takes it from the first.');
     }
     return () => {

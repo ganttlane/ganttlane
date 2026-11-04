@@ -136,7 +136,7 @@ const config: SizeLimitConfig = [
   },
   {
     // What an app that imports only `<Gantt>` pays: the compound components, `useGanttBar` and the
-    // context (plan step 7.13) must not reach it. 6.67 kB measured; the limit is this entry's own.
+    // context must not reach it. 6.67 kB measured; the limit is this entry's own.
     name: '@ganttlane/react: Gantt only (on top of core and dom, without React)',
     path: 'packages/react/dist/index.js',
     import: '{ Gantt }',

@@ -6,8 +6,9 @@ import { useChartOr } from './context';
 import type { GanttInstance } from './types';
 
 /**
- * Where a bar is drawn, in px from the top left corner of the chart's container: the header is
- * above `top: headerHeight`, and the scroll offsets are taken off, so a panel placed at
+ * Where a bar is drawn, in px from the top left corner of the chart, which fills its container:
+ * the header is above `top: headerHeight`, and the scroll of the chart is taken off (with
+ * `layout.height: 'auto'` the page scrolls it, and the bar does not move in its container), so a panel placed at
  * `left` / `top` in the container's coordinates follows the bar while the chart scrolls and
  * while the bar is dragged. It is outside `0 … width` / `0 … height` of the container when the bar
  * is scrolled out of view.
@@ -125,16 +126,19 @@ function sameBar<TData>(a: GanttBar<TData>, b: GanttBar<TData>): boolean {
 class BarSelection<TData> {
   private snapshot: GanttSnapshot<TData> | undefined;
   private id: TaskId | undefined;
+  private auto = false;
   private bar: GanttBar<TData> | undefined;
 
   read(gantt: GanttInstance<TData>, snapshot: GanttSnapshot<TData>, id: TaskId | undefined) {
-    if (this.snapshot === snapshot && this.id === id) return this.bar;
-    const next = id === undefined ? undefined : barOf(gantt, snapshot, id);
+    const auto = gantt.getAppearance().height === 'auto';
+    if (this.snapshot === snapshot && this.id === id && this.auto === auto) return this.bar;
+    const next = id === undefined ? undefined : barOf(gantt, snapshot, id, auto);
     const last = this.bar;
     const same = next === last || (next !== undefined && last !== undefined && sameBar(next, last));
     if (!same) this.bar = next;
     this.snapshot = snapshot;
     this.id = id;
+    this.auto = auto;
     return this.bar;
   }
 }
@@ -143,6 +147,7 @@ function barOf<TData>(
   gantt: GanttInstance<TData>,
   snapshot: GanttSnapshot<TData>,
   id: TaskId,
+  auto: boolean,
 ): GanttBar<TData> | undefined {
   const task = gantt.getTask(id);
   if (task === undefined) return undefined;
@@ -158,7 +163,9 @@ function barOf<TData>(
     box: measured
       ? {
           left: rect.x - snapshot.timeline.scrollLeft,
-          top: rect.y - snapshot.scrollTop + snapshot.layout.rows.headerHeight,
+          // With `layout.height: 'auto'` the page scrolls the chart, whose box moves with it, and
+          // the snapshot's `scrollTop` is the page's offset: the bar does not move in its element.
+          top: rect.y - (auto ? 0 : snapshot.scrollTop) + snapshot.layout.rows.headerHeight,
           width: rect.width,
           height: rect.height,
         }

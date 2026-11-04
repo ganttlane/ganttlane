@@ -460,6 +460,11 @@ function useGanttState<TData = unknown, T = unknown>(
   selector: (snapshot: GanttSnapshot<TData>) => T,
   isEqual?: (a: T, b: T) => boolean,
 ): T;
+// Below a GanttRoot, with the chart taken from it:
+function useGanttState<TData = unknown, T = unknown>(
+  selector: (snapshot: GanttSnapshot<TData>) => T,
+  isEqual?: (a: T, b: T) => boolean,
+): T;
 ```
 
 [`useGanttState`](../../api/ganttlane/react/functions/useganttstate/) reads a slice of the
