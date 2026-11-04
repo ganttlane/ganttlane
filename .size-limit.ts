@@ -23,7 +23,7 @@ import type { SizeLimitConfig } from 'size-limit';
  * that already ships those. dom is 23.18 kB of 24 (raised in Q14 for the disposal contract of
  * ADR-029, `DisposableNode`, and again for keyboard editing and the live region of plan step 7.11);
  * its subpath `task-list` is 5.38 kB of 6 (ADR-031, raised for the cell navigation of 7.11);
- * react is 8.87 kB of 10 (an app that imports only `<Gantt>` ships 6.67 of it, see the entry below); the stylesheet is 7.47 kB of 8. `pnpm size:report --package dom` breaks the
+ * react is 8.94 kB of 10 (an app that imports only `<Gantt>` ships 6.67 of it, see the entry below); the stylesheet is 7.47 kB of 8. `pnpm size:report --package dom` breaks the
  * dom number down by layer, shared helper and file (plan step 4.5); `pnpm bench` prints every
  * entry next to its limit with the performance numbers (`docs/perf.md`).
  */
