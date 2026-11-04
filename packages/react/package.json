@@ -1,6 +1,6 @@
 {
   "name": "@ganttlane/react",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "React components and hooks for interactive gantt charts built on @ganttlane/core.",
   "license": "MIT",
   "keywords": [
