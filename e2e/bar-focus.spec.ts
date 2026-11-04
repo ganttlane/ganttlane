@@ -118,7 +118,8 @@ for (const renderer of RENDERERS) {
       const errors = watchErrors(page);
       await open(page, renderer, { list: '0', barFocus: '1' });
       await expect(page.locator('.gantt__bar[tabindex="0"]')).toHaveCount(1);
-      await expect(page.getByRole('button', { name: 'Group 0', exact: true })).toHaveAttribute(
+      // The name is the task described: its name, its dates, its progress and its working days.
+      await expect(page.getByRole('button', { name: /^Group 0, Mar 2, 2026 – / })).toHaveAttribute(
         'tabindex',
         '0',
       );
@@ -294,11 +295,12 @@ for (const renderer of RENDERERS) {
       expect(errors).toEqual([]);
     });
 
-    test(`FR-SEL-3: focusTask(undefined) leaves the bar with the focus, and a scroll does not take it (${renderer.name})`, async ({
+    test(`FR-SEL-3, FR-A11Y-2: focusTask(undefined) takes the focus from the bar to the chart, and a scroll does not give it back (${renderer.name})`, async ({
       page,
     }) => {
       await open(page, renderer, { list: '0', barFocus: '1' });
       await bar(page, 't0').focus();
+      await expect.poll(() => focusedTask(page)).toBe('t0');
       await page.evaluate(() => {
         const gantt = (
           window as never as {
@@ -311,8 +313,8 @@ for (const renderer of RENDERERS) {
       await expect
         .poll(() => scroller(page).evaluate((node) => node.scrollTop))
         .toBeGreaterThan(1000);
-      await expect(bar(page, 't0')).toBeFocused();
-      await expect.poll(() => focusedTask(page)).toBe('t0');
+      await expect(scroller(page)).toBeFocused();
+      await expect.poll(() => focusedTask(page)).toBeUndefined();
     });
 
     test(`FR-SEL-3: the ring and the state of a bar show at once, and pressing Enter changes what is seen (${renderer.name})`, async ({
