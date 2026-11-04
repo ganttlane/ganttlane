@@ -207,14 +207,20 @@ test.describe('infinite timeline in the DOM (FR-TL-8)', () => {
     await page.locator('#chart .gantt__scroller').focus();
     const first = await sample(page);
     await startRecording(page);
+    // A key's scroll can start later than the few still frames `settle` watches (Firefox), so each
+    // step first waits for the move.
+    const scrollTop = async (): Promise<number> => (await sample(page)).scrollTop;
 
     await page.keyboard.press('PageDown');
+    await expect.poll(scrollTop).toBeGreaterThan(first.scrollTop);
     await settle(page);
     const paged = await sample(page);
     await page.keyboard.press('End');
+    await expect.poll(scrollTop).toBeGreaterThan(paged.scrollTop);
     await settle(page);
     const end = await sample(page);
     await page.keyboard.press('Home');
+    await expect.poll(scrollTop).toBe(0);
     await settle(page);
     const home = await sample(page);
 
