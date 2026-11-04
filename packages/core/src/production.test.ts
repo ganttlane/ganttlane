@@ -448,4 +448,34 @@ describe('NFR-SIZE-1, ADR-019: production and development builds', () => {
     expect(development).not.toContain('__GANTTLANE_DEV__');
     expect(production.length).toBeLessThan(development.length);
   });
+
+  it('FR-DATA-12: only the development build looks for unknown options; the production bundle has no trace of it', () => {
+    // The table of old names, the texts that use it and the code of the warning. The bundles
+    // here keep the comments of the sources (the published ones do not), so look at the code.
+    const code = (bundle: string): string =>
+      bundle.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    for (const text of ['bar_height', 'is an option of frappe-gantt', 'unknown-option']) {
+      expect(code(production)).not.toContain(text);
+      expect(code(development)).toContain(text);
+    }
+
+    const options = {
+      tasks: [],
+      bar_height: 24,
+      whatever: 1,
+    } as unknown as source.GanttCoreOptions;
+    const asProduction = load(production).createGanttCore(options);
+    expect(asProduction.getIssues().options).toEqual([]);
+    expect(asProduction.setOptions({ lines: 'both' } as never)).toEqual([]);
+    asProduction.destroy();
+
+    const asDevelopment = load(development).createGanttCore(options);
+    expect(
+      asDevelopment.getIssues().options.map(({ code, severity, path }) => [code, severity, path]),
+    ).toEqual([
+      ['unknown-option', 'warning', 'bar_height'],
+      ['unknown-option', 'warning', 'whatever'],
+    ]);
+    asDevelopment.destroy();
+  });
 });

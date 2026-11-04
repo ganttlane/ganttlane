@@ -29,6 +29,16 @@
       "development": "./dist/index.development.js",
       "default": "./dist/index.js"
     },
+    "./schema": {
+      "@ganttlane/source": "./src/schema.ts",
+      "types": "./dist/schema.d.ts",
+      "default": "./dist/schema.js"
+    },
+    "./migrate": {
+      "@ganttlane/source": "./src/migrate.ts",
+      "types": "./dist/migrate.d.ts",
+      "default": "./dist/migrate.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -57,6 +67,14 @@
         "types": "./dist/index.d.ts",
         "development": "./dist/index.development.js",
         "default": "./dist/index.js"
+      },
+      "./schema": {
+        "types": "./dist/schema.d.ts",
+        "default": "./dist/schema.js"
+      },
+      "./migrate": {
+        "types": "./dist/migrate.d.ts",
+        "default": "./dist/migrate.js"
       },
       "./package.json": "./package.json"
     }

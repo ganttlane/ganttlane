@@ -54,8 +54,11 @@ const coreModuleDeps: Record<string, readonly string[]> = {
     'interaction',
   ],
   events: ['store'],
+  // Names of the options of frappe-gantt and the adapter built on them (plan step 7.6): a leaf
+  // that only the facade (hints of the development build) and its own entry point read.
+  migration: [],
   // The `index` layer of §3.1: `createGanttCore` composes every module; no module imports it.
-  facade: ['events'],
+  facade: ['events', 'migration'],
 };
 
 /** Modules every core module may import without listing them in `coreModuleDeps`. */

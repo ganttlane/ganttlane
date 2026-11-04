@@ -25,6 +25,12 @@ const shared: UserConfig = {
  *
  * Both builds share `dist/index.d.ts`, emitted by the production build only. tsdown cleans
  * `dist` once before both builds and runs publint after both have finished.
+ *
+ * The subpaths `@ganttlane/core/schema` and `@ganttlane/core/migrate` (plan step 7.6) are a third
+ * build of their own, so that `dist/index.js` stays one flat module without chunks shared with
+ * them. Neither differs between development and production: one file each. They carry their own
+ * copy of what they use (the schemas, the table of old option names), which an app that imports
+ * both them and the main entry pays for twice.
  */
 export default defineConfig([
   {
@@ -46,6 +52,15 @@ export default defineConfig([
     entry: { 'index.development': 'src/index.ts' },
     define: { ...DEVELOPMENT_DEFINE },
     dts: false,
+    clean: false,
+  },
+  {
+    ...shared,
+    entry: { schema: 'src/schema.ts', migrate: 'src/migrate.ts' },
+    define: { ...PRODUCTION_DEFINE },
+    sourcemap: false,
+    dts: true,
+    hooks: { 'build:done': stripDanglingDeclarationMapComments },
     clean: false,
   },
 ]);

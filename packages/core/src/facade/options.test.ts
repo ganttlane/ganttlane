@@ -179,15 +179,23 @@ describe('setOptions: the invalidation matrix (FR-API-2)', () => {
     expect(clicks).toEqual(['design']);
   });
 
-  it('keeps unknown options (renderer options) out, without issues', () => {
+  it('FR-DATA-12: keeps unknown options (renderer options) out, with a warning of the development build', () => {
     const gantt = chart();
     const patch = {
       display: { today: true },
       tooltip: {},
       onTooltip: 5,
     } as Partial<GanttCoreOptions>;
+    // Nothing is rebuilt: the keys change no part of the chart.
     expect(rebuilt(gantt, patch)).toEqual([]);
-    expect(gantt.getIssues().options).toEqual([]);
+    // These tests run from the sources, which are the development build (`DEV`).
+    expect(
+      gantt.getIssues().options.map(({ code, severity, path }) => [code, severity, path]),
+    ).toEqual([
+      ['unknown-option', 'warning', 'display'],
+      ['unknown-option', 'warning', 'tooltip'],
+      ['unknown-option', 'warning', 'onTooltip'],
+    ]);
   });
 
   it('routes every option key; handlers go to the handlers only', () => {

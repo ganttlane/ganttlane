@@ -7,8 +7,8 @@
  * Numbers in date, duration and lag fields may be `NaN` here, so normalization reports them as
  * `'invalid-date'` / `'invalid-duration'` with a precise message instead of a shape error.
  *
- * Planned public entry: `@ganttlane/core/schema`, where callers can
- * validate API data and extend the payload: `v.object({ ...TaskSchema.entries, data: MySchema })`.
+ * Public entry: `@ganttlane/core/schema`, where callers can validate API data and extend the
+ * payload: `v.object({ ...TaskSchema.entries, data: MySchema })`.
  * The explicit schema types below are required by `isolatedDeclarations`.
  */
 

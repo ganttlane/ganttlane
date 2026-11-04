@@ -6,6 +6,7 @@
 
 import { DEV, isObject, isRecord, isSize, type Issue, shortMessage } from '../shared';
 import type { GanttCoreOptions, GanttEventName } from './types';
+import { unknownOption } from './unknown-options';
 
 /** Every facade event, as a record so that the compiler keeps it complete. */
 const EVENTS: Readonly<Record<GanttEventName, true>> = {
@@ -62,13 +63,17 @@ export function isHandlerKey(key: string): boolean {
 }
 
 /**
- * Issue codes of the facade's options (errors; the default is used instead, `suggested` when it
- * is a plain value):
+ * Issue codes of the facade's options. The first two are errors (the default is used instead,
+ * `suggested` when it is a plain value):
  * - `'invalid-option'`: an option has the wrong type or an unusable value;
  * - `'unsupported-option'`: a value that is planned for a later release and not available yet,
- *   such as `scheduling.propagation: 'push-forward'`.
+ *   such as `scheduling.propagation: 'push-forward'`;
+ * - `'unknown-option'`: a warning, and only in the development build (export condition
+ *   `development`): a top-level key that is no option, ignored as it always was, with a hint when
+ *   it is a name from frappe-gantt (`bar_height` is `layout.barHeight` now). The production build
+ *   does not look for it.
  */
-export type OptionIssueCode = 'invalid-option' | 'unsupported-option';
+export type OptionIssueCode = 'invalid-option' | 'unsupported-option' | 'unknown-option';
 
 /** An {@link Issue} of the facade's options. */
 export type OptionIssue = Issue<OptionIssueCode>;
@@ -227,8 +232,9 @@ export interface CheckedOptions {
 const NO_ISSUES: readonly OptionIssue[] = /* @__PURE__ */ Object.freeze([]);
 
 /**
- * Checks an options object at the boundary, key by key; never throws. Unknown keys (renderer
- * options) are ignored. Group objects are checked for their type here, and so are the enum and
+ * Checks an options object at the boundary, key by key; never throws. Unknown keys are ignored
+ * (the renderer's options are taken out before they get here); the development build reports
+ * them as `'unknown-option'` warnings. Group objects are checked for their type here, and so are the enum and
  * boolean fields of `dates`, `scheduling`, `hierarchy` and `editing`, `interaction` and
  * `history`; the modules check the other fields (`resolveLayoutOptions`,
  * `resolveTimelineOptions`, …). An unusable field of a group is set to `undefined`, so that
@@ -253,7 +259,11 @@ export function checkOptions(input: unknown, creating: boolean): CheckedOptions 
   for (const [key, value] of Object.entries(input)) {
     const found: OptionIssue[] = [];
     const accepted = checkOption(key, value, found);
-    if (accepted === SKIP) continue;
+    if (accepted === SKIP) {
+      // The development build lists a key it does not know; set to `undefined`, it clears its issue.
+      if (DEV) issues.set(key, found.length === 0 ? NO_ISSUES : Object.freeze(found));
+      continue;
+    }
     values[key] = accepted;
     issues.set(key, found.length === 0 ? NO_ISSUES : Object.freeze(found));
   }
@@ -318,7 +328,10 @@ function checkOption(key: string, value: unknown, issues: OptionIssue[]): unknow
     case 'interaction':
       return isRecord(value) ? checkInteraction(value, issues) : checkGroup(key, value, issues);
     default:
-      if (!GROUPS.has(key)) return SKIP;
+      if (!GROUPS.has(key)) {
+        if (DEV && value !== undefined) issues.push(unknownOption(key, value));
+        return SKIP;
+      }
       return isRecord(value) ? checkFields(key, value, issues) : checkGroup(key, value, issues);
   }
 }

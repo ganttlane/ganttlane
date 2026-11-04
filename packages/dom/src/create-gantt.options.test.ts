@@ -224,7 +224,53 @@ describe('createGantt: what each part is given (FR-API-1)', () => {
     expect(frames.queued).toBe(0);
   });
 
-  it('FR-API-1: keys nobody knows are ignored, with no issue', () => {
+  it("FR-DATA-12: every option of createGantt is the core's or taken out for the renderer, none is reported as unknown", () => {
+    const frames = createManualFrames();
+    // A key missing here is a compile error, so a new option has to be listed, and then this
+    // test shows whether the core would call it unknown.
+    const everything = {
+      tasks: TASKS,
+      links: LINKS,
+      dataMode: 'uncontrolled' as const,
+      calendar: {},
+      dates: {},
+      scheduling: {},
+      hierarchy: {},
+      viewModes: {},
+      viewMode: 'day',
+      layout: { height: 300 },
+      timeline: {},
+      now: () => '2026-03-04',
+      direction: 'ltr' as const,
+      locale: 'en',
+      scroll: {},
+      editing: true,
+      selection: {},
+      interaction: {},
+      history: false,
+      theme: 'light' as const,
+      strings: {},
+      display: {},
+      highlights: [],
+      tooltip: {},
+      linkMenu: {},
+      highlightTooltip: {},
+      toolbar: false as const,
+      keyboard: {},
+      renderer: { frames },
+    } satisfies Record<Exclude<keyof GanttOptions, `on${string}`>, unknown>;
+    const gantt = createGantt(createContainer(), {
+      ...everything,
+      onIssues: () => undefined,
+      onTaskClick: () => undefined,
+      onBeforeTaskChange: () => undefined,
+    });
+
+    expect(gantt.getIssues().options).toEqual([]);
+    gantt.destroy();
+  });
+
+  it('FR-API-1: keys nobody knows are ignored; at the top level the development build warns', () => {
     const { gantt } = chart({
       nothing: 1,
       tooltip: { nothing: 2 },
@@ -232,8 +278,15 @@ describe('createGantt: what each part is given (FR-API-1)', () => {
       strings: { nothing: 'x' },
     } as never);
 
-    expect(gantt.getIssues().options).toEqual([]);
-    expect(gantt.setOptions({ alsoNothing: 1 } as never)).toEqual([]);
+    // A key inside a group is not looked at; a top-level key the core does not know is the
+    // `'unknown-option'` warning of the development build (these tests run from the sources).
+    expect(gantt.getIssues().options.map(({ code, path }) => [code, path])).toEqual([
+      ['unknown-option', 'nothing'],
+    ]);
+    expect(gantt.setOptions({ alsoNothing: 1 } as never).map(({ path }) => path)).toEqual([
+      'nothing',
+      'alsoNothing',
+    ]);
   });
 });
 
