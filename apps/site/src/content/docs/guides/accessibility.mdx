@@ -97,8 +97,9 @@ is left alone). The keys work while the focus is on a bar or on the chart's scro
 nowhere else: an `input`, a `contenteditable` or a control of a slot or a bar label keeps its own undo,
 and so does the rest of the page. They do nothing during a drag or while a change waits to be applied
 (controlled data). A key that has nothing to do, with no `history` or with nothing to undo or redo, is
-not taken from the browser (no `preventDefault`). Letters are read from the typed character, so a layout
-that types them elsewhere has its own keys. With `announce`, or `edit` with `barFocus`, the result is
+not taken from the browser (no `preventDefault`). A Latin letter is read from the typed character, so Dvorak and AZERTY follow what is
+printed; on a layout that types something else (Cyrillic, Greek) the physical Z and Y keys are used.
+Holding the key repeats it, and each repeat undoes one more step, as a text field does. With `announce`, or `edit` with `barFocus`, the result is
 said in the live region: `Undone. Design, Mar 2, 2026 – …`, `Redone. …`, or only `Undone` for a link.
 
 Screen readers that have a browse mode (NVDA and JAWS on Windows) keep the arrow keys for their own

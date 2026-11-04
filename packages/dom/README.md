@@ -1250,8 +1250,10 @@ nothing listens for the keys.
   the scroller itself is heard, so an input, a `contenteditable` or a control of a slot keeps its own
   undo; not during a drag or while a change waits to be applied. A key that has nothing to do (no
   history, nothing to undo, a stale entry) is left to the browser, with no `preventDefault`. The
-  result is said in the live region when the chart announces (`strings.undone`, `redone`). Off by
-  default.
+  result is said in the live region when the chart announces (`strings.undone`, `redone`). A Latin
+  letter is read from the typed character (Dvorak, AZERTY), any other (Cyrillic, Greek) from the
+  physical Z and Y keys. Holding the key repeats it and unwinds the history one step at a time. Off
+  by default.
 - **State.** The bar with the browser's focus is `focusTask`, whichever way it got it: a press focuses
   a bar too, with no ring. `focusTask(id)` moves the browser's focus only while a bar has it, and
   `focusTask(undefined)` takes it from the bar to the chart (a window that loses the focus does not

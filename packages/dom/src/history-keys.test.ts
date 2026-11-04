@@ -77,6 +77,48 @@ describe('keyboard.undo: Ctrl / Cmd + Z (FR-TX-5)', () => {
     gantt.destroy();
   });
 
+  it('FR-TX-5: a Cyrillic layout is read from the physical key: Z undoes, Shift + Z and Y redo', async () => {
+    const { gantt, bar } = create();
+    move(gantt);
+    await vi.advanceTimersByTimeAsync(0);
+    bar('a').focus();
+    expect(press(bar('a'), 'я', { ctrlKey: true, code: 'KeyZ' }).defaultPrevented).toBe(true);
+    expect(start(gantt, 'a')).toBe('2026-03-02');
+    expect(
+      press(bar('a'), 'Я', { ctrlKey: true, shiftKey: true, code: 'KeyZ' }).defaultPrevented,
+    ).toBe(true);
+    expect(start(gantt, 'a')).toBe('2026-03-03');
+    press(bar('a'), 'я', { metaKey: true, code: 'KeyZ' });
+    expect(start(gantt, 'a')).toBe('2026-03-02');
+    press(bar('a'), 'н', { ctrlKey: true, code: 'KeyY' });
+    expect(start(gantt, 'a')).toBe('2026-03-03');
+    gantt.destroy();
+  });
+
+  it('FR-TX-5: a Latin letter follows the print, not the physical key (Dvorak, AZERTY)', async () => {
+    const { gantt, bar } = create();
+    move(gantt);
+    await vi.advanceTimersByTimeAsync(0);
+    bar('a').focus();
+    // Dvorak: the physical KeyY types "f"; AZERTY: the physical KeyW types "z".
+    expect(press(bar('a'), 'f', { ctrlKey: true, code: 'KeyY' }).defaultPrevented).toBe(false);
+    expect(start(gantt, 'a')).toBe('2026-03-03');
+    expect(press(bar('a'), 'z', { ctrlKey: true, code: 'KeyW' }).defaultPrevented).toBe(true);
+    expect(start(gantt, 'a')).toBe('2026-03-02');
+    gantt.destroy();
+  });
+
+  it('FR-TX-5: a letter that is not Latin on a key that is not Z or Y does nothing', async () => {
+    const { gantt, bar } = create();
+    move(gantt);
+    await vi.advanceTimersByTimeAsync(0);
+    bar('a').focus();
+    expect(press(bar('a'), 'ф', { ctrlKey: true, code: 'KeyA' }).defaultPrevented).toBe(false);
+    expect(press(bar('a'), 'я', { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(start(gantt, 'a')).toBe('2026-03-03');
+    gantt.destroy();
+  });
+
   it('FR-TX-5: Cmd + Y, Alt, a plain Z and Ctrl + Shift + Y are not the keys', async () => {
     const { gantt, bar } = create();
     move(gantt);

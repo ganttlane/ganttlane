@@ -85,6 +85,40 @@ for (const renderer of RENDERERS) {
       await expect.poll(() => startOf(page, 't1')).toBe(after);
     });
 
+    test(`FR-TX-5: a Cyrillic layout undoes and redoes by the physical key (${renderer.name})`, async ({
+      page,
+    }) => {
+      await open(page, renderer, settings);
+      const before = await startOf(page, 't1');
+      await page.evaluate(() => {
+        (window as unknown as { __gantt: { focusBar(id: string): void } }).__gantt.focusBar('t1');
+      });
+      await expect(bar(page, 't1')).toBeFocused();
+      await page.keyboard.press('ArrowRight');
+      await expect.poll(() => startOf(page, 't1')).not.toBe(before);
+      const after = await startOf(page, 't1');
+      // A Ukrainian layout types "я" and "н" on the physical Z and Y keys.
+      const press = (key: string, code: string): Promise<void> =>
+        page.evaluate(
+          ([typed, physical]) => {
+            document.activeElement?.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                key: typed,
+                code: physical,
+                ctrlKey: true,
+                bubbles: true,
+                cancelable: true,
+              }),
+            );
+          },
+          [key, code] as const,
+        );
+      await press('я', 'KeyZ');
+      await expect.poll(() => startOf(page, 't1')).toBe(before);
+      await press('н', 'KeyY');
+      await expect.poll(() => startOf(page, 't1')).toBe(after);
+    });
+
     test(`FR-TX-5: with nothing to undo the key stays with the browser (${renderer.name})`, async ({
       page,
     }) => {
