@@ -1,7 +1,7 @@
 /**
  * Entry of the two `<script>` builds (`dist/ganttlane.global.js` and `dist/ganttlane.global.prod.js`,
- * see `tsdown.global.config.ts` at the repository root): everything `@ganttlane/dom` exports, its facade, the task list and the
- * converter of frappe-gantt options, in one namespace. The bundler wraps it in an IIFE that assigns
+ * built by `tsdown.global.config.ts` at the repository root): everything `@ganttlane/dom` exports,
+ * its facade, the task list and the converter of frappe-gantt options, in one namespace. The bundler wraps it in an IIFE that assigns
  * the namespace to `Ganttlane`; this module itself touches no global.
  */
 export { createChart } from './facade';

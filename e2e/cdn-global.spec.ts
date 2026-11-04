@@ -19,7 +19,7 @@ import {
  * NFR-PKG-2: the files for a plain `<script src>` and `<link>`, no bundler, no module loader. The
  * page is static HTML served by a server of its own (random port): the two bundles are built into
  * a temporary directory by the same configuration as the tarball's (`tsdown.global.config.ts`), so the
- * test needs neither a build of the packages nor the playground. Each file gets the same page: it
+ * test needs no build of the packages (Playwright still starts the playground server). Each file gets the same page: it
  * draws bars with the global, drags one and reads the task back.
  */
 interface Chart {
@@ -134,14 +134,15 @@ for (const [file, route, development] of [
     const track = tab.locator('.gantt__bar[data-task-id="a"] .gantt__bar-track');
     // The chart scrolls to `now` and re-measures after the first frames: drag a bar that stays put.
     let box = await track.boundingBox();
+    let still = 0;
     await expect
       .poll(async () => {
         const next = await track.boundingBox();
-        const still = JSON.stringify(next) === JSON.stringify(box);
+        still = JSON.stringify(next) === JSON.stringify(box) ? still + 1 : 0;
         box = next;
         return still;
       })
-      .toBe(true);
+      .toBeGreaterThanOrEqual(3);
     if (box === null) throw new Error('the bar has no box');
     const x = Math.round(box.x + box.width / 2);
     const y = Math.round(box.y + box.height / 2);

@@ -43,7 +43,7 @@ function packedFiles(dir) {
 
 /**
  * Files a package must ship although no `exports` entry names them: the builds for a `<script>`
- * and `<link>` tag of `@ganttlane/dom` (`packages/dom/global.config.ts`) and the licences of the
+ * and `<link>` tag of `@ganttlane/dom` (`tsdown.global.config.ts`) and the licences of the
  * code they inline. The `jsdelivr` and `unpkg` fields must point at the production script.
  */
 const SHIPPED_OUTSIDE_EXPORTS = {

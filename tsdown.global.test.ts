@@ -114,6 +114,20 @@ describe('the companions', () => {
     expect(text).toContain('Apache License');
     expect(text).toContain('valibot');
     expect(text).toContain('Fabian Hiller');
+    expect(text).toContain('Copyright 2019 Adobe');
+  });
+
+  it('NFR-PKG-2: the short CDN URLs of the package give the minified script', () => {
+    const manifest = JSON.parse(
+      readFileSync(join(import.meta.dirname, 'packages/dom/package.json'), 'utf8'),
+    ) as { jsdelivr?: string; unpkg?: string; exports: object };
+    expect(manifest.jsdelivr).toBe(`./dist/${PRODUCTION_FILE}`);
+    expect(manifest.unpkg).toBe(`./dist/${PRODUCTION_FILE}`);
+    // The files stay out of `exports`, so a bundler never picks them up.
+    const exported = JSON.stringify(manifest.exports);
+    for (const file of [DEVELOPMENT_FILE, PRODUCTION_FILE, STYLESHEET_FILE, LICENSES_FILE]) {
+      expect(exported).not.toContain(file);
+    }
   });
 
   it('NFR-PKG-2: the minified stylesheet is the same CSS, smaller', () => {

@@ -111,9 +111,8 @@ from 1.0) takes fixes and never a breaking change.
 - The files are not in `exports`: a bundler never picks them up, and `import '@ganttlane/dom'` is
   unchanged. If you have a bundler, use the package: the script is about 270 kB (90 kB gzipped)
   because it holds the whole library with its calendar, where frappe-gantt's file is 25.6 kB.
-- To load the package as a module instead, `import { createGantt } from
-'https://cdn.jsdelivr.net/npm/@ganttlane/dom@VERSION/+esm'` (or `https://esm.sh/@ganttlane/dom@VERSION`)
-  in a `<script type="module">`.
+- To load the package as a module instead, import it in a `<script type="module">` from
+  `https://cdn.jsdelivr.net/npm/@ganttlane/dom@VERSION/+esm` (or `https://esm.sh/@ganttlane/dom@VERSION`).
 - For a page that must not change, name the exact version and add `integrity="sha384-…"` and
   `crossorigin="anonymous"` to the tags; SRI cannot be used with a range. Compute the hash from the
   file the CDN serves:
