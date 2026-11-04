@@ -102,6 +102,16 @@ export interface DisplayOptions<TData = unknown> {
    */
   readonly barFocus?: boolean | undefined;
   /**
+   * Whether the arrow keys edit the bar that has the focus (`bar focus` on). Default `false`.
+   * `createGantt` takes it as `keyboard.edit`.
+   */
+  readonly keyEdit?: boolean | undefined;
+  /**
+   * Whether the chart says what happens in a live region. Default `false`; keyboard editing says it
+   * whatever this is. `createGantt` takes it as `keyboard.announce`.
+   */
+  readonly announce?: boolean | undefined;
+  /**
    * Whether a click on a bar selects it, so that a bar can say it is pressed. Default `false`.
    * `createGantt` takes it from `selection.onClick`.
    */
@@ -144,7 +154,7 @@ export type GroupKey = 'tooltip' | 'linkMenu' | 'highlightTooltip';
 /** The display options that are plain values, which `createGantt` takes under `display`. */
 export type PlainDisplayKey = Exclude<
   keyof DisplayOptions,
-  GroupKey | 'highlightDays' | 'barFocus' | 'clickSelects' | 'multiSelect'
+  GroupKey | 'highlightDays' | 'barFocus' | 'keyEdit' | 'announce' | 'clickSelects' | 'multiSelect'
 >;
 
 /** {@link DisplayOptions} with every default applied. Frozen. */
@@ -157,6 +167,8 @@ export interface ResolvedDisplay {
   readonly rowStripes: RowStripesOption;
   readonly rowHover: boolean;
   readonly barFocus: boolean;
+  readonly keyEdit: boolean;
+  readonly announce: boolean;
   readonly clickSelects: boolean;
   readonly multiSelect: boolean;
   readonly barLabel: BarLabelOption;
@@ -180,6 +192,8 @@ export const DISPLAY_DEFAULTS: ResolvedDisplay = Object.freeze({
   rowStripes: false,
   rowHover: false,
   barFocus: false,
+  keyEdit: false,
+  announce: false,
   clickSelects: false,
   multiSelect: false,
   barLabel: 'auto',
@@ -254,6 +268,8 @@ export const GROUP_RULES: Readonly<Record<GroupKey, Readonly<Record<string, Rule
 const ALL_RULES: { readonly [K in keyof ResolvedDisplay]: Rule } = {
   ...DISPLAY_RULES,
   barFocus: flag(D.barFocus),
+  keyEdit: flag(D.keyEdit),
+  announce: flag(D.announce),
   clickSelects: flag(D.clickSelects),
   multiSelect: flag(D.multiSelect),
   highlightDays: [Array.isArray],

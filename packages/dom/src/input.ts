@@ -305,6 +305,24 @@ export function mountInput(options: InputOptions): Dispose {
     // elsewhere, are over when the window loses focus.
     listen(view, 'blur', abandon, { signal });
   }
+  // A context menu opens on the press (Ctrl + click on macOS, or a long press): the browser then
+  // sends the page no release, and a gesture that goes on would drag the bar with the button up
+  // once the menu closes.
+  listen(
+    scroller,
+    'contextmenu',
+    () => {
+      if (captured !== undefined) {
+        try {
+          scroller.releasePointerCapture(captured);
+        } catch {
+          // The pointer is gone already.
+        }
+      }
+      abandon();
+    },
+    { signal },
+  );
   // A press elsewhere on the page ends an armed link (not a drag, whose pointer is held).
   listen(
     ownerDocument,

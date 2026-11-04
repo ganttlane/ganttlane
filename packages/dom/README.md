@@ -243,8 +243,9 @@ drag, resize, progress change or link drawing) or by kind (`{ move, resize, prog
 `selection` is what a click does to the selected tasks: `onClick` selects the bar that is clicked,
 `clearOnEmptyClick` clears them on a click on an empty part of the chart, and `multiple` makes Ctrl
 or Cmd + click add the task or take it out. All are off by default.
-`keyboard.barFocus` lets bars take the keyboard focus (see [Keyboard focus](#keyboard-focus-on-the-bars)),
-and is off by default too.
+`keyboard.barFocus` lets bars take the keyboard focus, `keyboard.edit` lets the arrow keys move and
+resize the bar that has it, and `keyboard.announce` says selection changes in a live region (see
+[Keyboard focus](#keyboard-focus-on-the-bars)); all three are off by default too.
 
 Defaults: `locale` is `'en'`, not the browser's, so that a server and a browser draw the same text;
 `theme` is `'auto'`; `scroll.initial` is `'today'`; `timeline.infinite` is off. Keys nobody knows are
@@ -403,6 +404,7 @@ behind.
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Data         | `setTasks(tasks)`, `setLinks(links)`                                                                                                                                            | nothing                                                                                                                                                                                                             |
 |              | `updateTask(id, { start?, end?, progress? })`                                                                                                                                   | a promise of `{ status }`: `'committed'` (with `changeSet`), `'unchanged'`, `'rejected'` (`reason` `'unknown-task'` or `'invalid-value'`), `'cancelled'` (`reason` `'hook'`, `'error'` or `'disposed'`) or `'busy'` |
+|              | `nudge(id, gesture, direction)`                                                                                                                                                 | a promise of the commit's result, or `{ status: 'refused', reason }`: one snap step of `'move'`, `'resize-start'` or `'resize-end'`, `-1` or `1`, what an arrow key does                                            |
 |              | `addLink(link)`, `removeLink(id)`                                                                                                                                               | a promise of `{ status: 'created' \| 'deleted' }`, `{ status: 'rejected', reason }`, `{ status: 'cancelled', reason: 'hook' \| 'error' \| 'disposed' }` or `{ status: 'busy' }`                                     |
 | Options      | `setOptions(patch)`                                                                                                                                                             | the issues of the options now in use                                                                                                                                                                                |
 | View         | `setViewMode(id, { keepScroll })`, `zoomTo(pxPerDay, { anchor })`                                                                                                               | nothing                                                                                                                                                                                                             |
@@ -829,16 +831,19 @@ const uk: GanttStringsInput = {
 createGantt(container, { tasks, locale: 'uk', strings: uk });
 ```
 
-| Key                                                                        | Default                                     | Used for                                                  |
-| -------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------- |
-| `chartLabel`                                                               | `Gantt chart`                               | The `aria-label` of the chart's focusable region          |
-| `progress(percent, locale)`                                                | `60% done`                                  | The progress line of the task tooltip (whole percent)     |
-| `workingDays(days, locale)`                                                | `1 working day`, `2.5 working days`         | The length line of the task tooltip (days to one decimal) |
-| `dateRange(from, to, locale)`                                              | `Mar 2, 2026 – Mar 6, 2026`                 | The dates line of a task of more than one moment          |
-| `linkTitle(source, target, locale)`                                        | `Design → Build`                            | The title of the link menu                                |
-| `removeLink`                                                               | `Remove dependency`                         | The action of the link menu                               |
-| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `Today`, `Zoom in`, `Zoom out`, `View mode` | The toolbar (reserved: nothing draws them yet)            |
-| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `Hour`, `Quarter day`, … `Year`             | The view mode switcher's items (reserved)                 |
+| Key                                                                        | Default                                         | Used for                                                      |
+| -------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| `chartLabel`                                                               | `Gantt chart`                                   | The `aria-label` of the chart's focusable region              |
+| `progress(percent, locale)`                                                | `60% done`                                      | The progress line of the task tooltip (whole percent)         |
+| `workingDays(days, locale)`                                                | `1 working day`, `2.5 working days`             | The length line of the task tooltip (days to one decimal)     |
+| `dateRange(from, to, locale)`                                              | `Mar 2, 2026 – Mar 6, 2026`                     | The dates line of a task of more than one moment              |
+| `linkTitle(source, target, locale)`                                        | `Design → Build`                                | The title of the link menu                                    |
+| `removeLink`                                                               | `Remove dependency`                             | The action of the link menu                                   |
+| `taskChanged(summary, others, locale)`                                     | `Design, Mar 3, 2026 – …; 1 other task changed` | What is said after a keyboard change (`keyboard.edit`)        |
+| `notChanged(name, locale)`                                                 | `Design was not changed`                        | What is said when a keyboard change left the task as it was   |
+| `selection(count, name, locale)`                                           | `Design selected`, `3 tasks selected`           | What is said when the selection changes (`keyboard.announce`) |
+| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `Today`, `Zoom in`, `Zoom out`, `View mode`     | The toolbar (reserved: nothing draws them yet)                |
+| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `Hour`, `Quarter day`, … `Year`                 | The view mode switcher's items (reserved)                     |
 
 - A string that puts a number or a name into a sentence is a **function** of the value and the
   chart's locale; the others are plain strings. Strings are inserted as text, never as markup.
@@ -1071,6 +1076,7 @@ div.gantt[data-theme][data-height]
           circle.gantt__link-handle[data-side]
       g.gantt__overlay
         path.gantt__link-preview[data-valid]
+  div.gantt__live[role=status]                    (only with keyboard.announce or keyboard.edit)
   div.gantt__layer
     div.gantt__popover[data-kind][data-placement][data-interactive][role=tooltip|menu]
       div.gantt__popover-title
@@ -1204,20 +1210,37 @@ How the chart reacts to the pointer, the scroll and the size of its container.
 
 `keyboard: { barFocus: true }` gives the bars a roving tabindex: one tab stop for all of them (the
 focused bar, else the one that last was if it is still drawn, else the first drawn). A bar then has
-`role="button"`, its task's name as `aria-label` (its id, if it has no name) and, where
-`selection.onClick` makes a click select it, `aria-pressed`. `.gantt__bar:focus-visible` draws the ring
-as an outline on the track, from the keyboard only, so the stroke of a selected, invalid or
-conflicting bar stays visible. Off by default, and then a bar has none of these and nothing listens
-for the keys.
+`role="button"`, a name that describes the task in one line (its name, its dates, its progress and
+its working days, as the tooltip does, in the chart's `locale` and `strings`; its id, if it has no
+name) and, where `selection.onClick` makes a click select it, `aria-pressed`. `.gantt__bar:focus-visible`
+draws the ring as an outline on the track, from the keyboard only, so the stroke of a selected,
+invalid or conflicting bar stays visible. Off by default, and then a bar has none of these and
+nothing listens for the keys.
 
 - **Keys,** on the bar and only while no gesture runs: Up and Down go to the bar of the row above and
   below (a row without one is skipped), Home and End to the first and last, Page Up and Page Down a
   page of rows. Enter and Space are a click: `taskClick` and `selection.onClick` follow, and Ctrl or
-  Cmd toggles with `selection.multiple`. Left and Right stay the scroller's.
+  Cmd toggles with `selection.multiple`. Left and Right stay the scroller's, unless `keyboard.edit` is on.
+- **Editing.** With `keyboard: { barFocus: true, edit: true }` Left and Right move the task one snap
+  step earlier and later, Shift with them moves its end, and Alt and Shift its start (Ctrl, Cmd and
+  Alt alone belong to the browser and the system). Each press is a whole change, what `nudge` does:
+  the snap step of the gesture (`scheduling.snap`, else the view mode's, else the data step), skipped
+  non-working days, the minimum length, the propagation to links and children, the before-hooks and
+  the permissions of a drag; `onTasksChange` hears it with the reason `move`, `resize-start` or
+  `resize-end`. A task that cannot be edited that way does not take the key, and the chart scrolls
+  as it did. Off by default.
+- **Announcements.** `keyboard.edit` and `keyboard.announce` add `div.gantt__live` (`role="status"`)
+  to the chart. After a keyboard change it says the task with its new dates, progress and working
+  days and how many other tasks the change moved, or that the task was not changed (cancelled by a
+  hook, or at its minimum length). With `keyboard.announce` it also says when the selection changes
+  other than by a press on a bar that says it is pressed (`select()`, a task list), so a selection
+  that a click does not make is not silent. The words are `strings.taskChanged`, `notChanged` and
+  `selection`.
 - **State.** The bar with the browser's focus is `focusTask`, whichever way it got it: a press focuses
   a bar too, with no ring. `focusTask(id)` moves the browser's focus only while a bar has it, and
-  `focusTask(undefined)` does not take it away, so that bar is the focused task again at the next
-  draw. `focusBar(id)` moves it from anywhere and scrolls to the bar.
+  `focusTask(undefined)` takes it from the bar to the chart (a window that loses the focus does not
+  count: it keeps the bar as the place to return to). `focusBar(id)` moves it from anywhere and
+  scrolls to the bar.
 - **A bar that leaves.** The focused bar stays in the document when it scrolls out of the window, and
   keeps the focus when rows are sorted. One that goes away with its row hands the focus to the tab
   stop.
@@ -1488,14 +1511,17 @@ What the chart does today:
   `'auto'`).
 
 The [task list](#task-list) is a `role="treegrid"` that the keyboard walks, with a focusable
-splitter, and it is the way to give keyboard users the plan today.
+splitter, and it is the way to give keyboard users the plan as a table. Beside the chart, switch on
+`keyboard.barFocus`, `keyboard.edit` and `keyboard.announce`, and the bars are a second way in: each
+is a button named with its dates, the arrow keys move and resize it, and a live region says what
+happened. The chart has no grid roles of its own: the list is the grid.
 
-What it does not do yet (planned for 1.0): bars, links and handles are not focusable and have no
-roles, so a screen reader reads the chart as an unlabelled graphic apart from its region and its
-tooltips; dragging has no keyboard equivalent (move and resize with arrow keys); changes are not
-announced; the contrast of the default themes has not been audited against WCAG AA. If your users
-rely on assistive technology, give them the same plan as a table or a list next to the chart (the
-task list is one), and let them edit it there.
+What it does not do: links and the handles of a bar are not focusable (the arrow keys on the bar
+resize it instead), there is no keyboard way to draw a link or to change the progress, and the
+tooltip does not open on focus. The contrast of the default themes is pinned by a test (WCAG AA for
+text, 3:1 for bars, links, the focus ring and states). If your users rely on assistive technology,
+give them the same plan as a table or a list next to the chart (the task list is one), and let them
+edit it there.
 
 ## Browser support
 

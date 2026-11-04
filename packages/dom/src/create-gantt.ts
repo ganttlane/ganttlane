@@ -94,6 +94,11 @@ export interface Gantt<TData = unknown> {
    * and passed through `onBeforeTaskChange`. See `GanttCore.updateTask`.
    */
   readonly updateTask: GanttCore<TData>['updateTask'];
+  /**
+   * Moves a task, or one of its edges, by one snap step, as an arrow key does with
+   * `keyboard.edit` (reason `'move'`, `'resize-start'` or `'resize-end'`). See `GanttCore.nudge`.
+   */
+  readonly nudge: GanttCore<TData>['nudge'];
   /** Creates a link through `onBeforeLinkCreate`. */
   readonly addLink: GanttCore<TData>['addLink'];
   /** Deletes a link by id. */
@@ -269,6 +274,7 @@ const SAME = [
   'setTasks',
   'setLinks',
   'updateTask',
+  'nudge',
   'addLink',
   'removeLink',
   'expand',

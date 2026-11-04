@@ -1,14 +1,12 @@
 import type {
   CalendarDay,
-  DateTimeMs,
   DayKey,
   GanttSnapshot,
   LinkRecord,
   TaskId,
-  TaskPatch,
   TaskRecord,
 } from '@ganttlane/core';
-import { fromDayKey, toDate, toDayKey } from '@ganttlane/core';
+import { fromDayKey, toDayKey } from '@ganttlane/core';
 
 import {
   intersectRects,
@@ -21,20 +19,17 @@ import {
   type Size,
   viewportRect,
 } from '../../dom-utils';
-import { createHtml, disposableOf, px, setAttr, setCssVars } from '../../shared';
+import { createHtml, disposableOf, previewOf, px, setAttr, setCssVars } from '../../shared';
 import type { LayerContext, LayerSlots, RendererLayer } from '../types';
 import { fillContent, isEmptyContent } from './content';
 import { defaultTaskContent } from './task-content';
 import type {
   LinkMenuContext,
-  TaskPreview,
   TaskTooltipContext,
   TooltipAction,
   TooltipApi,
   TooltipContent,
 } from './types';
-
-const DAY = 86_400_000;
 
 type Kind = 'task' | 'link' | 'day';
 
@@ -398,20 +393,6 @@ function createInstance(ctx: LayerContext<LayerSlots['popover']>): Instance {
   };
 
   // ---- task tooltips ----
-
-  /** The dates, lengths and progress a dragged task would have if it were dropped now. */
-  const previewOf = (snap: GanttSnapshot, task: TaskRecord, patch: TaskPatch): TaskPreview => {
-    const { calendar, endInclusive } = snap.state.derived.model.options;
-    const ms = patch.endExclusive - patch.start;
-    const inclusive = (patch.precision ?? task.precision) === 'day' && endInclusive && ms > 0;
-    return {
-      start: toDate(patch.start),
-      end: toDate((patch.endExclusive - (inclusive ? DAY : 0)) as DateTimeMs),
-      endExclusive: toDate(patch.endExclusive),
-      progress: patch.progress,
-      workingDays: calendar.countWorkingTime(patch.start, patch.endExclusive) / DAY,
-    };
-  };
 
   const taskContext = (snap: GanttSnapshot, task: TaskRecord): TaskTooltipContext => {
     const { feedback } = snap;

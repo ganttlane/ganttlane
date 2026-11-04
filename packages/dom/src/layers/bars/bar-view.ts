@@ -9,11 +9,21 @@ import {
   type ResolvedEditing,
   type ResolvedHandles,
   resolvePermissions,
+  type TaskId,
   type TaskModel,
   type TaskPermissions,
+  type TaskRecord,
 } from '@ganttlane/core';
 
-import { createHtml, createSvg, setAttrs, setCssVar, withClass } from '../../shared';
+import {
+  createHtml,
+  createSvg,
+  setAttrs,
+  setCssVar,
+  type SummaryStrings,
+  taskSummary,
+  withClass,
+} from '../../shared';
 import type { ResolvedDisplay } from '../types';
 import { type LabelContent, resolveLabel } from './label';
 
@@ -53,6 +63,11 @@ export interface BarEnv {
   labelOptions: LabelOptions;
   /** Text width in px. */
   readonly measure: (text: string) => number;
+  /** The task's record, for the name of a bar that takes the focus. */
+  readonly getTask: (id: TaskId) => TaskRecord | undefined;
+  /** The strings and the locale that name a bar; the layer updates them with the epoch. */
+  strings: SummaryStrings;
+  locale: string;
   /** Grows when anything a view reads but does not get with its item changed. */
   epoch: number;
   /** Errors of user callbacks, thrown by the layer once the whole sync is done. */
@@ -144,6 +159,10 @@ export interface BarView {
   wrapper: HTMLDivElement | undefined;
   /** The inputs of the last draw: a view is skipped while they are all the same. */
   drawn: { readonly item: BarItem; readonly epoch: number } | undefined;
+  /** The accessible name made last, with what it was made of. */
+  name:
+    | { readonly model: TaskModel; readonly progress: number; readonly epoch: number; text: string }
+    | undefined;
 }
 
 /**
@@ -161,6 +180,7 @@ export function createBarView(document: Document): BarView {
     shown: undefined,
     wrapper: undefined,
     drawn: undefined,
+    name: undefined,
   };
 }
 
@@ -352,6 +372,31 @@ function drawHandles(view: BarView, env: BarEnv, bar: BarGeometry, can: TaskPerm
 }
 
 /**
+ * The name of a bar that takes the focus: the task described in one line (name, dates, progress and
+ * working days). It is made again when the task, its progress or what it is made of changes, and
+ * not while the bar is dragged: a screen reader user does not drag, and the dates are those of the
+ * model until the change is committed.
+ */
+function nameOf(view: BarView, item: BarItem, env: BarEnv): string {
+  const last = view.name;
+  const live = (item.flags & (BAR_FLAGS.dragging | BAR_FLAGS.resizing)) !== 0;
+  if (
+    last !== undefined &&
+    (live ||
+      (last.model === item.model && last.progress === item.progress && last.epoch === env.epoch))
+  ) {
+    return last.text;
+  }
+  const task = env.getTask(item.bar.id);
+  const text =
+    task === undefined
+      ? String(item.bar.id)
+      : taskSummary(task, env.locale, env.strings, item.progress);
+  view.name = { model: item.model, progress: item.progress, epoch: env.epoch, text };
+  return text;
+}
+
+/**
  * Brings a bar's view in line with its item: attributes go
  * through `setAttrs`, so only what changed is written, and nothing at all when the item is the
  * one drawn last. Reads no layout.
@@ -392,7 +437,7 @@ export function updateBarView(view: BarView, item: BarItem, env: BarEnv): void {
     // click on it selects.
     tabindex: barFocus && ((flags & BAR_FLAGS.tabStop) !== 0 ? 0 : -1),
     role: barFocus && 'button',
-    'aria-label': barFocus && (model.name === '' ? String(bar.id) : model.name),
+    'aria-label': barFocus && nameOf(view, item, env),
     'aria-pressed': barFocus && clickSelects && String((flags & BAR_FLAGS.selected) !== 0),
   });
   setCssVar(

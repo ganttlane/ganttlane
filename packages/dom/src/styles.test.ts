@@ -243,6 +243,7 @@ const CONTRACT_CLASSES = [
   'gantt__popover-details',
   'gantt__popover-actions',
   'gantt__popover-action',
+  'gantt__live',
   'gantt__row-hover',
   'gantt-scope',
   'gantt-task-list',
@@ -788,6 +789,73 @@ describe('styles.css: themes', () => {
       property: 'fill-opacity',
       value: 'var(--gantt-bar-progress-shade)',
     });
+  });
+});
+
+describe('styles.css: contrast (FR-A11Y-3)', () => {
+  /** WCAG relative luminance of a `#rgb` or `#rrggbb` token; anything else fails the test. */
+  const luminance = (token: string, tokens: ReadonlyMap<string, string>): number => {
+    const value = tokens.get(token) ?? '';
+    const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(value);
+    if (match === null) throw new Error(`${token} is ${value}: a solid hex colour is expected`);
+    const digits = match[1] ?? '';
+    const hex = digits.length === 3 ? digits.replaceAll(/./g, (c) => c + c) : digits;
+    const [red = 0, green = 0, blue = 0] = [0, 2, 4].map((at) => {
+      const channel = Number.parseInt(hex.slice(at, at + 2), 16) / 255;
+      return channel <= 0.039_28 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  };
+  const ratio = (a: string, b: string, tokens: ReadonlyMap<string, string>): number => {
+    const [high = 0, low = 0] = [luminance(a, tokens), luminance(b, tokens)].sort((x, y) => y - x);
+    return (high + 0.05) / (low + 0.05);
+  };
+  /** Text that has to reach 4.5:1 (WCAG 1.4.3), and what is drawn to be seen, 3:1 (1.4.11). */
+  const TEXT: readonly (readonly [string, string])[] = [
+    ['--gantt-foreground-color', '--gantt-background-color'],
+    ['--gantt-header-text-color', '--gantt-header-background-color'],
+    ['--gantt-bar-label-color', '--gantt-bar-color'],
+    ['--gantt-bar-label-outside-color', '--gantt-background-color'],
+    ['--gantt-popover-foreground-color', '--gantt-popover-background-color'],
+  ];
+  const GRAPHICS: readonly (readonly [string, string])[] = [
+    ['--gantt-bar-color', '--gantt-background-color'],
+    ['--gantt-link-color', '--gantt-background-color'],
+    ['--gantt-focus-ring-color', '--gantt-background-color'],
+    ['--gantt-bar-selected-color', '--gantt-background-color'],
+    ['--gantt-bar-invalid-color', '--gantt-background-color'],
+    ['--gantt-bar-conflict-color', '--gantt-background-color'],
+  ];
+
+  for (const [theme, tokens] of [
+    ['light', lightTokens],
+    ['dark', darkTokens],
+  ] as const) {
+    it(`FR-A11Y-3: the ${theme} theme's text reaches 4.5:1`, () => {
+      for (const [foreground, background] of TEXT) {
+        expect(
+          ratio(foreground, background, tokens),
+          `${foreground} on ${background}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it(`FR-A11Y-3: the ${theme} theme's bars, links, focus ring and states reach 3:1`, () => {
+      for (const [foreground, background] of GRAPHICS) {
+        expect(
+          ratio(foreground, background, tokens),
+          `${foreground} on ${background}`,
+        ).toBeGreaterThanOrEqual(3);
+      }
+    });
+  }
+
+  it('FR-A11Y-3: the focus ring is two pixels wide in every theme, and the motion test covers prefers-reduced-motion', () => {
+    for (const tokens of [lightTokens, darkTokens]) {
+      expect(
+        tokens.get('--gantt-focus-ring-width') ?? lightTokens.get('--gantt-focus-ring-width'),
+      ).toBe('2px');
+    }
   });
 });
 

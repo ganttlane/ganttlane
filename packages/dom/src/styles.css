@@ -724,6 +724,16 @@
     stroke: var(--gantt-link-selected-color);
   }
 
+  /* Read by screen readers (`keyboard.announce`, `keyboard.edit`), not seen. */
+  .gantt__live {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   /* FOCUS (bars with `keyboard.barFocus`; links and handles are not focusable yet). */
   .gantt__scroller:focus-visible {
     outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
@@ -918,6 +928,11 @@
   }
 
   .gantt-task-list__row:focus-visible {
+    outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
+    outline-offset: calc(var(--gantt-focus-ring-width) * -1);
+  }
+
+  .gantt-task-list__cell:focus-visible {
     outline: var(--gantt-focus-ring-width) solid var(--gantt-focus-ring-color);
     outline-offset: calc(var(--gantt-focus-ring-width) * -1);
   }

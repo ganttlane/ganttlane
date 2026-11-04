@@ -1,8 +1,6 @@
+import { taskTexts } from '../../shared';
 import type { GanttStrings } from '../types';
 import type { TaskTooltipContext, TooltipSections } from './types';
-
-const DATE: Intl.DateTimeFormatOptions = { dateStyle: 'medium' };
-const DATE_TIME: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' };
 
 /**
  * The tooltip a task gets when `tooltip.render` is not set: its name, its dates
@@ -20,21 +18,5 @@ export function defaultTaskContent(
   context: TaskTooltipContext,
   strings: GanttStrings,
 ): TooltipSections {
-  const { task, preview, locale } = context;
-  const shown = preview ?? task;
-  const { start, end } = shown;
-  if (start === undefined || end === undefined) return { title: task.name };
-  const options = task.precision === 'time' ? DATE_TIME : DATE;
-  // English where the runtime does not have the locale: `Intl` would use its own for 'xx'.
-  const from = start.toLocaleString([locale, 'en'], options);
-  const to = end.toLocaleString([locale, 'en'], options);
-  const days = preview ? preview.workingDays : (task.duration?.workingDays ?? 0);
-  const milestone = task.type === 'milestone';
-  return {
-    title: task.name,
-    subtitle: milestone || from === to ? from : strings.dateRange(from, to, locale),
-    details: milestone
-      ? undefined
-      : `${strings.progress(Math.round(shown.progress), locale)} · ${strings.workingDays(Math.round(days * 10) / 10, locale)}`,
-  };
+  return taskTexts(context.task, context.preview, context.locale, strings);
 }

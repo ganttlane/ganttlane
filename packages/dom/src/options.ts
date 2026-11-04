@@ -44,6 +44,20 @@ export interface KeyboardOptions {
    * then bars cannot be focused.
    */
   readonly barFocus?: boolean | undefined;
+  /**
+   * The arrow keys edit the bar that has the focus (needs `barFocus`): Left and Right move the task
+   * one snap step earlier and later, Shift with them moves its end, Alt and Shift its start. Each
+   * press is a whole change, with the permissions, the before-hooks and the propagation of the
+   * same drag, and the result is said in a live region. A task that cannot be edited that way does
+   * not take the key, and Left and Right scroll the chart. Default `false`.
+   */
+  readonly edit?: boolean | undefined;
+  /**
+   * The chart says in a live region (`role="status"`) when the selection changes other than by a
+   * press on the bar that has the focus. Default `false`; `edit` says what it changes whatever this
+   * is.
+   */
+  readonly announce?: boolean | undefined;
 }
 
 /**
@@ -195,6 +209,8 @@ export const MERGED_OPTION_GROUPS: ReadonlySet<string> = new Set([
 /** The display options that are lifted to the top level, and so are not read from `display`. */
 const LIFTED: ReadonlySet<string> = new Set([
   'barFocus',
+  'keyEdit',
+  'announce',
   'clickSelects',
   'multiSelect',
   'highlightDays',
@@ -206,6 +222,8 @@ const LIFTED: ReadonlySet<string> = new Set([
 /** The fields of groups that the renderer draws by: the group, the field, the display option. */
 const BORROWED = [
   ['keyboard', 'barFocus', 'barFocus'],
+  ['keyboard', 'edit', 'keyEdit'],
+  ['keyboard', 'announce', 'announce'],
   ['selection', 'onClick', 'clickSelects'],
   ['selection', 'multiple', 'multiSelect'],
 ] as const;
@@ -411,7 +429,7 @@ const HEIGHT: Rule = [(value) => resolveHeight(value) === value];
 const GROUPS: Readonly<Record<string, Readonly<Record<string, Rule>>>> = {
   display: DISPLAY_RULES,
   strings: STRING_RULES,
-  keyboard: { barFocus: flag(false) },
+  keyboard: { barFocus: flag(false), edit: flag(false), announce: flag(false) },
   ...GROUP_RULES,
 };
 

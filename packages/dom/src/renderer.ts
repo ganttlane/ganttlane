@@ -1,5 +1,6 @@
 import type { GanttCore, GanttSnapshot, TaskId } from '@ganttlane/core';
 
+import { mountAnnouncer } from './announce';
 import { mountBarFocus } from './bar-focus';
 import { assertContainer } from './container';
 import { type DisplayOptions, type ResolvedDisplay, resolveDisplay } from './display';
@@ -55,6 +56,7 @@ export type RendererCore = Pick<
   | 'focusTask'
   | 'scrollToTask'
   | 'getLayoutMetrics'
+  | 'nudge'
 >;
 
 /**
@@ -336,12 +338,22 @@ export function mountRenderer<TCore extends RendererCore>(
     };
     for (const name of LAYER_ORDER) mountLayer(name);
 
+    const announcer = mountAnnouncer({
+      core,
+      root: skeleton.root,
+      signal: abort.signal,
+      enabled: () => display.announce || display.keyEdit,
+      strings: () => strings,
+      pressed: () => display.barFocus && display.clickSelects,
+    });
     const barFocus = mountBarFocus({
       core,
       scroller: skeleton.scroller,
       signal: abort.signal,
       enabled: () => display.barFocus,
       flush: scheduler.flush,
+      edit: () => display.keyEdit,
+      announcer,
     });
     disposables.add(barFocus.dispose);
     focusBar = barFocus.focus;
@@ -398,6 +410,7 @@ export function mountRenderer<TCore extends RendererCore>(
           }
         }
       });
+      announcer.sync();
       throwCollected(errors, 'Several layers failed to update');
     };
 

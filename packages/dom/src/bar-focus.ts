@@ -1,5 +1,12 @@
-import type { GanttCore, ScrollToTaskOptions, TaskId } from '@ganttlane/core';
+import {
+  type GanttCore,
+  type NudgeGesture,
+  resolvePermissions,
+  type ScrollToTaskOptions,
+  type TaskId,
+} from '@ganttlane/core';
 
+import type { Announcer } from './announce';
 import { type Dispose, listen } from './dom-utils';
 import { modifiersOf } from './dom-utils/pointer';
 import { taskIdIn } from './input';
@@ -7,7 +14,7 @@ import { taskIdIn } from './input';
 /** What the bars' focus needs from a core. Every `GanttCore` has it. */
 export type BarFocusCore = Pick<
   GanttCore,
-  'getSnapshot' | 'send' | 'focusTask' | 'scrollToTask' | 'getLayoutMetrics'
+  'getSnapshot' | 'send' | 'focusTask' | 'scrollToTask' | 'getLayoutMetrics' | 'nudge' | 'on'
 >;
 
 /** Options of {@link mountBarFocus}. */
@@ -22,6 +29,10 @@ export interface BarFocusOptions {
   readonly enabled: () => boolean;
   /** Draws what the core has now. */
   readonly flush: () => void;
+  /** Whether the arrow keys edit a bar now (`keyboard.edit`). */
+  readonly edit: () => boolean;
+  /** Says what became of a keyboard change. */
+  readonly announcer: Announcer;
 }
 
 /** The bars' focus of one renderer, see {@link mountBarFocus}. */
@@ -82,13 +93,15 @@ const NEAREST: ScrollToTaskOptions = {
  * @returns What the renderer calls.
  */
 export function mountBarFocus(options: BarFocusOptions): BarFocus {
-  const { core, scroller, signal, enabled, flush } = options;
+  const { core, scroller, signal, enabled, flush, edit, announcer } = options;
   const taskId = taskIdIn(core);
   /** Whether a bar had the browser's focus when last looked at. */
   let held = false;
   let armed = false;
   /** Whether the layers are drawing: a bar that loses the focus now is being moved or removed. */
   let drawing = false;
+  /** Whether the task was told to let go of the focus while a bar had it. */
+  let letGo = false;
 
   const activeElement = (): Element | null | undefined =>
     (scroller.getRootNode() as Partial<DocumentOrShadowRoot>).activeElement;
@@ -114,6 +127,14 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
   const release = (): void => {
     if (held) core.focusTask(undefined);
     held = false;
+  };
+
+  /** Moves a task one step from the keyboard, says how it went and keeps the bar in view. */
+  const nudge = (id: TaskId, gesture: NudgeGesture, direction: -1 | 1): void => {
+    void core.nudge(id, gesture, direction).then((result) => {
+      if (result.status === 'committed') core.scrollToTask(id, NEAREST);
+      announcer.report(id, result);
+    });
   };
 
   const focus = (id: TaskId): void => {
@@ -151,8 +172,9 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
       if (bar.matches(':focus-visible')) core.scrollToTask(id, NEAREST);
     });
     on('focusout', (event, _bar, id) => {
-      // Its node is being moved or removed: the end of the draw hands the focus on.
-      if (drawing) return;
+      // Its node is being moved or removed, or the window lost the focus and keeps the bar as the
+      // place to return to: the end of the draw hands the focus on, and the browser gives it back.
+      if (drawing || !scroller.ownerDocument.hasFocus()) return;
       held = false;
       // A bar or a row of the same tasks takes it: that says so itself, with no gap between.
       const next = (event.relatedTarget as Partial<Element> | null)?.closest?.(
@@ -162,12 +184,37 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
         core.focusTask(undefined);
       }
     });
+    // The task is told to let go of the focus while a bar has it, from outside: before the next
+    // draw the focus goes to the chart, or a bar would claim it again. Not when the bar's own
+    // `focusout` did it (`held` is off by then).
+    const off = core.on('focusChange', (record) => {
+      if (record === null && held && !drawing) letGo = true;
+    });
+    signal.addEventListener('abort', off);
     on('keydown', (event, bar, id) => {
-      const { feedback, layout } = core.getSnapshot();
+      const snapshot = core.getSnapshot();
+      const { feedback, layout } = snapshot;
       // Keys typed into something drawn in a label are that thing's.
       if (event.target !== bar || feedback.phase !== 'idle') return;
       const { key } = event;
-      if (key === 'Enter' || key === ' ') {
+      if ((key === 'ArrowLeft' || key === 'ArrowRight') && edit()) {
+        // Left and Right edit a task that can be edited this way, and scroll the chart otherwise
+        // (and with Ctrl, Cmd, or Alt alone, which belong to the browser and the system).
+        const gesture = !event.shiftKey ? 'move' : event.altKey ? 'resize-start' : 'resize-end';
+        const can = resolvePermissions(
+          snapshot.state.derived.model.taskById.get(id),
+          snapshot.editing,
+        );
+        if (
+          event.ctrlKey ||
+          event.metaKey ||
+          (event.altKey && !event.shiftKey) ||
+          !(gesture === 'move' ? can.move : can.resize)
+        ) {
+          return;
+        }
+        nudge(id, gesture, key === 'ArrowLeft' ? -1 : 1);
+      } else if (key === 'Enter' || key === ' ') {
         if (!event.repeat) {
           const target = { kind: 'task', id, part: 'body' } as const;
           core.send({ type: 'click', target, modifiers: modifiersOf(event), event });
@@ -205,11 +252,20 @@ export function mountBarFocus(options: BarFocusOptions): BarFocus {
   return {
     focus,
     claim(): void {
-      if (!enabled() || core.getSnapshot().focusedTask !== undefined) return;
+      if (!enabled() || letGo || core.getSnapshot().focusedTask !== undefined) return;
       const id = idOf(barOf(activeElement()));
       if (id !== undefined) core.focusTask(id);
     },
     draw(draw: () => void): void {
+      if (letGo) {
+        letGo = false;
+        // The bar of a task whose row is gone is handed on by the end of this draw, like any.
+        const id = idOf(barOf(activeElement()));
+        if (id !== undefined && core.getSnapshot().layout.rows.rowOf(id) !== undefined) {
+          held = false;
+          scroller.focus({ preventScroll: true });
+        }
+      }
       drawing = true;
       draw();
       drawing = false;

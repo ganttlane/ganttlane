@@ -106,6 +106,9 @@ export function createBarsLayer(options: BarsLayerOptions = {}): RendererLayer<L
         handles: undefined,
         labelOptions: {},
         measure,
+        getTask: (id) => next.getTask(id),
+        strings: next.strings,
+        locale: 'en',
         epoch: 0,
         errors: [],
       };
@@ -125,13 +128,23 @@ export function createBarsLayer(options: BarsLayerOptions = {}): RendererLayer<L
       if (context === undefined || env === undefined || views === undefined) return;
       const { display } = context;
       const { editing, handles } = snapshot;
-      if (env.display !== display || env.editing !== editing || env.handles !== handles) {
+      const { strings } = context;
+      const { locale } = snapshot.header;
+      if (
+        env.display !== display ||
+        env.editing !== editing ||
+        env.handles !== handles ||
+        env.strings !== strings ||
+        env.locale !== locale
+      ) {
         if (env.handles !== handles) {
           env.labelOptions = { handleReach: handles.linkOffset + handles.link };
         }
         env.display = display;
         env.editing = editing;
         env.handles = handles;
+        env.strings = strings;
+        env.locale = locale;
         env.epoch++;
       }
 

@@ -13,5 +13,7 @@ export type { Attrs, AttrValue, DisposableNode } from './elements';
 export { createHtml, createSvg, disposableOf, setAttr, setAttrs, SVG_NS } from './elements';
 export type { Reconciler, ReconcilerSpec } from './reconcile';
 export { createReconciler } from './reconcile';
+export type { SummaryPreview, SummaryStrings, TaskTexts } from './task-summary';
+export { previewOf, taskSummary, taskTexts } from './task-summary';
 export type { DrawnSpan } from './window';
 export { covers, same, spanOf, visibleTime } from './window';

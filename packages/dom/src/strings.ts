@@ -33,6 +33,22 @@ export interface GanttStrings {
   /** The action that removes the link. */
   readonly removeLink: string;
 
+  // ---- what is announced (`keyboard.edit`, `keyboard.announce`) ----
+
+  /**
+   * What is said after a task was changed from the keyboard: `summary` is the task described by
+   * its name, its new dates, its progress and its working days, `others` the number of other
+   * tasks the change moved through links and parents, `0` for none. A plural, like `workingDays`.
+   */
+  readonly taskChanged: (summary: string, others: number, locale: string) => string;
+  /** What is said when a keyboard change left the task as it was: cancelled, or at its limit. */
+  readonly notChanged: (name: string, locale: string) => string;
+  /**
+   * What is said when the selection changes by other means than a press on the bar that has the
+   * focus: `count` tasks are selected, `name` is the first of them (`0`: the selection is empty).
+   */
+  readonly selection: (count: number, name: string, locale: string) => string;
+
   // ---- the toolbar (not available yet: nothing draws these) ----
 
   /** The button that scrolls to today. */
@@ -87,6 +103,17 @@ export const DEFAULT_STRINGS: GanttStrings = Object.freeze<GanttStrings>({
   dateRange: (from, to) => `${from} – ${to}`,
   linkTitle: (source, target) => `${source} → ${target}`,
   removeLink: 'Remove dependency',
+  taskChanged: (summary, others, locale) =>
+    others === 0
+      ? summary
+      : `${summary}; ${count(others, locale)} other ${others === 1 ? 'task' : 'tasks'} changed`,
+  notChanged: (name) => `${name} was not changed`,
+  selection: (selected, name, locale) =>
+    selected === 0
+      ? 'Selection cleared'
+      : selected === 1
+        ? `${name} selected`
+        : `${count(selected, locale)} tasks selected`,
   today: 'Today',
   zoomIn: 'Zoom in',
   zoomOut: 'Zoom out',
