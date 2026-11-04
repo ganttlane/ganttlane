@@ -195,17 +195,18 @@ const column = {
 
 `createTaskList(container, gantt, options)`, and `list.setOptions(patch)` later.
 
-| Option                            | Type                      | Default             | What it does                                                  |
-| --------------------------------- | ------------------------- | ------------------- | ------------------------------------------------------------- |
-| `columns`                         | `TaskListColumn[]`        | the task's name     | See [columns](#columns)                                       |
-| `width`, `minWidth`, `maxWidth`   | `number` (px)             | `280`, `120`, `640` | Its width and what the splitter may do                        |
-| `splitter`                        | `boolean`                 | `true`              | The splitter on its end edge                                  |
-| `indent`                          | `number` (px)             | `16`                | How far each level is indented                                |
-| `theme`                           | `ThemeOption`             | the chart's         | Its `data-theme`; without one it follows the chart            |
-| `strings`                         | `{ label, name, resize }` | English             | Its name, the default header, the splitter's name             |
-| `onRowClick(record, event)`       | function                  |                     | A click, Enter or Space. `preventDefault()` keeps the default |
-| `onRowDoubleClick(record, event)` | function                  |                     | A double click                                                |
-| `onWidthChange(width)`            | function                  |                     | The splitter moved, or `setWidth` was called                  |
+| Option                            | Type                      | Default             | What it does                                                                                 |
+| --------------------------------- | ------------------------- | ------------------- | -------------------------------------------------------------------------------------------- |
+| `columns`                         | `TaskListColumn[]`        | the task's name     | See [columns](#columns)                                                                      |
+| `width`, `minWidth`, `maxWidth`   | `number` (px)             | `280`, `120`, `640` | Its width and what the splitter may do                                                       |
+| `splitter`                        | `boolean`                 | `true`              | The splitter on its end edge                                                                 |
+| `indent`                          | `number` (px)             | `16`                | How far each level is indented                                                               |
+| `cellNavigation`                  | `boolean`                 | `false`             | The keys walk the cells of a row, see [the keyboard](#the-keyboard-and-assistive-technology) |
+| `theme`                           | `ThemeOption`             | the chart's         | Its `data-theme`; without one it follows the chart                                           |
+| `strings`                         | `{ label, name, resize }` | English             | Its name, the default header, the splitter's name                                            |
+| `onRowClick(record, event)`       | function                  |                     | A click, Enter or Space. `preventDefault()` keeps the default                                |
+| `onRowDoubleClick(record, event)` | function                  |                     | A double click                                                                               |
+| `onWidthChange(width)`            | function                  |                     | The splitter moved, or `setWidth` was called                                                 |
 
 The result has `element`, `setOptions(patch)`, `getWidth()`, `setWidth(px)` and `destroy()`.
 
@@ -215,13 +216,13 @@ The result has `element`, `setOptions(patch)`, `getWidth()`, `setWidth(px)` and 
 `<TaskList gantt={instance} … />`. The same options as props, with the width as a controlled or
 uncontrolled pair, and `id`, `className` and `style` for its root:
 
-| Prop                                                                                  | What it does                          |
-| ------------------------------------------------------------------------------------- | ------------------------------------- |
-| `gantt`                                                                               | The chart, from `useGantt`            |
-| `width`, `defaultWidth`, `onWidthChange`                                              | The width, controlled or uncontrolled |
-| `minWidth`, `maxWidth`                                                                | What the splitter may do              |
-| `columns`, `splitter`, `indent`, `theme`, `strings`, `onRowClick`, `onRowDoubleClick` | As in the vanilla list                |
-| `id`, `className`, `style`                                                            | Of its root                           |
+| Prop                                                                                                    | What it does                          |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `gantt`                                                                                                 | The chart, from `useGantt`            |
+| `width`, `defaultWidth`, `onWidthChange`                                                                | The width, controlled or uncontrolled |
+| `minWidth`, `maxWidth`                                                                                  | What the splitter may do              |
+| `columns`, `splitter`, `indent`, `cellNavigation`, `theme`, `strings`, `onRowClick`, `onRowDoubleClick` | As in the vanilla list                |
+| `id`, `className`, `style`                                                                              | Of its root                           |
 
 </TabItem>
 </Tabs>
@@ -240,8 +241,25 @@ The list is a `role="treegrid"` of `role="row"`s, with `aria-level`, `aria-expan
 | Ctrl or Cmd + Enter, Space              | With `selection.multiple`, adds the task or takes it out   |
 | Left, Right, Home, End on the splitter  | Resize the list                                            |
 
-Focus stays on whole rows: moving between the cells of a row is planned with the rest of the
-[accessibility work](../accessibility/).
+### Walking the cells
+
+With `cellNavigation` on, the focus can also be in a cell of the row, as in the ARIA treegrid pattern.
+The row stays the one tab stop, so Tab does not walk the cells, and each cell and column header gets
+an `aria-colindex`. Off, which is the default, nothing about the list changes.
+
+| Key (focus on a row) | What it does                                       |
+| -------------------- | -------------------------------------------------- |
+| Right                | Opens a shut group; else steps into the first cell |
+
+| Key (focus on a cell)        | What it does                                                                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Left, Right                  | The cell before or after; in the tree column they shut or open a group first. Left from the first cell steps back to the row |
+| Up, Down, Page Up, Page Down | The cell of the same column in another row                                                                                   |
+| Home, End                    | The first or last cell of the row                                                                                            |
+| Ctrl or Cmd + Home, End      | The same column in the first or last row                                                                                     |
+| Enter, Space                 | Activates the row, as on the row itself                                                                                      |
+
+Keys typed into something drawn in a cell, such as an input, stay its own.
 
 ### Bars that take the focus
 

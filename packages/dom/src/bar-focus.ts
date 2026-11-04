@@ -40,8 +40,9 @@ export interface BarFocus {
   /** Moves the browser's focus to the bar of a task and scrolls to it. */
   readonly focus: (id: TaskId) => void;
   /**
-   * Call it before every draw: a bar with the browser's focus is the focused task, also after a
-   * `focusTask(undefined)`, or it would not be kept in the document.
+   * Call it before every draw: a bar with the browser's focus is the focused task, or it would not be
+   * kept in the document. Not when the task was just told to let go of the focus: then the draw
+   * moves the focus to the chart.
    */
   claim(): void;
   /**
@@ -68,12 +69,14 @@ const NEAREST: ScrollToTaskOptions = {
  * be tabbed to, and the keys walk from it. The bars layer draws `tabindex` and keeps the focused bar
  * in the document; this is the behaviour.
  *
- * - **Focus.** A bar with the browser's focus, however it got it, is `focusTask`, and takes that back
- *   at the next draw from a `focusTask(undefined)`, which does not move the focus. A press focuses a
+ * - **Focus.** A bar with the browser's focus, however it got it, is `focusTask`. A press focuses a
  *   bar by itself, also with the pointer captured on the scroller, and shows no ring. A `focusTask`
  *   from elsewhere moves the focus only while a bar has it: the surface that holds the focus keeps
  *   it, so a list beside the chart and the bars share one focused task and do not take it from each
- *   other. `focus` is how to move it onto a bar from anywhere.
+ *   other. `focus` is how to move it onto a bar from anywhere. `focusTask(undefined)` while a bar
+ *   has the focus takes it to the chart before the next draw, or the bar would be the focused task
+ *   again, and a window that loses the focus keeps its bar as the focused task: the browser gives
+ *   the focus back to it.
  * - **A bar that goes away or is moved.** Firefox and WebKit send no `focusout` for an element that
  *   leaves the document, and Chromium sends one that looks like any other, also for a node that only
  *   moves when rows are sorted. So what happens during a draw says nothing, and the end of the draw
@@ -85,7 +88,9 @@ const NEAREST: ScrollToTaskOptions = {
  * - **Keys,** on the bar itself and only while no gesture runs: Up and Down go to the bar of the row
  *   above and below (a row without one is skipped), Home and End to the first and last, Page Up and
  *   Page Down a page of rows. Enter and Space are a click (`ClickInput`, modifiers included). Left and
- *   Right stay the scroller's.
+ *   Right stay the scroller's, unless the arrows edit (`keyboard.edit`): then they move the task
+ *   one snap step, with Shift its end, with Alt and Shift its start (`nudge`), and what is said of
+ *   it goes to the announcer. A task that cannot be edited that way leaves the key alone.
  *
  * The listeners are added when the option is first on, so a chart without it has none.
  *

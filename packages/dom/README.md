@@ -720,6 +720,7 @@ thread and tells the page afterwards. Choose `'auto'` when even that matters to 
 | `width`, `minWidth`, `maxWidth`   | `number` (px)                     | `280`, `120`, `640` | Its width and what the splitter may do                                                               |
 | `splitter`                        | `boolean`                         | `true`              | The splitter on its end edge                                                                         |
 | `indent`                          | `number` (px)                     | `16`                | How far each level of the tree is indented                                                           |
+| `cellNavigation`                  | `boolean`                         | `false`             | The keys walk the cells of a row (see below); each cell gets an `aria-colindex`                      |
 | `theme`                           | `'auto'` \| `'light'` \| `'dark'` | the chart's         | Its `data-theme`; without one it follows the chart                                                   |
 | `strings`                         | `{ label, name, resize }`         | English             | Its accessible name, the default header, the splitter's name                                         |
 | `onRowClick(record, event)`       | function                          |                     | A click, Enter or Space; `event.preventDefault()` keeps the task from being selected and scrolled to |
@@ -741,7 +742,13 @@ list that can still be destroyed.
 Page Down, Home and End move; Right opens a group and then steps into it; Left shuts it and then
 steps out to its parent; Enter and Space activate the row (with `selection.multiple`, Ctrl or Cmd
 adds it or takes it out). The splitter is a `role="separator"`: Left, Right, Home and End move it.
-With `keyboard.barFocus` the bars and the rows share one focused task, and the one that holds the
+With `cellNavigation` the focus can be in a cell too, as in the ARIA treegrid pattern: Right on a row
+steps into its first cell (a shut group opens first), Left and Right then move along the row (in the
+tree column they shut and open the group first, and Left from the first cell steps back to the row),
+Up, Down, Page Up and Page Down keep the column, Home and End go to the first and last cell, with
+Ctrl or Cmd to the first and last row of the column, and Enter and Space activate the row. The row
+stays the one tab stop, and keys typed into something drawn in a cell stay its own. With
+`keyboard.barFocus` the bars and the rows share one focused task, and the one that holds the
 browser's focus keeps it.
 
 **The row hover.** A chart on its own lights no row: `--gantt-row-hover-color` is `transparent`, so

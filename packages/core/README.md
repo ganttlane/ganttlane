@@ -604,7 +604,7 @@ the state the chart had.
 
 | Group         | Members                                                                                                                                                                                                                    |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Data          | `setTasks(tasks)`, `setLinks(links)`, `updateTask(id, { start?, end?, progress? })`, `addLink(link)`, `removeLink(id)`                                                                                                     |
+| Data          | `setTasks(tasks)`, `setLinks(links)`, `updateTask(id, { start?, end?, progress? })`, `nudge(id, gesture, direction)`, `addLink(link)`, `removeLink(id)`                                                                    |
 | Options       | `setOptions(patch)` returns the issues of the options now in use                                                                                                                                                           |
 | View          | `setViewMode(id, { keepScroll })`, `zoomTo(pxPerDay, { anchor })`                                                                                                                                                          |
 | Scrolling     | `scrollToDate(date, { align, behavior })`, `scrollToToday(options)`, `scrollToTask(id, { align, alignY, behavior, expand })` (`align` and `alignY` also take `'nearest'` and `false`), `scrollTo({ left, top, behavior })` |
@@ -891,8 +891,11 @@ warning doing its job: remove the key, or filter by `code`.
 The core draws nothing. It does carry what an accessible renderer needs: stable task and link ids,
 row order and depth (`state.derived.rows`), expanded state, the selection, per-task permissions
 (`editing`), the names and dates of every `TaskRecord`, and the strings-free `Issue`s. Roles,
-labels, focus order and keyboard editing belong to the renderer; keyboard editing and focusable bars
-are planned for `@ganttlane/dom` (see its [accessibility status](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#accessibility)).
+labels and focus order belong to the renderer (see the
+[accessibility](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#accessibility) of
+`@ganttlane/dom`). What a key does to a task does not: `nudge(id, gesture, direction)` moves a task or one of
+its edges by one snap step, as an arrow key does, with the snapping, permissions, hooks and propagation
+of the same drag and the reason `'move'`, `'resize-start'` or `'resize-end'`.
 
 ## Browser and runtime support
 

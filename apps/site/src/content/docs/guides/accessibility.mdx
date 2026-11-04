@@ -1,12 +1,12 @@
 ---
 title: Accessibility and browser support
-description: What the chart does for keyboard and assistive-technology users today, what it does not do yet, how to cover the gap, and which browsers, runtimes and tools are supported.
+description: What the chart does for keyboard and assistive-technology users (focusable named bars, keyboard editing, a live region, a task list that is a treegrid), what it does not do, how to cover that, and which browsers, runtimes and tools are supported.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-This page says plainly what accessibility support the chart has now, what is missing, and how to
-serve users who need more in the meantime. It then lists the browsers, runtimes and tools the
+This page says plainly what accessibility support the chart has, what is missing, and how to serve
+users who need more. It then lists the browsers, runtimes and tools the
 library supports, and how that support is tested.
 
 ## Accessibility
@@ -39,11 +39,13 @@ library supports, and how that support is tested.
 
 With [`keyboard.barFocus`](../options/#keyboard), which is off by default, bars take the keyboard
 focus with one tab stop for all of them: the focused bar, else the one that last was if it is still
-drawn, else the first drawn. So tabbing back in never jumps far away. A bar then has `role="button"`,
-its task's name as `aria-label` (its id, if it has no name), and, where
-[`selection.onClick`](../options/#selection) makes a click select it, `aria-pressed`. The ring shows
-from the keyboard only (`:focus-visible`), and it is an outline, so a selected, invalid or conflicting
-bar shows its own state beside it.
+drawn, else the first drawn. So tabbing back in never jumps far away. A bar then has `role="button"`
+and a name that describes the task in one line, as its tooltip does: its name, its dates, its
+progress and its working days (`Design, Mar 3, 2026 – Mar 7, 2026, 80% done · 4 working days`), in
+the chart's `locale` and with its [`strings`](../options/#locale-and-strings). A task with no name is
+named by its id. Where [`selection.onClick`](../options/#selection) makes a click select a bar, it
+also has `aria-pressed`. The ring shows from the keyboard only (`:focus-visible`), and it is an
+outline, so a selected, invalid or conflicting bar shows its own state beside it.
 
 | Key                 | What it does                                                                                  |
 | ------------------- | --------------------------------------------------------------------------------------------- |
@@ -52,30 +54,72 @@ bar shows its own state beside it.
 | Page Up, Page Down  | A page of rows                                                                                |
 | Enter, Space        | A click: `taskClick`, and the selection if [`selection.onClick`](../options/#selection) is on |
 | Ctrl or Cmd + Enter | With `selection.multiple`, adds the task or takes it out; Cmd + Space belongs to macOS        |
-| Left, Right         | Scroll the chart sideways, as on the scroller                                                 |
+| Left, Right         | Scroll the chart sideways, as on the scroller (or edit, see below)                            |
 
 The keys do nothing while a gesture runs or a link is armed, and `Escape` still cancels those. The
 focused bar stays in the document when it scrolls out of view, so it keeps the focus, and it keeps it
-when rows are sorted. If it goes away with its row, the focus goes to the tab stop.
+when rows are sorted. If it goes away with its row, the focus goes to the tab stop. A window that
+loses the focus keeps the bar as the place to return to, and `focusTask(undefined)` called from your
+code takes the focus from the bar to the chart.
 
 Beside a [task list](../task-list/#bars-that-take-the-focus), the bars and the rows share one focused
 task, and the surface that holds the browser's focus keeps it.
 
-### What it does not do yet
+### Editing with the keyboard
+
+With [`keyboard.edit`](../options/#keyboard) (also off by default, and it needs `barFocus`) the arrow
+keys edit the bar that has the focus:
+
+| Key                       | What it does                                  |
+| ------------------------- | --------------------------------------------- |
+| Left, Right               | Moves the task one snap step earlier or later |
+| Shift + Left, Right       | Moves the end of the task: shorter or longer  |
+| Alt + Shift + Left, Right | Moves the start of the task: later or earlier |
+
+Ctrl, Cmd, or Alt alone with an arrow belong to the browser and the system (Ctrl and an arrow
+switches the desktop on a Mac), so the chart leaves them alone. Each press is a whole change: the
+snap step of that gesture (`scheduling.snap`, else the view mode's, else the data step), skipped
+non-working days, the minimum length of one step, the propagation to successors and children, the
+[before-hooks](../events/) and the permissions of a drag. `onTasksChange` hears one change per
+press, with the reason `move`, `resize-start` or `resize-end`; a save-on-change application
+receives one per press, as it does per drag. A task that cannot be edited that way (it is
+`locked`, `editable: false`, or `editing` is off for that kind) does not take the key, and Left and
+Right scroll the chart as they would without the option. The same step is a method, `nudge`, for
+buttons of your own ([Methods](../methods/)).
+
+There is no edit mode to enter, and so nothing to cancel with `Escape`; undo is `undo()` until the
+hotkeys of a later release.
+
+### Announcements
+
+`keyboard.edit` and [`keyboard.announce`](../options/#keyboard) add a hidden live region
+(`div.gantt__live`, `role="status"`) to the chart. A keyboard change says the task with its new
+dates, progress and working days, and how many other tasks the change moved
+(`Design, Mar 3, 2026 – Mar 7, 2026, 80% done · 4 working days; 1 other task changed`), or that the
+task was not changed (a hook cancelled it, or it is at its minimum length). `announce` also says
+when the selection changes other than by a press on a bar that says it is pressed (`select()`, a
+[task list](../task-list/)): `Design selected`, `3 tasks selected`, `Selection cleared`. The words
+are three keys of [`strings`](../options/#locale-and-strings), `taskChanged`, `notChanged` and
+`selection`, which are functions of the values and the locale, so that a language with more plural
+forms can say it right. The [keyboard editing example](../../examples/keyboard-editing/) shows
+both.
+
+### What it does not do
 
 These are not available in this version:
 
-- **Links and handles are not focusable, and bars are only with `keyboard.barFocus`.** A bar's name
-  has no dates yet, and the chart has no grid roles. Without the option a screen reader reads the
-  chart as an unlabelled graphic apart from its region and its tooltips.
-- **Dragging has no keyboard equivalent.** Moving, resizing and linking need a pointer; there are
-  no arrow-key moves, and no keyboard or context-menu way to draw a link.
-- **Changes are not announced** to assistive technology.
-- **The contrast of the default themes has not been audited** against WCAG AA. Check the tokens
-  you use, and override them where they fall short.
+- **The chart has no grid roles of its own.** The [task list](../task-list/) is the grid: a
+  `role="treegrid"` with rows and cells, which the keyboard walks cell by cell when you turn on its
+  `cellNavigation`. The bars are buttons beside it.
+- **Links and the handles of a bar are not focusable.** The arrow keys on the bar resize it instead
+  of the handles. There is no keyboard way to change the progress, to draw a link, or to open the
+  tooltip (`tooltip.trigger: 'focus'` is reported as unsupported).
+- **The contrast of the default themes** is pinned by a test of the token pairs (WCAG AA 4.5:1 for
+  text, 3:1 for bars, links, the focus ring and the invalid and conflict states). A theme of your own
+  has to be checked by you; the tokens are in [Theming](../theming/).
 - **There are no undo and redo hotkeys.** History is available from code (`undo()`, `redo()`).
 
-### Covering the gap
+### Covering the rest
 
 If your users rely on assistive technology or a keyboard, give them the same plan in a form that
 works for them, next to the chart, and let them edit it there:
@@ -108,7 +152,9 @@ The chart is the vanilla chart, so its accessibility is the same. What React add
 
 ### Testing your own use
 
-Tab to the chart and check that the focus ring shows and that the name is announced; switch the
+Tab to the chart and check that the focus ring shows and that the name is announced; with
+`keyboard.barFocus`, `edit` and `announce` on, Tab to a bar, move it with the arrow keys and listen
+to what is said, with the screen readers your users have (VoiceOver, NVDA, JAWS); switch the
 OS to a high-contrast or dark colour scheme and check each theme you ship; turn on
 `prefers-reduced-motion` and check that nothing animates; open the tooltip and the link menu with
 a keyboard-only session and a screen reader.

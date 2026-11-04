@@ -791,13 +791,17 @@ React the selected tasks are the props `selectedKeys` and `defaultSelectedKeys`.
 
 ## Keyboard
 
-| Option              | Type      | Default | What it does                                                    |
-| ------------------- | --------- | ------- | --------------------------------------------------------------- |
-| `keyboard.barFocus` | `boolean` | `false` | Bars take the keyboard focus, with one tab stop for all of them |
+| Option              | Type      | Default | What it does                                                                                                                         |
+| ------------------- | --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `keyboard.barFocus` | `boolean` | `false` | Bars take the keyboard focus, with one tab stop for all of them, and are named with their dates, progress and length                 |
+| `keyboard.edit`     | `boolean` | `false` | Needs `barFocus`. Left and Right move the focused task one snap step, Shift moves its end, Alt and Shift its start                   |
+| `keyboard.announce` | `boolean` | `false` | A live region says when the selection changes other than by a press on a bar. `edit` always adds the region and says what it changed |
 
 Off, a bar cannot be focused and nothing listens for the keys, so existing charts behave as they
-did. See [Accessibility](../accessibility/#focus-on-the-bars) for the keys, and
-[`focusBar(id)`](../methods/#hover-and-focus-of-a-row) to move the focus from code.
+did. See [Accessibility](../accessibility/#focus-on-the-bars) for the keys, the
+[announcements](../accessibility/#announcements), and
+[`focusBar(id)`](../methods/#hover-and-focus-of-a-row) to move the focus from code. The same step as
+`edit` is the method [`nudge`](../methods/#nudge).
 
 ## Display
 
@@ -977,16 +981,19 @@ the **strings** are the words the chart writes itself.
 - Not in `strings`: task names, highlight and holiday labels, the output of `tooltip.render`, and
   the messages of issues.
 
-| Key                                                                        | Type                                                         | Default                                                                                      | Used for                                                            |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `chartLabel`                                                               | `string`                                                     | `'Gantt chart'`                                                                              | The accessible name (`aria-label`) of the chart's focusable region. |
-| `progress`                                                                 | `(percent: number, locale: string) => string`                | `'60% done'`                                                                                 | The progress line of the tooltip.                                   |
-| `workingDays`                                                              | `(days: number, locale: string) => string`                   | `'2.5 working days'`                                                                         | The length line of the tooltip; `days` has one decimal at most.     |
-| `dateRange`                                                                | `(from: string, to: string, locale: string) => string`       | `'Mar 2, 2026 – Mar 6, 2026'`                                                                | The dates line of a task that spans more than one moment.           |
-| `linkTitle`                                                                | `(source: string, target: string, locale: string) => string` | `'Design → Build'`                                                                           | The title of the link menu.                                         |
-| `removeLink`                                                               | `string`                                                     | `'Remove dependency'`                                                                        | The action of the link menu.                                        |
-| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `string`                                                     | `'Today'`, `'Zoom in'`, `'Zoom out'`, `'View mode'`                                          | The toolbar. Not available yet: nothing draws them.                 |
-| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `string`                                                     | `'Hour'`, `'Quarter day'`, `'Half day'`, `'Day'`, `'Week'`, `'Month'`, `'Quarter'`, `'Year'` | The items of a view mode switcher. Not available yet.               |
+| Key                                                                        | Type                                                          | Default                                                                                      | Used for                                                            |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `chartLabel`                                                               | `string`                                                      | `'Gantt chart'`                                                                              | The accessible name (`aria-label`) of the chart's focusable region. |
+| `progress`                                                                 | `(percent: number, locale: string) => string`                 | `'60% done'`                                                                                 | The progress line of the tooltip.                                   |
+| `workingDays`                                                              | `(days: number, locale: string) => string`                    | `'2.5 working days'`                                                                         | The length line of the tooltip; `days` has one decimal at most.     |
+| `dateRange`                                                                | `(from: string, to: string, locale: string) => string`        | `'Mar 2, 2026 – Mar 6, 2026'`                                                                | The dates line of a task that spans more than one moment.           |
+| `linkTitle`                                                                | `(source: string, target: string, locale: string) => string`  | `'Design → Build'`                                                                           | The title of the link menu.                                         |
+| `removeLink`                                                               | `string`                                                      | `'Remove dependency'`                                                                        | The action of the link menu.                                        |
+| `taskChanged`                                                              | `(summary: string, others: number, locale: string) => string` | `'Design, Mar 3, 2026 – …; 1 other task changed'`                                            | What is said after a keyboard change (`keyboard.edit`).             |
+| `notChanged`                                                               | `(name: string, locale: string) => string`                    | `'Design was not changed'`                                                                   | What is said when a keyboard change left the task as it was.        |
+| `selection`                                                                | `(count: number, name: string, locale: string) => string`     | `'Design selected'`, `'3 tasks selected'`, `'Selection cleared'`                             | What is said when the selection changes (`keyboard.announce`).      |
+| `today`, `zoomIn`, `zoomOut`, `viewMode`                                   | `string`                                                      | `'Today'`, `'Zoom in'`, `'Zoom out'`, `'View mode'`                                          | The toolbar. Not available yet: nothing draws them.                 |
+| `hour`, `quarterDay`, `halfDay`, `day`, `week`, `month`, `quarter`, `year` | `string`                                                      | `'Hour'`, `'Quarter day'`, `'Half day'`, `'Day'`, `'Week'`, `'Month'`, `'Quarter'`, `'Year'` | The items of a view mode switcher. Not available yet.               |
 
 ```ts
 createGantt(container, {

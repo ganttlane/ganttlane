@@ -750,6 +750,7 @@ function Plan() {
 | `width`, `defaultWidth`, `onWidthChange` | The width, controlled or uncontrolled (default `280`)                                                                               |
 | `minWidth`, `maxWidth`                   | What the splitter may do (default `120`, `640`)                                                                                     |
 | `splitter`, `indent`, `theme`, `strings` | The splitter, the indent of a level, its own theme (default the chart's), text                                                      |
+| `cellNavigation`                         | The keys walk the cells of a row, as in the ARIA treegrid pattern; each cell gets an `aria-colindex` (default `false`)              |
 | `onRowClick`, `onRowDoubleClick`         | `(record, event)`, always the latest. `preventDefault()` keeps a click from selecting and scrolling                                 |
 | `id`, `className`, `style`               | Of its root                                                                                                                         |
 
@@ -841,15 +842,19 @@ The chart is the vanilla chart, so its accessibility is that of
 [`@ganttlane/dom`](https://github.com/ganttlane/ganttlane/blob/main/packages/dom/README.md#accessibility): a named, focusable scroller region (its label is
 the `strings.chartLabel` prop), tooltips with `role="tooltip"` and `aria-describedby`, link menus with
 `role="menu"`, focus rings and `prefers-reduced-motion`. Bars take the keyboard focus with the
-`keyboard={{ barFocus: true }}` prop; links and handles are not focusable yet, and dragging has no
-keyboard equivalent (planned, together with ARIA roles and announcements).
+`keyboard={{ barFocus: true }}` prop, named with their dates, progress and working days;
+`keyboard={{ barFocus: true, edit: true }}` lets the arrow keys move and resize the focused bar one
+snap step, and says the result in a hidden live region (`keyboard.announce` adds the selection to
+what is said). They are props like the others, off by default. Links and the handles of a bar are
+not focusable, and there is no keyboard way to draw a link.
 
 What React adds: `id`, `aria-*` and `data-*` props go to the container `div`, and the content you
 draw through the [slots](#slots-tooltip-link-menu-and-bar-label-as-reactnode) is your React, so its
 semantics, labels and focus behaviour are yours. A tooltip or menu that holds buttons or inputs is
 interactive (`tooltip.trigger: 'click'`, or a link menu): it takes pointer events, a link menu also
-moves the focus to its first button, and `Escape` or a press outside closes it. Until bars are focusable, give users who rely on
-assistive technology the same plan as a table or a list next to the chart.
+moves the focus to its first button, and `Escape` or a press outside closes it. Give users who rely on
+assistive technology the same plan as a table or a list next to the chart: the
+[`<TaskList>`](#tasklist) is a `role="treegrid"` that the keyboard walks.
 
 ## Browser and React support
 

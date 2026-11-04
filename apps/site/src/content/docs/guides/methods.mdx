@@ -47,6 +47,7 @@ The methods are the members of the [`Gantt`](../../api/ganttlane/dom/interfaces/
 | Method             | Statuses it can report                                                                                                     |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | `updateTask`       | `committed`, `unchanged`, `rejected` (`unknown-task`, `invalid-value`), `cancelled` (`hook`, `error`, `disposed`), `busy`  |
+| `nudge`            | `committed`, `unchanged`, `refused` (`permission`, `unknown-task`), `cancelled` (`hook`, `error`, `disposed`), `busy`      |
 | `addLink`          | `created`, `rejected` (`invalid`, `unknown-task`, `duplicate`, `cycle`), `cancelled` (`hook`, `error`, `disposed`), `busy` |
 | `removeLink`       | `deleted`, `rejected` (`unknown-link`), `cancelled` (`disposed`), `busy`                                                   |
 | `edit.begin()`     | `begun`, `already-open`, `busy`, `cancelled` (`disposed`)                                                                  |
@@ -62,6 +63,7 @@ The methods are the members of the [`Gantt`](../../api/ganttlane/dom/interfaces/
 | Options      | [`setOptions(patch)`](#setoptions)                                    | `readonly Issue[]`                    |
 | Data         | [`setTasks(tasks)`, `setLinks(links)`](#settasks-and-setlinks)        | `void`                                |
 |              | [`updateTask(id, update)`](#updatetask)                               | `Promise<UpdateTaskResult>`           |
+|              | [`nudge(id, gesture, direction)`](#nudge)                             | `Promise<NudgeResult>`                |
 |              | [`addLink(link)`](#addlink)                                           | `Promise<LinkCreateResult>`           |
 |              | [`removeLink(id)`](#removelink)                                       | `Promise<LinkDeleteResult>`           |
 | View         | [`setViewMode(id, options?)`](#setviewmode)                           | `void`                                |
@@ -237,6 +239,25 @@ switch (result.status) {
 With controlled data, a `'committed'` update leaves the chart busy until your next `setTasks`; the
 next `updateTask` before that resolves `'busy'`. See the
 [programmatic updates example](../../examples/programmatic-updates/).
+
+### `nudge`
+
+```ts
+nudge(id: TaskId, gesture: 'move' | 'resize-start' | 'resize-end', direction: -1 | 1): Promise<NudgeResult>
+```
+
+Moves a task, or one of its edges, by **one snap step**: what an arrow key does with
+[`keyboard.edit`](../options/#keyboard), for buttons of your own. The edge goes to the next boundary
+of the step of that gesture (`scheduling.snap`, else the view mode's, else the data step) in
+`direction` (`-1` earlier, `1` later), and nothing else differs from dragging it there: snapping,
+skipped non-working days, the minimum length of one step, the propagation through links and
+children, the before-hooks and the permissions (`editing`, `editable`, `locked`, `fixedDuration`).
+Where `updateTask` takes exact values from code and has the reason `'api'`, a nudge is a UI action:
+its `ChangeSet` has the reason `'move'`, `'resize-start'` or `'resize-end'`, and a refusal is
+emitted as `editRefused`.
+
+The result is the commit's (`committed`, `unchanged` when the edge cannot move that way,
+`cancelled`, `busy`), or `{ status: 'refused', reason: 'permission' | 'unknown-task' }`.
 
 ### `addLink`
 
