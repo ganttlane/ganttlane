@@ -119,6 +119,31 @@ describe('keyboard.undo: Ctrl / Cmd + Z (FR-TX-5)', () => {
     gantt.destroy();
   });
 
+  it('FR-TX-5: a symbol, an accented Latin letter or a named key on the Z / Y position is no combination', async () => {
+    const { gantt, bar } = create();
+    move(gantt);
+    await vi.advanceTimersByTimeAsync(0);
+    bar('a').focus();
+    // Dvorak types ";" and BÉPO "à" on the physical Z; "Copy" has the code "Copy".
+    for (const [key, code] of [
+      [';', 'KeyZ'],
+      ['à', 'KeyZ'],
+    ] as const) {
+      expect(press(bar('a'), key, { ctrlKey: true, code }).defaultPrevented).toBe(false);
+      expect(start(gantt, 'a')).toBe('2026-03-03');
+    }
+    press(bar('a'), 'z', { ctrlKey: true });
+    expect(start(gantt, 'a')).toBe('2026-03-02');
+    for (const [key, init] of [
+      [':', { ctrlKey: true, shiftKey: true, code: 'KeyZ' }],
+      ['Copy', { ctrlKey: true, code: 'Copy' }],
+    ] as const) {
+      expect(press(bar('a'), key, init).defaultPrevented).toBe(false);
+      expect(start(gantt, 'a')).toBe('2026-03-02');
+    }
+    gantt.destroy();
+  });
+
   it('FR-TX-5: Cmd + Y, Alt, a plain Z and Ctrl + Shift + Y are not the keys', async () => {
     const { gantt, bar } = create();
     move(gantt);

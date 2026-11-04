@@ -23,8 +23,8 @@ export interface HistoryKeysOptions {
 /**
  * The keys of undo and redo (`keyboard.undo`): Ctrl or Cmd + Z undoes; Ctrl or Cmd + Shift + Z and
  * Ctrl + Y redo (Cmd + Y is the browser's history). A Latin letter is read from `event.key`, so
- * Dvorak and AZERTY follow what is printed; on a layout whose key is not a Latin letter (Cyrillic,
- * Greek) the physical key, `event.code`, decides.
+ * Dvorak and AZERTY follow what is printed; on a layout that types a letter of another script
+ * (Cyrillic, Greek) the physical key, `event.code`, decides.
  *
  * - **Where.** Only a key pressed on the scroller itself or on a bar: an input, a `contenteditable`
  *   or a control of a slot keeps its own undo, and a focus outside the chart never gets here.
@@ -57,9 +57,14 @@ export function mountHistoryKeys(options: HistoryKeysOptions): () => void {
         ) {
           return;
         }
-        // The typed letter, so Dvorak and AZERTY follow their print; a key that is not a Latin
-        // letter (Cyrillic, Greek) falls back to the physical key, which is where Z and Y sit.
-        const letter = /^[a-z]$/i.test(key) ? key.toLowerCase() : code.slice(3).toLowerCase();
+        // A Latin letter is read as typed, so Dvorak and AZERTY follow their print. Only a single
+        // letter of another script (Cyrillic, Greek) falls back to the physical key, where Z and Y
+        // sit; a symbol, an accented Latin letter or a named key (`Copy`) is no combination.
+        const letter = /^[a-z]$/i.test(key)
+          ? key.toLowerCase()
+          : /^(?!\p{Script=Latin})\p{L}$/u.test(key)
+            ? code.slice(3).toLowerCase()
+            : '';
         const redo =
           letter === 'y' ? !event.metaKey && !event.shiftKey : letter === 'z' && event.shiftKey;
         if (!redo && !(letter === 'z' && !event.shiftKey)) return;
