@@ -1,5 +1,47 @@
 # @ganttlane/dom
 
+## 0.5.0
+
+### Minor Changes
+
+- 39f5a3f: Builds that load from a CDN with no bundler. The tarball now has, in `dist/`:
+
+  - `ganttlane.global.prod.js`: one minified file that sets the global `Ganttlane`, with everything
+    `@ganttlane/dom` exports plus `createTaskList` and `fromFrappeGanttOptions`. The core,
+    `@internationalized/date` and `valibot` are inside, so a plain `<script src>` is enough. About
+    270 kB, 90 kB gzipped. The `jsdelivr` and `unpkg` fields point at it, so
+    `https://cdn.jsdelivr.net/npm/@ganttlane/dom` serves it instead of a 404.
+  - `ganttlane.global.js`: the same, readable, with the full issue messages and the hints for old
+    option names (the development build).
+  - `styles.min.css`: the stylesheet, minified (3.6 kB gzipped).
+  - `THIRD-PARTY-LICENSES.txt`: the licences of the code inside the scripts. Each script starts with a
+    comment that names that code and points at this file.
+
+  The files are not in `exports`, so bundlers never pick them up, and the existing entries,
+  `sideEffects` and size budgets do not change. The ES module route (`+esm` on jsDelivr, esm.sh) works
+  as before; the installation guide, the README and the migration guide now describe both routes, and
+  how to pin a version and use Subresource Integrity.
+
+- 5d2b76a: Hotkeys for undo and redo. Off by default, so existing charts behave as they did: nothing listens for
+  the keys unless you ask.
+
+  - `keyboard.undo` (with `history`): Ctrl or Cmd + Z undoes the last action, Ctrl or Cmd + Shift + Z and
+    Ctrl + Y redo it. The keys are heard only with the focus on a bar or on the chart's scrollable region,
+    so an input, a `contenteditable` or a control of a slot keeps its own undo. They do nothing during a
+    drag or while a change waits to be applied, and a key that has nothing to do (no `history`, nothing to
+    undo) stays with the browser. A Latin letter is read from the typed character; on a layout that types
+    a letter of another script (Cyrillic, Greek) the physical Z and Y keys are used. The `keyboard` prop
+    of `<Gantt>` and `useGantt` takes it too.
+  - With `keyboard.announce`, or `keyboard.edit` with `barFocus`, the live region says the result: two new
+    `strings`, `undone` and `redone`, functions of the first changed task's description and the locale.
+    A custom `strings` object that lists every key (a full translation) should add them; one that is
+    merged over the defaults needs nothing.
+
+### Patch Changes
+
+- Updated dependencies [5d2b76a]
+  - @ganttlane/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
