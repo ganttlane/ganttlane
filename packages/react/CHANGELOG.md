@@ -1,5 +1,53 @@
 # @ganttlane/react
 
+## 0.5.0
+
+### Minor Changes
+
+- 4cb1652: Compound components and a hook that follows one task. Nothing changes for an app that uses
+  `<Gantt>`, `useGantt`, `useGanttState(gantt, selector)` or `<TaskList gantt>`: they take the same
+  props, give the same results, and an app that imports only `<Gantt>` ships no code of the new parts.
+
+  - `<GanttRoot {...options}>` makes a chart (it takes the props of `<Gantt>`) and shares it with the
+    components below it. It draws no element of its own, and the portals of the slots are inside it, so
+    what `renderTooltip`, `renderLinkMenu` and `renderBarLabel` return sees its context.
+  - `<GanttChart>` is the `div` the chart is drawn into, with the `id`, `className`, `style`, `aria-*`
+    and `data-*` props of `<Gantt>`. A root has one; a second one is reported in development.
+  - `useGanttContext()` is the chart of the root. `useGanttState(selector, isEqual?)` reads a slice of
+    it, and `<TaskList>` takes it when it is given no `gantt`. They throw, with a message that names
+    them, outside a root. A context cannot know the type of `task.data`: `GanttRoot` infers it from its
+    props, below it you name it (`useGanttContext<MyData>()`).
+  - `useGanttBar(id, gantt?)` follows one task: its record, `draft` (the dates and progress the chart
+    shows while the bar is dragged, or a change of controlled data that is not applied yet),
+    `isDragging`, `isSelected`, `isFocused` and `box`, where its bar is drawn in px from the corner of the
+    chart's element, for a panel that goes with the bar. It renders again only when one of these changes.
+  - Not components: the header, the grid, the bars and the links. The vanilla renderer draws them as
+    one skeleton, so there is no `Gantt.Header` or `Gantt.Bars` to compose; style them with CSS.
+  - The `TaskListProps.gantt` prop is now optional in the types.
+  - A guide (Composing a chart in React), the `react-compound` example and the README of the package.
+
+- 5d2b76a: Hotkeys for undo and redo. Off by default, so existing charts behave as they did: nothing listens for
+  the keys unless you ask.
+
+  - `keyboard.undo` (with `history`): Ctrl or Cmd + Z undoes the last action, Ctrl or Cmd + Shift + Z and
+    Ctrl + Y redo it. The keys are heard only with the focus on a bar or on the chart's scrollable region,
+    so an input, a `contenteditable` or a control of a slot keeps its own undo. They do nothing during a
+    drag or while a change waits to be applied, and a key that has nothing to do (no `history`, nothing to
+    undo) stays with the browser. A Latin letter is read from the typed character; on a layout that types
+    a letter of another script (Cyrillic, Greek) the physical Z and Y keys are used. The `keyboard` prop
+    of `<Gantt>` and `useGantt` takes it too.
+  - With `keyboard.announce`, or `keyboard.edit` with `barFocus`, the live region says the result: two new
+    `strings`, `undone` and `redone`, functions of the first changed task's description and the locale.
+    A custom `strings` object that lists every key (a full translation) should add them; one that is
+    merged over the defaults needs nothing.
+
+### Patch Changes
+
+- Updated dependencies [39f5a3f]
+- Updated dependencies [5d2b76a]
+  - @ganttlane/dom@0.5.0
+  - @ganttlane/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
